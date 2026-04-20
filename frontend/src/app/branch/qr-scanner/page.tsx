@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useMutation } from '@tanstack/react-query';
 import { attendanceApi } from '@/lib/api';
+import { AxiosError } from 'axios';
 import jsQR from 'jsqr';
 
 interface User {
@@ -67,7 +68,7 @@ export default function BranchQRScannerPage() {
         setCooldown(false);
       }, 2000);
     },
-    onError: (error: any) => {
+    onError: (error: AxiosError<{ message?: string }>) => {
       setScanResult({ success: false, message: error.response?.data?.message || 'Scan Failed', show: true });
       setCooldown(true);
       setTimeout(() => {
@@ -88,7 +89,7 @@ export default function BranchQRScannerPage() {
         setCooldown(false);
       }, 2000);
     },
-    onError: (error: any) => {
+    onError: (error: AxiosError<{ message?: string }>) => {
       setScanResult({ success: false, message: error.response?.data?.message || 'Scan Failed', show: true });
       setCooldown(true);
       setTimeout(() => {

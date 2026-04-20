@@ -200,14 +200,14 @@ export interface LogEntry {
   entityName?: string;
   description: string;
   details?: {
-    before?: Record<string, any>;
-    after?: Record<string, any>;
+    before?: Record<string, unknown>;
+    after?: Record<string, unknown>;
     changes?: string[];
   };
   ipAddress?: string;
   userAgent?: string;
   status: 'SUCCESS' | 'FAILED' | 'PENDING';
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 export const logsApi = {

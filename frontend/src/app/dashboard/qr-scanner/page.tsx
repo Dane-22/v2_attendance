@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { attendanceApi } from '@/lib/api';
+import { AxiosError } from 'axios';
 import jsQR from 'jsqr';
 
 export default function QRScannerPage() {
@@ -19,7 +20,7 @@ export default function QRScannerPage() {
       setScanResult({ success: true, message: `Clocked in at ${new Date().toLocaleTimeString()}` });
       setTimeout(() => setScanResult(null), 3000);
     },
-    onError: (error: any) => {
+    onError: (error: AxiosError<{ message?: string }>) => {
       setScanResult({ success: false, message: error.response?.data?.message || 'Clock in failed' });
       setTimeout(() => setScanResult(null), 3000);
     },
@@ -32,7 +33,7 @@ export default function QRScannerPage() {
       setScanResult({ success: true, message: `Clocked out at ${new Date().toLocaleTimeString()}` });
       setTimeout(() => setScanResult(null), 3000);
     },
-    onError: (error: any) => {
+    onError: (error: AxiosError<{ message?: string }>) => {
       setScanResult({ success: false, message: error.response?.data?.message || 'Clock out failed' });
       setTimeout(() => setScanResult(null), 3000);
     },

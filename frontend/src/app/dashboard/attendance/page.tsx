@@ -2,7 +2,8 @@
 
 import { useState, useMemo } from 'react';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
-import { branchApi, attendanceApi, employeeApi, Branch, BranchEmployee } from '@/lib/api';
+import { branchApi, attendanceApi, employeeApi, Branch, BranchEmployee, Attendance } from '@/lib/api';
+import { AxiosError } from 'axios';
 import { Search, Plus, X, RotateCcw, Lightbulb, Clock, UserX, UserCheck, ChevronLeft, ChevronRight, CheckCircle, Loader2, LogIn, LogOut } from 'lucide-react';
 
 // Employee type from API
@@ -117,10 +118,10 @@ export default function AttendancePage() {
       await queryClient.refetchQueries({ queryKey: ['branch-employees', selectedBranch], exact: true });
       await queryClient.refetchQueries({ queryKey: ['today-attendance-all'], exact: true });
     },
-    onError: (error: any) => {
+    onError: (error: AxiosError<{ message?: string; error?: string }>) => {
       console.error('Clock-in error:', error);
-      console.log('Error response data:', error?.response?.data);
-      const message = error?.response?.data?.message || error?.response?.data?.error || error?.message || 'Failed to clock in';
+      console.log('Error response data:', error.response?.data);
+      const message = error.response?.data?.message || error.response?.data?.error || error.message || 'Failed to clock in';
       console.log('Alert message:', message);
       window.alert(message);
     }
@@ -136,9 +137,9 @@ export default function AttendancePage() {
       await queryClient.refetchQueries({ queryKey: ['branch-employees', selectedBranch], exact: true });
       await queryClient.refetchQueries({ queryKey: ['today-attendance-all'], exact: true });
     },
-    onError: (error: any) => {
+    onError: (error: AxiosError<{ message?: string }>) => {
       console.error('Clock-out error:', error);
-      alert(error?.response?.data?.message || error?.message || 'Failed to clock out');
+      alert(error.response?.data?.message || error.message || 'Failed to clock out');
     }
   });
 
@@ -155,7 +156,7 @@ export default function AttendancePage() {
     
     // Create attendance map by employee ID (find most recent incomplete record)
     const attendanceMap = new Map<number, { timeIn: string | null; timeOut: string | null; status: string | null; attendanceId: number | null }>();
-    todayAttendance.forEach((record: any) => {
+    todayAttendance.forEach((record: Attendance) => {
       const existing = attendanceMap.get(record.employeeId);
       // Only update if no existing record or this one has no check_out (active shift)
       if (!existing || (!existing.timeOut && record.check_out)) {

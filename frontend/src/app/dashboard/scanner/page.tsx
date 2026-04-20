@@ -7,6 +7,7 @@ import { ScanLine, Zap, AlertCircle, User, QrCode, Keyboard } from 'lucide-react
 import jsQR from 'jsqr';
 import { useAppStore, useBranchCode } from '@/store/appStore';
 import { attendanceApi } from '@/lib/api';
+import { AxiosError } from 'axios';
 
 // QR Data Interface
 interface ParsedQRData {
@@ -197,7 +198,7 @@ export default function HybridScannerPage() {
       const parsed = parseQRCode(variables.qrCodeData);
       showSuccessResult(parsed, 'clock-in');
     },
-    onError: (error: any) => {
+    onError: (error: AxiosError<{ message?: string }>) => {
       showErrorResult(error.response?.data?.message || 'Clock in failed');
     },
   });
@@ -209,7 +210,7 @@ export default function HybridScannerPage() {
       const parsed = parseQRCode(variables.qrCodeData);
       showSuccessResult(parsed, 'clock-out');
     },
-    onError: (error: any) => {
+    onError: (error: AxiosError<{ message?: string }>) => {
       showErrorResult(error.response?.data?.message || 'Clock out failed');
     },
   });
