@@ -63,9 +63,13 @@ export const getBranchEmployees = async (
 ): Promise<void> => {
   try {
     const { branchCode } = req.params;
-    // Use UTC date to match the date stored by clock-in
+    console.log('=== GET BRANCH EMPLOYEES ===');
+    console.log('Branch code:', branchCode);
+
+    // Get current date in local timezone and convert to UTC midnight for comparison
     const now = new Date();
     const today = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
+    console.log('Today date:', today);
 
     // Get employees for this branch (case insensitive search)
     const employees = await prisma.employee.findMany({
@@ -86,17 +90,40 @@ export const getBranchEmployees = async (
       }
     });
 
+    console.log('Found employees:', employees.length);
+    console.log('Employee IDs:', employees.map(e => e.id));
+
     // Get today's attendance for these employees
     const employeeIds = employees.map(e => e.id);
     const todayAttendance = await prisma.attendance.findMany({
       where: {
         employeeId: { in: employeeIds },
         date: today
-      }
+      },
+      orderBy: { check_in: 'desc' }
     });
 
-    // Create attendance map
-    const attendanceMap = new Map(todayAttendance.map(a => [a.employeeId, a]));
+    console.log('Found attendance records:', todayAttendance.length);
+    console.log('Attendance data:', todayAttendance.map(a => ({ id: a.id, empId: a.employeeId, check_in: a.check_in, check_out: a.check_out })));
+
+    // Create attendance map - find most recent incomplete record for each employee
+    // If no incomplete record, use the most recent complete one
+    const attendanceMap = new Map();
+    // First pass: find most recent incomplete (active) record for each employee
+    todayAttendance.forEach((record) => {
+      if (!record.check_out && record.check_in) {
+        const existing = attendanceMap.get(record.employeeId);
+        if (!existing || (existing.check_in && new Date(record.check_in) > new Date(existing.check_in))) {
+          attendanceMap.set(record.employeeId, record);
+        }
+      }
+    });
+    // Second pass: if no incomplete record, use most recent complete one
+    todayAttendance.forEach((record) => {
+      if (!attendanceMap.has(record.employeeId)) {
+        attendanceMap.set(record.employeeId, record);
+      }
+    });
 
     // Format employees with attendance data
     const formattedEmployees = employees.map(emp => {
@@ -145,6 +172,10 @@ export const getBranchEmployees = async (
         attendanceId: attendance?.id || null
       };
     });
+
+    console.log('Attendance map entries:', Array.from(attendanceMap.entries()).map(([k, v]) => ({ empId: k, attId: v.id, check_in: v.check_in, check_out: v.check_out })));
+    console.log('Formatted employees:', formattedEmployees.map(e => ({ id: e.id, name: e.name, timeIn: e.timeIn, timeOut: e.timeOut })));
+    console.log('=== END GET BRANCH EMPLOYEES ===');
 
     res.json({
       success: true,

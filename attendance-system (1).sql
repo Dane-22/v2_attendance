@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1:3306
--- Generation Time: Apr 20, 2026 at 01:54 AM
+-- Generation Time: Apr 20, 2026 at 08:40 AM
 -- Server version: 8.4.7
 -- PHP Version: 8.3.28
 
@@ -20,6 +20,51 @@ SET time_zone = "+00:00";
 --
 -- Database: `attendance-system`
 --
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `activity_logs`
+--
+
+DROP TABLE IF EXISTS `activity_logs`;
+CREATE TABLE IF NOT EXISTS `activity_logs` (
+  `id` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `timestamp` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `user_id` int NOT NULL,
+  `user_name` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `user_role` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `action_type` enum('CREATE','UPDATE','DELETE','LOGIN','LOGOUT','EXPORT','SCAN','APPROVE','REJECT','VIEW') COLLATE utf8mb4_unicode_ci NOT NULL,
+  `entity_type` enum('EMPLOYEE','ATTENDANCE','PAYROLL','SETTINGS','USER','BRANCH','DOCUMENT') COLLATE utf8mb4_unicode_ci NOT NULL,
+  `entity_id` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `entity_name` varchar(200) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `description` text COLLATE utf8mb4_unicode_ci NOT NULL,
+  `details_before` json DEFAULT NULL,
+  `details_after` json DEFAULT NULL,
+  `changes` json DEFAULT NULL,
+  `ip_address` varchar(45) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `user_agent` text COLLATE utf8mb4_unicode_ci,
+  `status` enum('SUCCESS','FAILED','PENDING') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'SUCCESS',
+  `metadata` json DEFAULT NULL,
+  `branch_id` int DEFAULT NULL,
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_logs_timestamp` (`timestamp`),
+  KEY `idx_logs_user_id` (`user_id`),
+  KEY `idx_logs_action_type` (`action_type`),
+  KEY `idx_logs_entity_type` (`entity_type`),
+  KEY `idx_logs_status` (`status`),
+  KEY `idx_logs_entity_id` (`entity_id`),
+  KEY `idx_logs_branch_id` (`branch_id`),
+  KEY `idx_logs_timestamp_action` (`timestamp`,`action_type`)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+--
+-- Dumping data for table `activity_logs`
+--
+
+INSERT INTO `activity_logs` (`id`, `timestamp`, `user_id`, `user_name`, `user_role`, `action_type`, `entity_type`, `entity_id`, `entity_name`, `description`, `details_before`, `details_after`, `changes`, `ip_address`, `user_agent`, `status`, `metadata`, `branch_id`, `created_at`) VALUES
+('log-test-001', '2026-04-20 14:10:01', 1, 'Admin User', 'super_admin', 'LOGIN', 'USER', NULL, 'System', 'User logged in successfully', NULL, NULL, NULL, NULL, NULL, 'SUCCESS', NULL, NULL, '2026-04-20 14:10:01');
 
 -- --------------------------------------------------------
 
@@ -49,13 +94,13 @@ CREATE TABLE IF NOT EXISTS `admins` (
 
 INSERT INTO `admins` (`id`, `username`, `password`, `name`, `email`, `role`, `created_at`, `updated_at`, `branch_code`) VALUES
 (1, 'admin', '$2y$10$vmPwtKtbjf5fKta5Ve6YWOW7CtW82qvUgbN5jynSKSoSM315./kb2', 'Super Administrator', 'admin@jajr.com', 'super_admin', '2026-04-14 03:02:42', '2026-04-14 03:12:08', NULL),
-(14, 'branch-e', '$2y$10$3ytjyW/KOW/muKN3yUXB9edeoZrtRqVIpHpHk8/JTXADvnT9wRzcC', 'Branch E Device - Main Office', 'branch-e@jajr.local', '', '2026-04-14 08:14:43', '2026-04-14 08:14:43', 'E'),
-(13, 'branch-d', '$2y$10$3ytjyW/KOW/muKN3yUXB9edeoZrtRqVIpHpHk8/JTXADvnT9wRzcC', 'Branch D Device - Panicsican', 'branch-d@jajr.local', '', '2026-04-14 08:14:43', '2026-04-14 08:14:43', 'D'),
-(12, 'branch-c', '$2y$10$3ytjyW/KOW/muKN3yUXB9edeoZrtRqVIpHpHk8/JTXADvnT9wRzcC', 'Branch C Device - Sundara', 'branch-c@jajr.local', '', '2026-04-14 08:14:43', '2026-04-14 08:14:43', 'C'),
-(11, 'branch-b', '$2y$10$3ytjyW/KOW/muKN3yUXB9edeoZrtRqVIpHpHk8/JTXADvnT9wRzcC', 'Branch B Device - BCDA', 'branch-b@jajr.local', '', '2026-04-14 08:14:43', '2026-04-14 08:14:43', 'B'),
-(10, 'branch-a', '$2y$10$3ytjyW/KOW/muKN3yUXB9edeoZrtRqVIpHpHk8/JTXADvnT9wRzcC', 'Branch A Device - Sto. Rosario', 'branch-a@jajr.local', '', '2026-04-14 08:14:43', '2026-04-14 08:14:43', 'A'),
-(15, 'branch-f', '$2y$10$3ytjyW/KOW/muKN3yUXB9edeoZrtRqVIpHpHk8/JTXADvnT9wRzcC', 'Branch F Device - Capitol', 'branch-f@jajr.local', '', '2026-04-14 08:14:43', '2026-04-14 08:14:43', 'F'),
-(16, 'branch-h', '$2y$10$u8Sg7it/ARTuqRGOGI.U0.CHNUrpkJMqJ4XzZGEy3sLcv2NlR3L96', 'Branch Device - Testing Branch', 'branch-h@jajr.local', '', '2026-04-17 04:23:23', '2026-04-17 04:23:23', 'H');
+(14, 'branch-e', '$2y$10$3ytjyW/KOW/muKN3yUXB9edeoZrtRqVIpHpHk8/JTXADvnT9wRzcC', 'Branch E Device - Main Office', 'branch-e@jajr.local', 'admin', '2026-04-14 08:14:43', '2026-04-20 02:16:48', 'E'),
+(13, 'branch-d', '$2y$10$3ytjyW/KOW/muKN3yUXB9edeoZrtRqVIpHpHk8/JTXADvnT9wRzcC', 'Branch D Device - Panicsican', 'branch-d@jajr.local', 'admin', '2026-04-14 08:14:43', '2026-04-20 02:16:48', 'D'),
+(12, 'branch-c', '$2y$10$3ytjyW/KOW/muKN3yUXB9edeoZrtRqVIpHpHk8/JTXADvnT9wRzcC', 'Branch C Device - Sundara', 'branch-c@jajr.local', 'admin', '2026-04-14 08:14:43', '2026-04-20 02:16:48', 'C'),
+(11, 'branch-b', '$2y$10$3ytjyW/KOW/muKN3yUXB9edeoZrtRqVIpHpHk8/JTXADvnT9wRzcC', 'Branch B Device - BCDA', 'branch-b@jajr.local', 'admin', '2026-04-14 08:14:43', '2026-04-20 02:16:48', 'B'),
+(10, 'branch-a', '$2y$10$3ytjyW/KOW/muKN3yUXB9edeoZrtRqVIpHpHk8/JTXADvnT9wRzcC', 'Branch A Device - Sto. Rosario', 'branch-a@jajr.local', 'admin', '2026-04-14 08:14:43', '2026-04-20 02:16:48', 'A'),
+(15, 'branch-f', '$2y$10$3ytjyW/KOW/muKN3yUXB9edeoZrtRqVIpHpHk8/JTXADvnT9wRzcC', 'Branch F Device - Capitol', 'branch-f@jajr.local', 'admin', '2026-04-14 08:14:43', '2026-04-20 02:16:48', 'F'),
+(16, 'branch-h', '$2y$10$u8Sg7it/ARTuqRGOGI.U0.CHNUrpkJMqJ4XzZGEy3sLcv2NlR3L96', 'Branch Device - Testing Branch', 'branch-h@jajr.local', 'admin', '2026-04-17 04:23:23', '2026-04-20 02:16:48', 'H');
 
 -- --------------------------------------------------------
 
@@ -76,48 +121,30 @@ CREATE TABLE IF NOT EXISTS `attendance` (
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
-) ENGINE=MyISAM AUTO_INCREMENT=58 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=MyISAM AUTO_INCREMENT=168 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
 -- Dumping data for table `attendance`
 --
 
 INSERT INTO `attendance` (`id`, `employee_id`, `branch_code`, `date`, `check_in`, `check_out`, `status`, `notes`, `created_at`, `updated_at`) VALUES
-(2, 2, 'B', '2026-04-16', '00:11:28', NULL, 'present', 'Marked via site attendance', '2026-04-16 00:11:28', '2026-04-16 00:11:28'),
-(3, 4, 'B', '2026-04-16', '00:11:33', NULL, 'present', 'Marked via site attendance', '2026-04-16 00:11:30', '2026-04-16 00:11:33'),
-(4, 5, 'B', '2026-04-16', '00:12:17', NULL, 'present', 'Marked via site attendance', '2026-04-16 00:12:17', '2026-04-16 00:12:17'),
-(5, 6, 'B', '2026-04-16', '00:13:33', NULL, 'present', 'Marked via site attendance', '2026-04-16 00:13:33', '2026-04-16 00:13:33'),
-(6, 3, 'B', '2026-04-16', '08:14:55', NULL, 'present', 'Marked via site attendance', '2026-04-16 00:14:55', '2026-04-16 00:14:55'),
-(31, 8, 'A', '2026-04-17', '02:57:33', '02:58:24', 'present', 'QR Scan at A', '2026-04-17 02:57:33', '2026-04-17 02:58:24'),
-(30, 9, 'A', '2026-04-17', '02:57:02', '02:57:06', 'present', 'QR Scan at A', '2026-04-17 02:57:02', '2026-04-17 02:57:06'),
-(29, 5, 'B', '2026-04-17', '10:46:16', '10:46:19', 'present', 'Marked via site attendance', '2026-04-17 02:46:16', '2026-04-17 02:46:19'),
-(28, 7, 'B', '2026-04-17', '10:46:12', '10:46:14', 'present', 'Marked via site attendance', '2026-04-17 02:46:12', '2026-04-17 02:46:14'),
-(32, 9, 'A', '2026-04-17', '03:13:21', '03:13:26', 'present', 'QR Scan at A', '2026-04-17 03:13:21', '2026-04-17 03:13:26'),
-(33, 9, 'B', '2026-04-17', '03:14:00', '03:14:06', 'present', 'QR Scan at B', '2026-04-17 03:14:00', '2026-04-17 03:14:06'),
-(34, 9, 'B', '2026-04-17', '03:14:22', '03:17:25', 'present', 'QR Scan at B', '2026-04-17 03:14:22', '2026-04-17 03:17:25'),
-(35, 9, 'B', '2026-04-17', '03:17:31', '14:54:24', 'present', 'QR Scan at B', '2026-04-17 03:17:31', '2026-04-17 06:54:24'),
-(36, 8, 'A', '2026-04-17', '03:38:44', '03:38:59', 'present', 'QR Scan at A', '2026-04-17 03:38:44', '2026-04-17 03:38:59'),
-(37, 10, 'A', '2026-04-17', '11:42:16', '14:54:26', 'present', 'QR Scan at A', '2026-04-17 03:42:16', '2026-04-17 06:54:26'),
-(38, 12, 'H', '2026-04-17', '12:25:08', '14:54:28', 'present', 'QR Scan at H', '2026-04-17 04:25:08', '2026-04-17 06:54:28'),
-(39, 11, 'B', '2026-04-17', '12:44:48', '12:45:09', 'present', 'Manual entry at B', '2026-04-17 04:44:48', '2026-04-17 04:45:09'),
-(40, 8, 'F', '2026-04-17', '12:44:53', '14:54:23', 'present', 'Manual entry at F', '2026-04-17 04:44:53', '2026-04-17 06:54:23'),
-(41, 5, 'E', '2026-04-17', '12:44:57', '14:54:21', 'present', 'Manual entry at E', '2026-04-17 04:44:57', '2026-04-17 06:54:21'),
-(42, 13, 'D', '2026-04-17', '12:45:01', '14:54:29', 'present', 'Manual entry at D', '2026-04-17 04:45:01', '2026-04-17 06:54:29'),
-(43, 14, 'A', '2026-04-17', '12:45:04', '14:54:30', 'present', 'Manual entry at A', '2026-04-17 04:45:04', '2026-04-17 06:54:30'),
-(44, 15, 'H', '2026-04-17', '12:45:07', '14:54:31', 'present', 'Manual entry at H', '2026-04-17 04:45:07', '2026-04-17 06:54:31'),
-(45, 11, 'H', '2026-04-17', '12:45:11', '14:54:27', 'present', 'Manual entry at H', '2026-04-17 04:45:11', '2026-04-17 06:54:27'),
-(46, 24, 'A', '2026-04-17', '13:07:01', '13:07:08', 'present', 'QR Scan at A', '2026-04-17 05:07:01', '2026-04-17 05:07:08'),
-(47, 25, 'A', '2026-04-17', '13:07:21', NULL, 'present', 'QR Scan at A', '2026-04-17 05:07:21', '2026-04-17 05:07:21'),
-(48, 28, 'A', '2026-04-17', '13:07:37', '13:07:44', 'present', 'QR Scan at A', '2026-04-17 05:07:37', '2026-04-17 05:07:44'),
-(49, 34, 'A', '2026-04-17', '13:08:07', NULL, 'present', 'QR Scan at A', '2026-04-17 05:08:07', '2026-04-17 05:08:07'),
-(50, 36, 'A', '2026-04-17', '13:08:17', NULL, 'present', 'QR Scan at A', '2026-04-17 05:08:17', '2026-04-17 05:08:17'),
-(51, 44, 'A', '2026-04-17', '14:09:11', '14:09:16', 'present', 'QR Scan at A', '2026-04-17 06:09:11', '2026-04-17 06:09:16'),
-(52, 77, 'A', '2026-04-17', '14:21:15', NULL, 'present', 'QR Scan at A', '2026-04-17 06:21:15', '2026-04-17 06:21:15'),
-(53, 7, 'D', '2026-04-17', '14:30:26', '14:54:22', 'present', 'Manual entry at D', '2026-04-17 06:30:26', '2026-04-17 06:54:22'),
-(54, 24, 'E', '2026-04-17', '14:39:16', '14:39:25', 'present', 'Manual entry at E', '2026-04-17 06:39:16', '2026-04-17 06:39:25'),
-(55, 24, 'B', '2026-04-17', '14:39:30', '14:39:41', 'present', 'Manual entry at B', '2026-04-17 06:39:30', '2026-04-17 06:39:41'),
-(56, 24, 'F', '2026-04-17', '14:39:51', NULL, 'present', 'Manual entry at F', '2026-04-17 06:39:51', '2026-04-17 06:39:51'),
-(57, 8, 'A', '2026-04-18', '08:06:26', NULL, 'present', 'QR Scan at A', '2026-04-18 00:06:26', '2026-04-18 00:06:26');
+(167, 8, 'A', '2026-04-20', '08:35:57', NULL, 'late', NULL, '2026-04-20 00:35:57', '2026-04-20 00:35:57'),
+(163, 8, 'A', '2026-04-20', '08:31:32', NULL, 'late', NULL, '2026-04-20 00:31:32', '2026-04-20 00:31:32'),
+(164, 8, 'A', '2026-04-20', '08:33:38', NULL, 'late', NULL, '2026-04-20 00:33:38', '2026-04-20 00:33:38'),
+(165, 8, 'A', '2026-04-20', '08:33:39', NULL, 'late', NULL, '2026-04-20 00:33:39', '2026-04-20 00:33:39'),
+(166, 8, 'A', '2026-04-20', '08:34:14', NULL, 'late', NULL, '2026-04-20 00:34:14', '2026-04-20 00:34:14'),
+(162, 8, 'A', '2026-04-20', '08:30:53', NULL, 'late', NULL, '2026-04-20 00:30:53', '2026-04-20 00:30:53'),
+(161, 24, 'A', '2026-04-20', '08:30:52', NULL, 'late', NULL, '2026-04-20 00:30:52', '2026-04-20 00:30:52'),
+(159, 8, 'A', '2026-04-20', '08:30:51', NULL, 'late', NULL, '2026-04-20 00:30:51', '2026-04-20 00:30:51'),
+(160, 8, 'A', '2026-04-20', '08:30:51', NULL, 'late', NULL, '2026-04-20 00:30:51', '2026-04-20 00:30:51'),
+(158, 24, 'A', '2026-04-20', '08:25:43', NULL, 'late', NULL, '2026-04-20 00:25:43', '2026-04-20 00:25:43'),
+(156, 8, 'A', '2026-04-20', '08:23:27', NULL, 'late', NULL, '2026-04-20 00:23:27', '2026-04-20 00:23:27'),
+(157, 8, 'A', '2026-04-20', '08:25:41', NULL, 'late', NULL, '2026-04-20 00:25:41', '2026-04-20 00:25:41'),
+(153, 8, 'A', '2026-04-20', '08:21:34', NULL, 'late', NULL, '2026-04-20 00:21:34', '2026-04-20 00:21:34'),
+(154, 8, 'A', '2026-04-20', '08:21:42', NULL, 'late', NULL, '2026-04-20 00:21:42', '2026-04-20 00:21:42'),
+(155, 8, 'A', '2026-04-20', '08:21:44', NULL, 'late', NULL, '2026-04-20 00:21:44', '2026-04-20 00:21:44'),
+(152, 24, 'C', '2026-04-20', '08:11:01', '08:17:02', 'late', NULL, '2026-04-20 00:11:01', '2026-04-20 00:17:02'),
+(151, 8, 'A', '2026-04-20', '08:10:34', '08:10:58', 'late', NULL, '2026-04-20 00:10:34', '2026-04-20 00:10:58');
 
 -- --------------------------------------------------------
 
