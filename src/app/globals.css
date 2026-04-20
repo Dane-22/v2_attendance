@@ -10,17 +10,71 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+
+  /* Dark Theme Colors (from reference) */
+  --color-dark-bg: #0a0a0a;
+  --color-dark-card: #141414;
+  --color-dark-surface: #171717;
+  --color-dark-sidebar: #0f0f0f;
+  --color-dark-border: #262626;
+  --color-dark-border-hover: #404040;
+
+  /* Yellow Accent */
+  --color-yellow-400: #facc15;
+  --color-yellow-500: #eab308;
+
+  /* Legacy Navy Colors */
+  --color-navy-50: #f0f4f8;
+  --color-navy-100: #d9e2ec;
+  --color-navy-200: #bcccdc;
+  --color-navy-300: #9fb3c8;
+  --color-navy-400: #829ab1;
+  --color-navy-500: #627d98;
+  --color-navy-600: #486581;
+  --color-navy-700: #334e68;
+  --color-navy-800: #243b53;
+  --color-navy-900: #102a43;
+  --color-navy-950: #0a192f;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
     --background: #0a0a0a;
-    --foreground: #ededed;
+    --foreground: #ffffff;
   }
+}
+
+.dark {
+  --background: #0a0a0a;
+  --foreground: #ffffff;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+/* QR Scanner Animation */
+@keyframes scan {
+  0% {
+    top: 0;
+    opacity: 1;
+  }
+  50% {
+    top: 100%;
+    opacity: 1;
+  }
+  51% {
+    opacity: 0;
+  }
+  100% {
+    top: 0;
+    opacity: 0;
+  }
+}
+
+.animate-scan {
+  animation: scan 2.5s ease-in-out infinite;
+  box-shadow: 0 0 4px rgba(250, 204, 21, 0.8);
 }
