@@ -108,6 +108,7 @@ export default function HybridScannerPage() {
   const [manualCode, setManualCode] = useState('');
   const [showManual, setShowManual] = useState(false);
   const [cooldown, setCooldown] = useState(false);
+  const [debugInfo, setDebugInfo] = useState<{raw: string; format?: string; error?: string} | null>(null);
 
   // GSAP Animation - Laser Line
   useEffect(() => {
@@ -300,12 +301,22 @@ export default function HybridScannerPage() {
 
   // Handle Scan
   const handleScan = useCallback((data: string) => {
+    console.log('[QR SCAN] Raw data:', data);
+    console.log('[QR SCAN] Data length:', data.length);
+    console.log('[QR SCAN] Data preview:', data.substring(0, 100));
+
     const parsed = parseQRCode(data);
 
     if (!parsed) {
-      showErrorResult('Invalid QR Code Format');
+      // Show detailed error with the actual scanned data
+      const preview = data.length > 50 ? data.substring(0, 50) + '...' : data;
+      setDebugInfo({raw: data, error: `No matching format found for: ${preview}`});
+      showErrorResult(`Invalid QR: "${preview}"`);
       return;
     }
+
+    console.log('[QR SCAN] Parsed:', parsed);
+    setDebugInfo({raw: data, format: parsed.format, error: undefined});
 
     // Convert V1 or SIMPLE formats to JAJR-EMP format for API compatibility
     let qrCodeData = data;
@@ -520,6 +531,18 @@ export default function HybridScannerPage() {
                     </div>
                   )}
                 </div>
+              </div>
+            </div>
+          )}
+
+          {/* Debug Info Panel */}
+          {debugInfo && (
+            <div className="p-4 rounded-xl border border-yellow-500/30 bg-yellow-500/10">
+              <h4 className="text-yellow-400 font-medium text-sm mb-2">Debug Info</h4>
+              <div className="space-y-1 text-xs font-mono">
+                <p className="text-gray-400">Raw: <span className="text-white break-all">{debugInfo.raw}</span></p>
+                {debugInfo.format && <p className="text-green-400">Format: {debugInfo.format}</p>}
+                {debugInfo.error && <p className="text-red-400">Error: {debugInfo.error}</p>}
               </div>
             </div>
           )}
