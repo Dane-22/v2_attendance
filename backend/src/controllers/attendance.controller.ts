@@ -488,6 +488,8 @@ export const getTodayAttendance = async (
     const dateNow = new Date();
     const today = new Date(Date.UTC(dateNow.getFullYear(), dateNow.getMonth(), dateNow.getDate()));
 
+    console.log('[API DEBUG] getTodayAttendance - employeeId:', employeeId, 'today:', today.toISOString());
+
     const attendance = await prisma.attendance.findFirst({
       where: {
         employeeId,
@@ -495,6 +497,8 @@ export const getTodayAttendance = async (
       },
       orderBy: { check_in: 'desc' }
     });
+
+    console.log('[API DEBUG] Found attendance:', attendance);
 
     const response: ApiResponse<typeof attendance> = {
       success: true,
