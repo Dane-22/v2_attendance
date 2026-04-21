@@ -54,7 +54,7 @@ export default function LoginPage() {
       <div className="bg-white p-8 rounded-lg shadow-xl w-full max-w-md">
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-gray-900">JAJR Attendance</h1>
-          <p className="text-gray-600 mt-2">Sign in to your account</p>
+          <p className="text-gray-800 mt-2 font-medium">Sign in to your account</p>
         </div>
 
         {error && (
@@ -65,7 +65,7 @@ export default function LoginPage() {
 
         <form onSubmit={handleSubmit} className="space-y-6">
           <div>
-            <label htmlFor="username" className="block text-sm font-medium text-gray-700">
+            <label htmlFor="username" className="block text-sm font-bold text-gray-900">
               Username
             </label>
             <input
@@ -79,7 +79,7 @@ export default function LoginPage() {
           </div>
 
           <div>
-            <label htmlFor="password" className="block text-sm font-medium text-gray-700">
+            <label htmlFor="password" className="block text-sm font-bold text-gray-900">
               Password
             </label>
             <div className="relative mt-1">
