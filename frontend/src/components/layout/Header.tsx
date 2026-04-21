@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { gsap } from 'gsap';
 import { 
   Moon, 
@@ -26,6 +26,8 @@ export default function Header() {
   
   const headerRef = useRef<HTMLElement>(null);
   const themeBtnRef = useRef<HTMLButtonElement>(null);
+  const [profileOpen, setProfileOpen] = useState(false);
+  const profileRef = useRef<HTMLDivElement>(null);
   
   // Animate header on mount
   useEffect(() => {
@@ -36,6 +38,17 @@ export default function Header() {
         { y: 0, opacity: 1, duration: 0.6, ease: 'power3.out' }
       );
     }
+  }, []);
+  
+  // Close profile dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (profileRef.current && !profileRef.current.contains(event.target as Node)) {
+        setProfileOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
   
   // Animate theme toggle
@@ -118,8 +131,11 @@ export default function Header() {
           </button>
           
           {/* Profile Dropdown */}
-          <div className="relative group">
-            <button className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-colors ${isDark ? 'hover:bg-[#1a1a1a]' : 'hover:bg-gray-100'}`}>
+          <div className="relative" ref={profileRef}>
+            <button 
+              onClick={() => setProfileOpen(!profileOpen)}
+              className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-colors ${isDark ? 'hover:bg-[#1a1a1a]' : 'hover:bg-gray-100'}`}
+            >
               <div className="w-8 h-8 rounded-full bg-[#facc15] flex items-center justify-center">
                 <User className="w-4 h-4 text-black" />
               </div>
@@ -135,7 +151,7 @@ export default function Header() {
             </button>
             
             {/* Dropdown Menu */}
-            <div className={`absolute right-0 top-full mt-2 w-48 py-2 rounded-xl shadow-2xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 ${isDark ? 'bg-[#141414] border border-[#262626]' : 'bg-white border border-gray-200'}`}>
+            <div className={`absolute right-0 top-full mt-2 w-48 py-2 rounded-xl shadow-2xl transition-all duration-200 z-50 ${profileOpen ? 'opacity-100 visible' : 'opacity-0 invisible'} ${isDark ? 'bg-[#141414] border border-[#262626]' : 'bg-white border border-gray-200'}`}>
               <div className={`px-4 py-2 border-b ${isDark ? 'border-[#262626]' : 'border-gray-200'}`}>
                 <p className={`text-sm font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>{user?.name}</p>
                 <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{user?.email}</p>

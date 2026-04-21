@@ -191,6 +191,14 @@ function SidebarContent({
   isDark: boolean;
 }) {
   const pathname = usePathname();
+  const setUser = useAppStore((state) => state.setUser);
+  
+  const handleLogout = () => {
+    setUser(null);
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    window.location.href = '/login';
+  };
   const [financeOpen, setFinanceOpen] = useState(() => {
     const isFinanceRoute = pathname === '/dashboard/finance' || pathname?.startsWith('/dashboard/finance/');
     const isPayrollRoute = pathname === '/dashboard/payroll' || pathname?.startsWith('/dashboard/payroll/');
@@ -344,7 +352,10 @@ function SidebarContent({
       {/* Log Out */}
       {sidebarOpen && (
         <div className={`px-4 pt-4 mt-4 border-t ${isDark ? 'border-[#262626]' : 'border-gray-200'}`}>
-          <button className={`flex items-center gap-3 px-3 py-3 rounded-xl w-full transition-colors ${isDark ? 'hover:bg-[#1a1a1a] text-gray-400' : 'hover:bg-gray-100 text-gray-500'}`}>
+          <button 
+            onClick={handleLogout}
+            className={`flex items-center gap-3 px-3 py-3 rounded-xl w-full transition-colors ${isDark ? 'hover:bg-[#1a1a1a] text-gray-400' : 'hover:bg-gray-100 text-gray-500'}`}
+          >
             <LogOut className="w-5 h-5" />
             <span className="font-medium text-sm">Log Out</span>
           </button>
