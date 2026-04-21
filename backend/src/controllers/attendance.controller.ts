@@ -64,27 +64,29 @@ export const clock = async (
       throw new AppError('Employee account is not active', 403);
     }
 
-    const todayStr = getPhilippinesDateString();
+    const { start: todayStart, end: todayEnd } = getPhilippinesDateRange();
     const now = new Date();
 
-    console.log('[CLOCK] Employee:', employee.id, 'Date:', todayStr, 'Server time:', now.toISOString());
+    console.log('[CLOCK] Employee:', employee.id, 'Date range:', todayStart.toISOString(), 'to', todayEnd.toISOString(), 'Server time:', now.toISOString());
 
-    // Use raw SQL to check for active clock-in - bypasses Prisma timezone conversion
-    const activeRecords = await prisma.$queryRaw<Array<{ id: number; branch_code: string | null; check_in: Date }>>`
-      SELECT id, branch_code, check_in FROM attendance 
-      WHERE employee_id = ${employee.id} 
-      AND date = ${todayStr}
-      AND check_in IS NOT NULL 
-      AND check_out IS NULL
-      ORDER BY check_in DESC
-      LIMIT 1
-    `;
+    // Use Prisma query to find active clock-in - finds most recent incomplete record
+    const activeRecord = await prisma.attendance.findFirst({
+      where: {
+        employeeId: employee.id,
+        date: {
+          gte: todayStart,
+          lt: todayEnd
+        },
+        check_in: { not: null },
+        check_out: null
+      },
+      orderBy: { check_in: 'desc' }
+    });
 
-    console.log('[CLOCK] Active records found:', activeRecords.length);
+    console.log('[CLOCK] Active record found:', activeRecord ? `ID ${activeRecord.id}` : 'none');
 
-    if (activeRecords.length > 0) {
+    if (activeRecord) {
       // Employee has active clock-in → CLOCK OUT
-      const activeRecord = activeRecords[0];
       const checkOutTime = new Date();
 
       // Check branch mismatch
@@ -127,6 +129,7 @@ export const clock = async (
       const status = determineStatus(checkInTime);
 
       // Use raw SQL to insert - bypasses Prisma timezone conversion on date field
+      const todayStr = getPhilippinesDateString();
       const result = await prisma.$executeRaw`
         INSERT INTO attendance (employee_id, date, check_in, status, branch_code, notes, created_at, updated_at)
         VALUES (${employee.id}, ${todayStr}, ${checkInTime}, ${status}, ${branch_code || employee.branchName || null}, ${notes || null}, NOW(), NOW())
@@ -138,7 +141,7 @@ export const clock = async (
         orderBy: { id: 'desc' }
       });
 
-      console.log('[CLOCK] Clock IN successful for employee:', employee.id, 'date:', todayStr);
+      console.log('[CLOCK] Clock IN successful for employee:', employee.id, 'date range:', todayStart.toISOString());
 
       const response: ApiResponse<any> = {
         success: true,
