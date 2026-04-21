@@ -42,6 +42,13 @@ pm2 restart v2_attendance-web --update-env
 pm2 status
 ```
 
+
+cd /var/www/version2_attendance
+git pull origin main
+cd /var/www/version2_attendance/frontend
+npm run build
+pm2 restart v2_attendance-web --update-env
+
 ---
 
 ## 2. The Database Update
