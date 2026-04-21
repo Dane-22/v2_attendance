@@ -120,6 +120,8 @@ export const clockIn = async (
   try {
     const { qrCodeData, notes } = req.body;
 
+    console.log('[API DEBUG] clockIn called with qrCodeData:', qrCodeData?.substring(0, 30));
+
     if (!qrCodeData) {
       throw new AppError('QR code data is required', 400);
     }
@@ -129,8 +131,10 @@ export const clockIn = async (
     try {
       const decoded = decodeQRCodeData(qrCodeData);
       employeeCode = decoded.employeeCode;
+      console.log('[API DEBUG] Decoded employeeCode:', employeeCode);
     } catch {
       employeeCode = extractEmployeeCode(qrCodeData) || '';
+      console.log('[API DEBUG] Extracted employeeCode:', employeeCode);
       if (!employeeCode) {
         throw new AppError('Invalid QR code format', 400);
       }
@@ -144,11 +148,14 @@ export const clockIn = async (
       throw new AppError('Employee not found', 404);
     }
 
+    console.log('[API DEBUG] Found employee ID:', employee.id);
+
     if (employee.status !== 'Active') {
       throw new AppError('Employee account is not active', 403);
     }
 
     const { attendance, message } = await performClockIn(employee, notes, false);
+    console.log('[API DEBUG] Created attendance record:', { id: attendance.id, date: attendance.date, check_in: attendance.check_in });
 
     const response: ApiResponse<AttendanceResponse> = {
       success: true,
