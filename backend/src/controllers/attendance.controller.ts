@@ -21,16 +21,29 @@ const determineStatus = (checkInTime: Date): AttendanceStatus => {
   return 'present';
 };
 
-// Helper to get Philippines date (UTC+8) as YYYY-MM-DD string for MySQL DATE type
-// Using string format avoids timezone conversion issues with Prisma/MySQL
-const getPhilippinesDate = (): string => {
+// Helper to get Philippines date range for queries
+// Returns start (midnight PH) and end (next midnight PH) as UTC Date objects
+// Using range queries eliminates timezone conversion issues with Prisma/MySQL
+const getPhilippinesDateRange = (): { start: Date; end: Date } => {
   const now = new Date();
-  // Get Philippines date components
+  const phTime = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Manila' }));
+  const year = phTime.getFullYear();
+  const month = phTime.getMonth();
+  const day = phTime.getDate();
+  // Start of day in Philippines = midnight UTC of that date
+  const start = new Date(Date.UTC(year, month, day));
+  // End of day = start + 24 hours
+  const end = new Date(Date.UTC(year, month, day + 1));
+  return { start, end };
+};
+
+// Also return the simple date string for creating records
+const getPhilippinesDateString = (): string => {
+  const now = new Date();
   const phTime = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Manila' }));
   const year = phTime.getFullYear();
   const month = String(phTime.getMonth() + 1).padStart(2, '0');
   const day = String(phTime.getDate()).padStart(2, '0');
-  // Return as YYYY-MM-DD string (matches MySQL DATE format)
   return `${year}-${month}-${day}`;
 };
 
@@ -40,18 +53,22 @@ const performClockIn = async (
   isManual: boolean,
   branchCode?: string
 ): Promise<{ attendance: Attendance; message: string }> => {
-  const today = getPhilippinesDate();
+  const { start: todayStart, end: todayEnd } = getPhilippinesDateRange();
   const dateNow = new Date();
+  const todayStr = getPhilippinesDateString();
   
-  console.log('[CLOCK-IN DEBUG] Philippines date (string):', today);
-
+  console.log('[CLOCK-IN DEBUG] Philippines date range:', todayStart.toISOString(), 'to', todayEnd.toISOString());
+  console.log('[CLOCK-IN DEBUG] Philippines date string:', todayStr);
   console.log('[CLOCK-IN DEBUG] Server time:', dateNow.toISOString());
 
   // Check if employee has an active (incomplete) shift at a different branch
   const activeShift = await prisma.attendance.findFirst({
     where: {
       employeeId: employee.id,
-      date: today,
+      date: {
+        gte: todayStart,
+        lt: todayEnd
+      },
       check_in: { not: null },
       check_out: null
     }
@@ -75,7 +92,7 @@ const performClockIn = async (
   const attendance = await prisma.attendance.create({
     data: {
       employeeId: employee.id,
-      date: today,
+      date: todayStr as any,
       check_in: checkInTime,
       status,
       branch_code: branchCode || employee.branchName || undefined,
@@ -94,15 +111,18 @@ const performClockOut = async (
   notes: string | undefined,
   isManual: boolean
 ): Promise<{ attendance: Attendance; message: string }> => {
-  const today = getPhilippinesDate();
+  const { start: todayStart, end: todayEnd } = getPhilippinesDateRange();
   
-  console.log('[CLOCK-OUT DEBUG] Philippines date (string):', today);
+  console.log('[CLOCK-OUT DEBUG] Philippines date range:', todayStart.toISOString(), 'to', todayEnd.toISOString());
 
   // Find the most recent incomplete attendance record (has check_in but no check_out)
   const attendance = await prisma.attendance.findFirst({
     where: {
       employeeId: employee.id,
-      date: today,
+      date: {
+        gte: todayStart,
+        lt: todayEnd
+      },
       check_in: { not: null },
       check_out: null
     },
@@ -508,18 +528,21 @@ export const getTodayAttendance = async (
       throw new AppError('Employee ID is required', 400);
     }
 
-    const today = getPhilippinesDate();
+    const { start: todayStart, end: todayEnd } = getPhilippinesDateRange();
     const now = new Date();
 
     console.log('[TODAY DEBUG] Server time:', now.toISOString());
-    console.log('[TODAY DEBUG] Philippines date string:', today);
+    console.log('[TODAY DEBUG] Philippines date range:', todayStart.toISOString(), 'to', todayEnd.toISOString());
     console.log('[TODAY DEBUG] employeeId:', employeeId);
 
-    // Use date string directly to avoid timezone conversion issues with MySQL DATE type
+    // Use date range to avoid timezone conversion issues with MySQL DATE type
     const attendance = await prisma.attendance.findFirst({
       where: {
         employeeId,
-        date: today as any
+        date: {
+          gte: todayStart,
+          lt: todayEnd
+        }
       },
       orderBy: { check_in: 'desc' }
     });
@@ -554,20 +577,26 @@ export const getAttendanceAudit = async (
     console.log('=== ATTENDANCE AUDIT DEBUG ===');
     console.log('Query params:', { date, branch_code, status });
 
-    // Parse date or use today as YYYY-MM-DD string
-    let targetDate: string;
+    // Parse date or use Philippines date range
+    let dateRange: { start: Date; end: Date };
     if (date) {
       const d = new Date(date as string);
-      targetDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      dateRange = {
+        start: new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate())),
+        end: new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate() + 1))
+      };
     } else {
-      targetDate = getPhilippinesDate();
+      dateRange = getPhilippinesDateRange();
     }
 
-    console.log('Target date string:', targetDate);
+    console.log('Target date range:', dateRange.start.toISOString(), 'to', dateRange.end.toISOString());
 
-    // Build where clause using string date
+    // Build where clause using date range
     const where: any = {
-      date: targetDate as any
+      date: {
+        gte: dateRange.start,
+        lt: dateRange.end
+      }
     };
 
     console.log('Where clause:', where);
@@ -658,7 +687,7 @@ export const getAttendanceAudit = async (
       success: true,
       message: 'Attendance audit records retrieved',
       data: {
-        date: targetDate,
+        date: dateRange.start.toISOString().split('T')[0],
         records: formattedRecords,
         stats
       }
