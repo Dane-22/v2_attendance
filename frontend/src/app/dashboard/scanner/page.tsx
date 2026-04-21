@@ -301,10 +301,16 @@ export default function HybridScannerPage() {
   // Handle Scan
   const handleScan = useCallback((data: string) => {
     const parsed = parseQRCode(data);
-    
+
     if (!parsed) {
       showErrorResult('Invalid QR Code Format');
       return;
+    }
+
+    // Convert V1 or SIMPLE formats to JAJR-EMP format for API compatibility
+    let qrCodeData = data;
+    if (parsed.format === 'V1-URL' || parsed.format === 'SIMPLE') {
+      qrCodeData = `JAJR-EMP:${parsed.employeeId}|${parsed.employeeCode}|${parsed.employeeName}`;
     }
 
     // Determine clock in/out based on time (after 5 PM = clock out)
@@ -312,9 +318,9 @@ export default function HybridScannerPage() {
     const isClockOut = hour >= 17;
 
     if (isClockOut) {
-      clockOutMutation.mutate({ qrCodeData: data });
+      clockOutMutation.mutate({ qrCodeData });
     } else {
-      clockInMutation.mutate({ qrCodeData: data });
+      clockInMutation.mutate({ qrCodeData });
     }
   }, [clockInMutation, clockOutMutation]);
 
