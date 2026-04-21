@@ -58,11 +58,15 @@ export default function BranchQRScannerPage() {
     }
   }, [router]);
 
+  // Store parsed employee info for success messages
+  const [lastEmployeeName, setLastEmployeeName] = useState('');
+
   // Clock in mutation
   const clockInMutation = useMutation({
     mutationFn: attendanceApi.clockIn,
     onSuccess: () => {
-      setScanResult({ success: true, message: 'Clock In Successful', show: true });
+      const name = lastEmployeeName || 'Employee';
+      setScanResult({ success: true, message: `Clock In: ${name}`, show: true });
       setCooldown(true);
       setTimeout(() => {
         setScanResult(null);
@@ -84,7 +88,8 @@ export default function BranchQRScannerPage() {
   const clockOutMutation = useMutation({
     mutationFn: attendanceApi.clockOut,
     onSuccess: () => {
-      setScanResult({ success: true, message: 'Clock Out Successful', show: true });
+      const name = lastEmployeeName || 'Employee';
+      setScanResult({ success: true, message: `Clock Out: ${name}`, show: true });
       setCooldown(true);
       setTimeout(() => {
         setScanResult(null);
@@ -252,6 +257,9 @@ export default function BranchQRScannerPage() {
     if (!cameraError) setScanning(false);
 
     const parsed = parseQRData(qrData);
+    if (parsed) {
+      setLastEmployeeName(parsed.employeeName || parsed.employeeCode);
+    }
     if (!parsed) {
       // Show actual scanned data for debugging
       const preview = qrData.length > 40 ? qrData.substring(0, 40) + '...' : qrData;
