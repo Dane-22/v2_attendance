@@ -24,8 +24,34 @@ import {
   Loader2
 } from 'lucide-react';
 
+// Helper to get Philippines date string (YYYY-MM-DD)
+const getPhilippinesDateString = (): string => {
+  const now = new Date();
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Manila',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  });
+  const parts = formatter.formatToParts(now);
+  const year = parts.find(p => p.type === 'year')?.value;
+  const month = parts.find(p => p.type === 'month')?.value;
+  const day = parts.find(p => p.type === 'day')?.value;
+  return `${year}-${month}-${day}`;
+};
+
+// Helper to get Philippines day of month
+const getPhilippinesDay = (): number => {
+  const now = new Date();
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Manila',
+    day: 'numeric'
+  });
+  return parseInt(formatter.format(now), 10);
+};
+
 // Generate calendar data based on branch filter
-const generateCalendarDays = (branchFilter: string) => {
+const generateCalendarDays = (branchFilter: string, currentDay: number) => {
   // Base record counts per day (for "ALL" branches)
   const baseRecords: Record<number, number> = {
     1: 67, 2: 2, 3: 2, 4: 2, 5: 2, 6: 4, 7: 2, 8: 2, 9: 2, 10: 2, 11: 2,
@@ -52,27 +78,29 @@ const generateCalendarDays = (branchFilter: string) => {
     return Math.floor((baseRecords[day] || 0) * factor);
   };
   
-  return [
-    { day: 30, prevMonth: true }, { day: 31, prevMonth: true },
-    { day: 1, records: getRecordCount(1) }, { day: 2, records: getRecordCount(2), selected: true }, 
-    { day: 3, records: getRecordCount(3) }, { day: 4, records: getRecordCount(4) },
-    { day: 5, records: getRecordCount(5) }, { day: 6, records: getRecordCount(6) }, 
-    { day: 7, records: getRecordCount(7) }, { day: 8, records: getRecordCount(8) }, 
-    { day: 9, records: getRecordCount(9) }, { day: 10, records: getRecordCount(10) }, 
-    { day: 11, records: getRecordCount(11) },
-    { day: 12, records: getRecordCount(12) }, { day: 13, records: getRecordCount(13) }, 
-    { day: 14, records: getRecordCount(14) }, { day: 15, records: getRecordCount(15) }, 
-    { day: 16, records: getRecordCount(16) }, { day: 17, records: getRecordCount(17) }, 
-    { day: 18, records: getRecordCount(18) },
-    { day: 19, records: getRecordCount(19) }, { day: 20, records: getRecordCount(20), today: true }, 
-    { day: 21, records: getRecordCount(21) }, { day: 22, records: getRecordCount(22) }, 
-    { day: 23, records: getRecordCount(23) }, { day: 24, records: getRecordCount(24) }, 
-    { day: 25, records: getRecordCount(25) },
-    { day: 26, records: getRecordCount(26) }, { day: 27, records: getRecordCount(27) }, 
-    { day: 28, records: getRecordCount(28) }, { day: 29, records: getRecordCount(29) }, 
-    { day: 30, records: getRecordCount(30) },
-    { day: 1, nextMonth: true }, { day: 2, nextMonth: true },
-  ];
+  // Build calendar array with dynamic today marker
+  const days = [];
+  // Previous month padding
+  days.push({ day: 30, prevMonth: true }, { day: 31, prevMonth: true });
+  
+  // Current month days (April 2026)
+  for (let day = 1; day <= 30; day++) {
+    const dayData: any = { day, records: getRecordCount(day) };
+    // Mark today based on Philippines current date
+    if (day === currentDay) {
+      dayData.today = true;
+    }
+    // Mark selected (first load selects today)
+    if (day === currentDay) {
+      dayData.selected = true;
+    }
+    days.push(dayData);
+  }
+  
+  // Next month padding
+  days.push({ day: 1, nextMonth: true }, { day: 2, nextMonth: true });
+  
+  return days;
 };
 
 const filterTabs = [
@@ -773,7 +801,7 @@ interface AuditRecord {
 export default function AttendanceAuditPage() {
   const [activeFilter, setActiveFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedDate, setSelectedDate] = useState(20);
+  const [selectedDate, setSelectedDate] = useState(getPhilippinesDay());
   const [selectedEmployee, setSelectedEmployee] = useState<AuditRecord | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedBranch, setSelectedBranch] = useState<string | null>(null);
@@ -782,10 +810,18 @@ export default function AttendanceAuditPage() {
   const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
   const [selectedBranchFilter, setSelectedBranchFilter] = useState('ALL');
 
-  // Format date for API (YYYY-MM-DD)
+  // Format date for API (YYYY-MM-DD) using Philippines timezone
   const formattedDate = useMemo(() => {
-    const date = new Date(2026, 3, selectedDate); // April 2026
-    return date.toISOString().split('T')[0];
+    // Always get fresh Philippines date when selectedDate changes to today
+    if (selectedDate === getPhilippinesDay()) {
+      return getPhilippinesDateString();
+    }
+    // For other dates, construct from current month/year
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(selectedDate).padStart(2, '0');
+    return `${year}-${month}-${day}`;
   }, [selectedDate]);
 
   // Fetch attendance audit data
@@ -805,7 +841,7 @@ export default function AttendanceAuditPage() {
   const stats = auditData?.stats || { totalRecords: 0, currentlyPresent: 0, completedShifts: 0, absent: 0, present: 0, late: 0 };
   
   // Generate calendar days based on branch filter
-  const calendarDays = generateCalendarDays(selectedBranchFilter);
+  const calendarDays = generateCalendarDays(selectedBranchFilter, getPhilippinesDay());
 
   // Filter data based on search query and active filter (client-side)
   const filteredData = useMemo(() => {

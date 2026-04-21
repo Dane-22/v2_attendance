@@ -67,8 +67,8 @@ export default function BranchQRScannerPage() {
   const clockMutation = useMutation({
     mutationFn: attendanceApi.clock,
     onSuccess: (response: any) => {
-      const action = response.data?.action || 'clock_in';
-      const name = response.data?.employeeName || lastEmployeeName || 'Employee';
+      const action = response.data?.data?.action || response.data?.action || 'clock_in';
+      const name = response.data?.data?.employeeName || response.data?.employeeName || lastEmployeeName || 'Employee';
       const label = action === 'clock_out' ? 'Clock Out' : 'Clock In';
       setScanResult({ success: true, message: `${label}: ${name}`, show: true });
       setCooldown(true);
