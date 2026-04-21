@@ -292,34 +292,48 @@ export default function BranchQRScannerPage() {
   // Check today's attendance and decide clock in or out
   const checkAndPerformClockAction = async (qrData: string, employeeCode: string) => {
     try {
+      console.log('[CLOCK DEBUG] Checking employee:', employeeCode);
+      
       // First try to find employee by code to get ID
       const empResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'}/employees?search=${employeeCode}`, {
         headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
       });
       const empData = await empResponse.json();
+      console.log('[CLOCK DEBUG] Employee search result:', empData);
       
       if (empData.data && empData.data.length > 0) {
         const employee = empData.data[0];
+        console.log('[CLOCK DEBUG] Found employee ID:', employee.id);
         
         // Check if employee has clocked in today without clocking out
         const todayResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'}/attendance/today?employeeId=${employee.id}`, {
           headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
         });
         const todayData = await todayResponse.json();
+        console.log('[CLOCK DEBUG] Today attendance:', todayData);
         
-        // If there's an active record with check_in but no check_out, do clock out
-        if (todayData.data && todayData.data.check_in && !todayData.data.check_out) {
+        // Check if there's an active record with check_in but no check_out
+        const hasActiveClockIn = todayData.data && 
+                                 todayData.data.check_in && 
+                                 !todayData.data.check_out;
+        
+        console.log('[CLOCK DEBUG] Has active clock in?', hasActiveClockIn);
+        console.log('[CLOCK DEBUG] check_in:', todayData.data?.check_in);
+        console.log('[CLOCK DEBUG] check_out:', todayData.data?.check_out);
+        
+        if (hasActiveClockIn) {
+          console.log('[CLOCK DEBUG] -> Performing CLOCK OUT');
           clockOutMutation.mutate({ qrCodeData: qrData });
         } else {
+          console.log('[CLOCK DEBUG] -> Performing CLOCK IN');
           clockInMutation.mutate({ qrCodeData: qrData });
         }
       } else {
-        // Fallback: just clock in if employee not found
+        console.log('[CLOCK DEBUG] Employee not found, falling back to clock in');
         clockInMutation.mutate({ qrCodeData: qrData });
       }
     } catch (error) {
-      console.error('Error checking attendance:', error);
-      // Fallback to clock in on error
+      console.error('[CLOCK DEBUG] Error checking attendance:', error);
       clockInMutation.mutate({ qrCodeData: qrData });
     }
   };
