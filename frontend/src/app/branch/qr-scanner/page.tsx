@@ -35,6 +35,7 @@ export default function BranchQRScannerPage() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [scanning, setScanning] = useState(true);
   const [scanResult, setScanResult] = useState<{ success: boolean; message: string; show: boolean } | null>(null);
+  const [lastQrData, setLastQrData] = useState<string>('');
   const [user, setUser] = useState<User | null>(null);
   const [lastScan, setLastScan] = useState<string | null>(null);
   const [cooldown, setCooldown] = useState(false);
@@ -252,6 +253,7 @@ export default function BranchQRScannerPage() {
     if (!parsed) {
       // Show actual scanned data for debugging
       const preview = qrData.length > 40 ? qrData.substring(0, 40) + '...' : qrData;
+      setLastQrData(qrData); // Store full data for debug display
       setScanResult({ success: false, message: `Invalid: ${preview}`, show: true });
       setTimeout(() => {
         setScanResult(null);
@@ -259,7 +261,7 @@ export default function BranchQRScannerPage() {
           setScanning(true);
           setLastScan(null);
         }
-      }, 3000);
+      }, 5000);
       return;
     }
 
@@ -426,6 +428,19 @@ export default function BranchQRScannerPage() {
             className="text-yellow-400 text-sm underline"
           >
             Enter code manually
+          </button>
+        </div>
+      )}
+
+      {/* Debug Info - Shows raw QR data */}
+      {lastQrData && !scanResult?.show && (
+        <div className="absolute top-20 left-4 right-4 z-40 bg-black/90 border border-yellow-500/50 rounded-lg p-3">
+          <p className="text-yellow-400 text-xs font-mono break-all">{lastQrData}</p>
+          <button
+            onClick={() => setLastQrData('')}
+            className="mt-2 text-xs text-gray-400 underline"
+          >
+            Dismiss
           </button>
         </div>
       )}
