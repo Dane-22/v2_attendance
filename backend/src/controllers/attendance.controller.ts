@@ -21,14 +21,26 @@ const determineStatus = (checkInTime: Date): AttendanceStatus => {
   return 'present';
 };
 
+// Helper to get Philippines date (UTC+8)
+const getPhilippinesDate = (): Date => {
+  const now = new Date();
+  // Convert to Philippines time (UTC+8)
+  const phTime = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Manila' }));
+  // Create date at midnight Philippines time
+  return new Date(phTime.getFullYear(), phTime.getMonth(), phTime.getDate());
+};
+
 const performClockIn = async (
   employee: { id: number; branchName: string | null; status: string | null },
   notes: string | undefined,
   isManual: boolean,
   branchCode?: string
 ): Promise<{ attendance: Attendance; message: string }> => {
+  const today = getPhilippinesDate();
   const dateNow = new Date();
-  const today = new Date(Date.UTC(dateNow.getFullYear(), dateNow.getMonth(), dateNow.getDate()));
+
+  console.log('[CLOCK-IN DEBUG] Server time:', dateNow.toISOString());
+  console.log('[CLOCK-IN DEBUG] Philippines date:', today.toISOString());
 
   // Check if employee has an active (incomplete) shift at a different branch
   const activeShift = await prisma.attendance.findFirst({
@@ -40,9 +52,8 @@ const performClockIn = async (
     }
   });
 
-  console.log('Active shift found:', activeShift);
-  console.log('Today date:', today);
-  console.log('Branch code requested:', branchCode);
+  console.log('[CLOCK-IN DEBUG] Active shift found:', activeShift);
+  console.log('[CLOCK-IN DEBUG] Branch code requested:', branchCode);
 
   // If trying to clock in at different branch while having active shift
   if (activeShift && branchCode && activeShift.branch_code !== branchCode) {
@@ -78,8 +89,7 @@ const performClockOut = async (
   notes: string | undefined,
   isManual: boolean
 ): Promise<{ attendance: Attendance; message: string }> => {
-  const dateNow = new Date();
-  const today = new Date(Date.UTC(dateNow.getFullYear(), dateNow.getMonth(), dateNow.getDate()));
+  const today = getPhilippinesDate();
 
   // Find the most recent incomplete attendance record (has check_in but no check_out)
   const attendance = await prisma.attendance.findFirst({
@@ -491,11 +501,12 @@ export const getTodayAttendance = async (
       throw new AppError('Employee ID is required', 400);
     }
 
-    // Use UTC date to match how clock-in stores dates
+    const today = getPhilippinesDate();
     const dateNow = new Date();
-    const today = new Date(Date.UTC(dateNow.getFullYear(), dateNow.getMonth(), dateNow.getDate()));
 
-    console.log('[API DEBUG] getTodayAttendance - employeeId:', employeeId, 'today:', today.toISOString());
+    console.log('[TODAY DEBUG] Server time:', dateNow.toISOString());
+    console.log('[TODAY DEBUG] Philippines date:', today.toISOString());
+    console.log('[TODAY DEBUG] employeeId:', employeeId);
 
     const attendance = await prisma.attendance.findFirst({
       where: {
@@ -505,7 +516,12 @@ export const getTodayAttendance = async (
       orderBy: { check_in: 'desc' }
     });
 
-    console.log('[API DEBUG] Found attendance:', attendance);
+    console.log('[TODAY DEBUG] Found attendance record:', attendance);
+    if (attendance) {
+      console.log('[TODAY DEBUG] Record date:', attendance.date);
+      console.log('[TODAY DEBUG] Record check_in:', attendance.check_in);
+      console.log('[TODAY DEBUG] Record check_out:', attendance.check_out);
+    }
 
     const response: ApiResponse<typeof attendance> = {
       success: true,
