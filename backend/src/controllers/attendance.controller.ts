@@ -21,16 +21,17 @@ const determineStatus = (checkInTime: Date): AttendanceStatus => {
   return 'present';
 };
 
-// Helper to get Philippines date (UTC+8) as UTC midnight for consistent DB storage
-const getPhilippinesDate = (): Date => {
+// Helper to get Philippines date (UTC+8) as YYYY-MM-DD string for MySQL DATE type
+// Using string format avoids timezone conversion issues with Prisma/MySQL
+const getPhilippinesDate = (): string => {
   const now = new Date();
   // Get Philippines date components
   const phTime = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Manila' }));
   const year = phTime.getFullYear();
-  const month = phTime.getMonth();
-  const day = phTime.getDate();
-  // Return as UTC midnight (matches MySQL DATE storage)
-  return new Date(Date.UTC(year, month, day));
+  const month = String(phTime.getMonth() + 1).padStart(2, '0');
+  const day = String(phTime.getDate()).padStart(2, '0');
+  // Return as YYYY-MM-DD string (matches MySQL DATE format)
+  return `${year}-${month}-${day}`;
 };
 
 const performClockIn = async (
@@ -41,9 +42,10 @@ const performClockIn = async (
 ): Promise<{ attendance: Attendance; message: string }> => {
   const today = getPhilippinesDate();
   const dateNow = new Date();
+  
+  console.log('[CLOCK-IN DEBUG] Philippines date (string):', today);
 
   console.log('[CLOCK-IN DEBUG] Server time:', dateNow.toISOString());
-  console.log('[CLOCK-IN DEBUG] Philippines date:', today.toISOString());
 
   // Check if employee has an active (incomplete) shift at a different branch
   const activeShift = await prisma.attendance.findFirst({
@@ -93,6 +95,8 @@ const performClockOut = async (
   isManual: boolean
 ): Promise<{ attendance: Attendance; message: string }> => {
   const today = getPhilippinesDate();
+  
+  console.log('[CLOCK-OUT DEBUG] Philippines date (string):', today);
 
   // Find the most recent incomplete attendance record (has check_in but no check_out)
   const attendance = await prisma.attendance.findFirst({
@@ -499,22 +503,23 @@ export const getTodayAttendance = async (
 ): Promise<void> => {
   try {
     const employeeId = parseInt(req.query.employeeId as string);
-    
+
     if (!employeeId) {
       throw new AppError('Employee ID is required', 400);
     }
 
     const today = getPhilippinesDate();
-    const dateNow = new Date();
+    const now = new Date();
 
-    console.log('[TODAY DEBUG] Server time:', dateNow.toISOString());
-    console.log('[TODAY DEBUG] Philippines date:', today.toISOString());
+    console.log('[TODAY DEBUG] Server time:', now.toISOString());
+    console.log('[TODAY DEBUG] Philippines date string:', today);
     console.log('[TODAY DEBUG] employeeId:', employeeId);
 
+    // Use date string directly to avoid timezone conversion issues with MySQL DATE type
     const attendance = await prisma.attendance.findFirst({
       where: {
         employeeId,
-        date: today
+        date: today as any
       },
       orderBy: { check_in: 'desc' }
     });
@@ -549,22 +554,20 @@ export const getAttendanceAudit = async (
     console.log('=== ATTENDANCE AUDIT DEBUG ===');
     console.log('Query params:', { date, branch_code, status });
 
-    // Parse date or use today
-    let targetDate: Date;
+    // Parse date or use today as YYYY-MM-DD string
+    let targetDate: string;
     if (date) {
       const d = new Date(date as string);
-      targetDate = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+      targetDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
     } else {
-      const now = new Date();
-      targetDate = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
+      targetDate = getPhilippinesDate();
     }
 
-    console.log('Target date:', targetDate);
-    console.log('Target date ISO:', targetDate.toISOString());
+    console.log('Target date string:', targetDate);
 
-    // Build where clause
+    // Build where clause using string date
     const where: any = {
-      date: targetDate
+      date: targetDate as any
     };
 
     console.log('Where clause:', where);
@@ -655,7 +658,7 @@ export const getAttendanceAudit = async (
       success: true,
       message: 'Attendance audit records retrieved',
       data: {
-        date: targetDate.toISOString().split('T')[0],
+        date: targetDate,
         records: formattedRecords,
         stats
       }
