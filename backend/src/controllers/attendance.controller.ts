@@ -484,14 +484,16 @@ export const getTodayAttendance = async (
       throw new AppError('Employee ID is required', 400);
     }
 
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    // Use UTC date to match how clock-in stores dates
+    const dateNow = new Date();
+    const today = new Date(Date.UTC(dateNow.getFullYear(), dateNow.getMonth(), dateNow.getDate()));
 
     const attendance = await prisma.attendance.findFirst({
       where: {
         employeeId,
         date: today
-      }
+      },
+      orderBy: { check_in: 'desc' }
     });
 
     const response: ApiResponse<typeof attendance> = {
