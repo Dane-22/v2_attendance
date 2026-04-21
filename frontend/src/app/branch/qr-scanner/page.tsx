@@ -70,12 +70,13 @@ export default function BranchQRScannerPage() {
       }, 2000);
     },
     onError: (error: AxiosError<{ message?: string }>) => {
-      setScanResult({ success: false, message: error.response?.data?.message || 'Scan Failed', show: true });
+      const msg = error.response?.data?.message || 'Scan Failed';
+      setScanResult({ success: false, message: `${msg} (Code: ${lastQrData.substring(0, 30)}...)`, show: true });
       setCooldown(true);
       setTimeout(() => {
         setScanResult(null);
         setCooldown(false);
-      }, 3000);
+      }, 4000);
     },
   });
 
@@ -91,12 +92,13 @@ export default function BranchQRScannerPage() {
       }, 2000);
     },
     onError: (error: AxiosError<{ message?: string }>) => {
-      setScanResult({ success: false, message: error.response?.data?.message || 'Scan Failed', show: true });
+      const msg = error.response?.data?.message || 'Scan Failed';
+      setScanResult({ success: false, message: `${msg} (Code: ${lastQrData.substring(0, 30)}...)`, show: true });
       setCooldown(true);
       setTimeout(() => {
         setScanResult(null);
         setCooldown(false);
-      }, 3000);
+      }, 4000);
     },
   });
 
