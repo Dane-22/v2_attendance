@@ -60,6 +60,8 @@ export default function BranchQRScannerPage() {
 
   // Store parsed employee info for success messages
   const [lastEmployeeName, setLastEmployeeName] = useState('');
+  const [lastEmployeeCode, setLastEmployeeCode] = useState('');
+  const [hasActiveClockIn, setHasActiveClockIn] = useState(false);
 
   // Clock in mutation
   const clockInMutation = useMutation({
@@ -259,6 +261,7 @@ export default function BranchQRScannerPage() {
     const parsed = parseQRData(qrData);
     if (parsed) {
       setLastEmployeeName(parsed.employeeName || parsed.employeeCode);
+      setLastEmployeeCode(parsed.employeeCode);
     }
     if (!parsed) {
       // Show actual scanned data for debugging
@@ -275,20 +278,49 @@ export default function BranchQRScannerPage() {
       return;
     }
 
-    const hour = new Date().getHours();
-    const isClockOut = hour >= 17;
-
-    if (isClockOut) {
-      clockOutMutation.mutate({ qrCodeData: qrData });
-    } else {
-      clockInMutation.mutate({ qrCodeData: qrData });
-    }
+    // Check if employee has active clock-in for today to determine in/out
+    checkAndPerformClockAction(qrData, parsed.employeeCode);
     
     if (!cameraError) {
       setTimeout(() => {
         setScanning(true);
         setLastScan(null);
       }, 2000);
+    }
+  };
+
+  // Check today's attendance and decide clock in or out
+  const checkAndPerformClockAction = async (qrData: string, employeeCode: string) => {
+    try {
+      // First try to find employee by code to get ID
+      const empResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'}/employees?search=${employeeCode}`, {
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+      });
+      const empData = await empResponse.json();
+      
+      if (empData.data && empData.data.length > 0) {
+        const employee = empData.data[0];
+        
+        // Check if employee has clocked in today without clocking out
+        const todayResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'}/attendance/today?employeeId=${employee.id}`, {
+          headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+        });
+        const todayData = await todayResponse.json();
+        
+        // If there's an active record with check_in but no check_out, do clock out
+        if (todayData.data && todayData.data.check_in && !todayData.data.check_out) {
+          clockOutMutation.mutate({ qrCodeData: qrData });
+        } else {
+          clockInMutation.mutate({ qrCodeData: qrData });
+        }
+      } else {
+        // Fallback: just clock in if employee not found
+        clockInMutation.mutate({ qrCodeData: qrData });
+      }
+    } catch (error) {
+      console.error('Error checking attendance:', error);
+      // Fallback to clock in on error
+      clockInMutation.mutate({ qrCodeData: qrData });
     }
   };
 
