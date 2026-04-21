@@ -21,13 +21,16 @@ const determineStatus = (checkInTime: Date): AttendanceStatus => {
   return 'present';
 };
 
-// Helper to get Philippines date (UTC+8)
+// Helper to get Philippines date (UTC+8) as UTC midnight for consistent DB storage
 const getPhilippinesDate = (): Date => {
   const now = new Date();
-  // Convert to Philippines time (UTC+8)
+  // Get Philippines date components
   const phTime = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Manila' }));
-  // Create date at midnight Philippines time
-  return new Date(phTime.getFullYear(), phTime.getMonth(), phTime.getDate());
+  const year = phTime.getFullYear();
+  const month = phTime.getMonth();
+  const day = phTime.getDate();
+  // Return as UTC midnight (matches MySQL DATE storage)
+  return new Date(Date.UTC(year, month, day));
 };
 
 const performClockIn = async (
