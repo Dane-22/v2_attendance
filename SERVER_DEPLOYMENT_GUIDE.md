@@ -34,9 +34,9 @@ cd /var/www/version2_attendance/frontend
 echo "NEXT_PUBLIC_API_URL=https://attendacev2.xandree.com/api" > .env.local
 npm run build
 
-# 7. Restart PM2 services
-pm2 restart v2_attendance-api
-pm2 restart v2_attendance-web
+# 7. Restart PM2 services (with --update-env to ensure env vars are refreshed)
+pm2 restart v2_attendance-api --update-env
+pm2 restart v2_attendance-web --update-env
 
 # 8. Verify services are running
 pm2 status
@@ -117,9 +117,9 @@ cd /var/www/version2_attendance && \
 git fetch origin main && \
 git reset --hard origin/main && \
 npm install && \
-cd backend && npm install && npm run build && npx prisma generate && \
+cd backend && npm install && npx prisma generate && npm run build && \
 cd ../frontend && npm install && echo "NEXT_PUBLIC_API_URL=https://attendacev2.xandree.com/api" > .env.local && npm run build && \
-pm2 restart v2_attendance-api && pm2 restart v2_attendance-web && \
+pm2 restart v2_attendance-api --update-env && pm2 restart v2_attendance-web --update-env && \
 pm2 status
 ```
 
@@ -156,6 +156,14 @@ cat /var/www/version2_attendance/frontend/.env.local
 ```bash
 pm2 status
 pm2 logs v2_attendance-api --lines 20
+```
+
+### Issue: "Authentication failed against database" (Prisma P1000)
+**Fix:** Update the database password in backend .env:
+```bash
+nano /var/www/version2_attendance/backend/.env
+# Update: DATABASE_URL="mysql://root:YOUR_PASSWORD@localhost:3306/attendance-system"
+pm2 restart v2_attendance-api --update-env
 ```
 
 ### Issue: SSL Certificate Expired
