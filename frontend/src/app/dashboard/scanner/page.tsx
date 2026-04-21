@@ -49,12 +49,27 @@ const parseQRCode = (data: string): ParsedQRData | null => {
     };
   }
 
-  // Try V1 URL Format (Legacy Support)
+  // Try V1 URL Format (Legacy Support - path-based)
   const urlMatch = data.match(/\/attendance\/([A-Z]\d{4,})/i);
   if (urlMatch) {
     return {
       employeeId: 0,
       employeeCode: urlMatch[1].toUpperCase(),
+      employeeName: 'Unknown',
+      format: 'V1-URL',
+    };
+  }
+
+  // Try Version 1 QR Format (select_employee.php with emp_code query param)
+  // Format: .../employee/select_employee.php?auto_timein=1&select_branch=1&emp_id=42&emp_code=EMP-001
+  const v1QueryMatch = data.match(/[?&]emp_code=([^&\s]+)/i);
+  if (v1QueryMatch) {
+    const decodedCode = decodeURIComponent(v1QueryMatch[1]);
+    // Also try to extract emp_id if present
+    const idMatch = data.match(/[?&]emp_id=(\d+)/i);
+    return {
+      employeeId: idMatch ? parseInt(idMatch[1], 10) : 0,
+      employeeCode: decodedCode.toUpperCase(),
       employeeName: 'Unknown',
       format: 'V1-URL',
     };

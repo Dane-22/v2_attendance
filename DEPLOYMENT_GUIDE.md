@@ -2,14 +2,16 @@
 
 This guide walks you through deploying your Attendance & Payroll System on a Hostinger VPS.
 
+> **⚠️ Multiple Projects on Same VPS:** This guide is configured to use **port 3001** (instead of 3000) and **port 5002** for the backend to avoid conflicts with your existing projects. Process names are prefixed with `v2-` for uniqueness.
+
 ---
 
 ## Project Overview
 
 | Component | Technology | Port |
 |-----------|------------|------|
-| **Backend** | Express + TypeScript + Prisma | 5000 |
-| **Frontend** | Next.js 16 + React 19 + TailwindCSS 4 | 3000 |
+| **Backend** | Express + TypeScript + Prisma | 5002 |
+| **Frontend** | Next.js 16 + React 19 + TailwindCSS 4 | 3001 |
 | **Database** | MySQL | 3306 |
 
 **GitHub Repository:** `https://github.com/Dane-22/v2_attendance.git`  
@@ -84,10 +86,9 @@ mysql -u root -p
 ```
 
 ```sql
-CREATE DATABASE attendance_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-CREATE USER 'attendance_user'@'localhost' IDENTIFIED BY 'YourStrongPassword123!';
-GRANT ALL PRIVILEGES ON attendance_db.* TO 'attendance_user'@'localhost';
-FLUSH PRIVILEGES;
+SHOW DATABASES;
+USE attendance-system;
+SHOW TABLES;
 EXIT;
 ```
 
@@ -97,15 +98,29 @@ EXIT;
 
 ```bash
 cd /var/www
-git clone https://github.com/Dane-22/v2_attendance.git attendance
+git clone https://github.com/Dane-22/v2_attendance.git version2_attendance
 ```
 
 ---
 
-## Step 5: Configure Backend Environment
+## Step 5: Check Port Availability
+
+Before proceeding, verify ports 5002 and 3001 are not already in use by your other projects:
 
 ```bash
-cd /var/www/attendance/backend
+# Check if ports are in use
+lsof -i :5002
+lsof -i :3001
+```
+
+**If port 5002 is in use**, you'll need to change it to 5003. Open `backend/src/server.ts` and change the port, then update the `.env` file with `PORT=5003` and update Nginx config to proxy to port 5003.
+
+---
+
+## Step 6: Configure Backend Environment
+
+```bash
+cd /var/www/version2_attendance/backend
 cp .env.example .env
 nano .env
 ```
@@ -114,10 +129,10 @@ Update the `.env` file:
 
 ```env
 # Database
-DATABASE_URL="mysql://attendance_user:YourStrongPassword123!@localhost:3306/attendance_db"
+DATABASE_URL="mysql://root:YOUR_MYSQL_ROOT_PASSWORD@localhost:3306/attendance-system"
 
 # Server
-PORT=5000
+PORT=5002
 NODE_ENV=production
 # Generate JWT_SECRET:
 #   Linux: openssl rand -base64 32
@@ -128,27 +143,16 @@ JWT_SECRET=YOUR_32_CHAR_RANDOM_SECRET_HERE
 FRONTEND_URL=https://attendacev2.com
 ```
 
-### Import Your Existing Database
+### Verify Your Existing Database
 
-Upload your SQL file to the VPS using SCP (from your local machine):
-
-```bash
-# On your local machine (PowerShell/CMD)
-scp "attendance-system (1).sql" root@72.62.254.60:/tmp/
-```
-
-Then on the VPS, import the database:
+You already have the `attendance-system` database. Just verify it has your data:
 
 ```bash
-# Create the database
-mysql -u root -p -e "CREATE DATABASE IF NOT EXISTS attendance_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
-
-# Import the SQL dump
-mysql -u root -p attendance_db < /tmp/attendance-system\ \(1\).sql
-
-# Verify import
-mysql -u root -p -e "USE attendance_db; SHOW TABLES;"
+# Check tables in your existing database
+mysql -u root -p -e "USE attendance-system; SHOW TABLES;"
 ```
+
+You should see tables like: `employees`, `admins`, `attendance`, `branches`, etc.
 
 ### Transfer Profile Images (If Available)
 
@@ -163,11 +167,11 @@ Test-Path "C:\wamp64\www\v2-attendance\uploads"
 **If the folder exists**, transfer it:
 ```bash
 # From your local WAMP server (PowerShell as Admin)
-scp -r "C:\wamp64\www\v2-attendance\uploads" root@72.62.254.60:/var/www/attendance/backend/
+scp -r "C:\wamp64\www\v2-attendance\uploads" root@72.62.254.60:/var/www/version2_attendance/backend/
 
 # On the VPS, fix permissions:
-chown -R www-data:www-data /var/www/attendance/backend/uploads
-chmod -R 755 /var/www/attendance/backend/uploads
+chown -R www-data:www-data /var/www/version2_attendance/backend/uploads
+chmod -R 755 /var/www/version2_attendance/backend/uploads
 ```
 
 **If the folder doesn't exist**, the profile images will show as broken links. You can:
@@ -189,7 +193,7 @@ npm run build
 ## Step 6: Configure Frontend Environment
 
 ```bash
-cd /var/www/attendance/frontend
+cd /var/www/version2_attendance/frontend
 ```
 
 Create the environment file:
@@ -218,16 +222,16 @@ npm run build
 ### Backend (API Server)
 
 ```bash
-cd /var/www/attendance/backend
-pm2 start dist/server.js --name "attendance-api"
+cd /var/www/version2_attendance/backend
+pm2 start dist/server.js --name "v2-attendance-api"
 pm2 save
 ```
 
 ### Frontend (Next.js)
 
 ```bash
-cd /var/www/attendance/frontend
-pm2 start "npm start" --name "attendance-frontend"
+cd /var/www/version2_attendance/frontend
+pm2 start "npm start -- -p 3001" --name "v2-attendance-web"
 pm2 save
 ```
 
@@ -253,12 +257,12 @@ Add this configuration:
 
 ```nginx
 server {
-    listen 80;
-    server_name attendacev2.com www.attendacev2.com;
+    listen 80 default_server;
+    server_name attendacev2.com www.attendacev2.com 72.62.254.60;
 
     # Frontend - Next.js
     location / {
-        proxy_pass http://localhost:3000;
+        proxy_pass http://localhost:3001;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection 'upgrade';
@@ -271,7 +275,7 @@ server {
 
     # Backend API
     location /api/ {
-        proxy_pass http://localhost:5000/api/;
+        proxy_pass http://localhost:5002/api/;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection 'upgrade';
@@ -287,7 +291,7 @@ server {
 Enable the site:
 
 ```bash
-ln -s /etc/nginx/sites-available/attendance /etc/nginx/sites-enabled/
+ln -s /etc/nginx/sites-available/version2_attendance /etc/nginx/sites-enabled/
 nginx -t
 systemctl reload nginx
 ```
@@ -310,7 +314,7 @@ Follow the prompts. Certbot will automatically update your Nginx config for HTTP
 Edit the backend server to allow your domain:
 
 ```bash
-nano /var/www/attendance/backend/src/server.ts
+nano /var/www/version2_attendance/backend/src/server.ts
 ```
 
 Update the CORS configuration:
@@ -319,7 +323,7 @@ Update the CORS configuration:
 app.use(cors({
   origin: process.env.NODE_ENV === 'production' 
     ? ['https://attendacev2.com'] 
-    : ['http://localhost:3000', 'http://localhost:3001'],
+    : ['http://localhost:3001', 'http://localhost:3002'],
   credentials: true
 }));
 ```
@@ -327,9 +331,9 @@ app.use(cors({
 Rebuild and restart:
 
 ```bash
-cd /var/www/attendance/backend
+cd /var/www/version2_attendance/backend
 npm run build
-pm2 restart attendance-api
+pm2 restart v2-attendance-api
 ```
 
 ---
@@ -349,8 +353,8 @@ ufw enable
 | Command | Description |
 |---------|-------------|
 | `pm2 status` | Check running processes |
-| `pm2 logs attendance-api` | View backend logs |
-| `pm2 logs attendance-frontend` | View frontend logs |
+| `pm2 logs v2-attendance-api` | View backend logs |
+| `pm2 logs v2-attendance-web` | View frontend logs |
 | `pm2 restart all` | Restart all services |
 | `systemctl status nginx` | Check Nginx status |
 | `systemctl status mysql` | Check MySQL status |
@@ -360,7 +364,7 @@ ufw enable
 ## File & Directory Structure on VPS
 
 ```
-/var/www/attendance/
+/var/www/version2_attendance/
 ├── backend/               # Express API
 │   ├── dist/             # Compiled TypeScript
 │   ├── prisma/           # Database schema
@@ -409,8 +413,8 @@ journalctl -u nginx -f           # View logs
 ### Port Already in Use
 
 ```bash
-lsof -i :5000
-lsof -i :3000
+lsof -i :5002
+lsof -i :3001
 # Kill process if needed: kill -9 <PID>
 ```
 
@@ -438,7 +442,7 @@ lsof -i :3000
 When you push changes to GitHub:
 
 ```bash
-cd /var/www/attendance
+cd /var/www/version2_attendance
 git pull origin main
 
 # Update backend
@@ -446,13 +450,13 @@ cd backend
 npm install
 npx prisma migrate deploy
 npm run build
-pm2 restart attendance-api
+pm2 restart v2-attendance-api
 
 # Update frontend
 cd ../frontend
 npm install
 npm run build
-pm2 restart attendance-frontend
+pm2 restart v2-attendance-web
 ```
 
 ---
