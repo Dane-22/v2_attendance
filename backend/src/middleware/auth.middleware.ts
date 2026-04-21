@@ -12,6 +12,7 @@ export interface AuthenticatedRequest extends Request {
     name: string;
     email: string;
     role: string | null;
+    branch_code: string | null;
   };
   token?: string;
 }
@@ -51,7 +52,8 @@ export const authenticate = async (
         username: true,
         name: true,
         email: true,
-        role: true
+        role: true,
+        branch_code: true
       }
     });
 
@@ -97,7 +99,8 @@ export const optionalAuth = async (
         username: true,
         name: true,
         email: true,
-        role: true
+        role: true,
+        branch_code: true
       }
     });
 

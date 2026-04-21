@@ -28,12 +28,15 @@ const getPhilippinesDateString = (): string => {
 
 // Unified clock endpoint - uses raw SQL to bypass Prisma @db.Date timezone bugs
 export const clock = async (
-  req: Request,
+  req: AuthenticatedRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
   try {
-    const { qrCodeData, notes, branch_code } = req.body;
+    const { qrCodeData, notes } = req.body;
+
+    // Get branch_code from logged-in admin (from JWT token)
+    const adminBranchCode = req.admin?.branch_code;
 
     if (!qrCodeData) {
       throw new AppError('QR code data is required', 400);
@@ -90,7 +93,7 @@ export const clock = async (
       const checkOutTime = new Date();
 
       // Check branch mismatch
-      if (branch_code && activeRecord.branch_code && activeRecord.branch_code !== branch_code) {
+      if (adminBranchCode && activeRecord.branch_code && activeRecord.branch_code !== adminBranchCode) {
         throw new AppError(
           `Cannot clock out at this branch. Active clock-in is at ${activeRecord.branch_code}.`,
           409
@@ -132,7 +135,7 @@ export const clock = async (
       const todayStr = getPhilippinesDateString();
       const result = await prisma.$executeRaw`
         INSERT INTO attendance (employee_id, date, check_in, status, branch_code, notes, created_at, updated_at)
-        VALUES (${employee.id}, ${todayStr}, ${checkInTime}, ${status}, ${branch_code || employee.branchName || null}, ${notes || null}, NOW(), NOW())
+        VALUES (${employee.id}, ${todayStr}, ${checkInTime}, ${status}, ${adminBranchCode || employee.branchName || null}, ${notes || null}, NOW(), NOW())
       `;
 
       // Fetch the created record
