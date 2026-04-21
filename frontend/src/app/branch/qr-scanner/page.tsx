@@ -247,17 +247,19 @@ export default function BranchQRScannerPage() {
   // Handle scanned QR code
   const handleScan = (qrData: string) => {
     if (!cameraError) setScanning(false);
-    
+
     const parsed = parseQRData(qrData);
     if (!parsed) {
-      setScanResult({ success: false, message: 'Invalid QR Code', show: true });
+      // Show actual scanned data for debugging
+      const preview = qrData.length > 40 ? qrData.substring(0, 40) + '...' : qrData;
+      setScanResult({ success: false, message: `Invalid: ${preview}`, show: true });
       setTimeout(() => {
         setScanResult(null);
         if (!cameraError) {
           setScanning(true);
           setLastScan(null);
         }
-      }, 2000);
+      }, 3000);
       return;
     }
 
