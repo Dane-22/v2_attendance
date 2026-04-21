@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { authenticate, optionalAuth } from '../middleware/auth.middleware';
 import {
+  clock,
   clockIn,
   clockOut,
   manualClockIn,
@@ -14,6 +15,7 @@ import {
 
 const router = Router();
 
+router.post('/clock', optionalAuth, clock);
 router.post('/clock-in', optionalAuth, clockIn);
 router.post('/clock-out', optionalAuth, clockOut);
 router.post('/manual-clock-in', authenticate, manualClockIn);

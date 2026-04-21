@@ -63,35 +63,14 @@ export default function BranchQRScannerPage() {
   const [lastEmployeeCode, setLastEmployeeCode] = useState('');
   const [hasActiveClockIn, setHasActiveClockIn] = useState(false);
 
-  // Clock in mutation
-  const clockInMutation = useMutation({
-    mutationFn: attendanceApi.clockIn,
-    onSuccess: () => {
-      const name = lastEmployeeName || 'Employee';
-      setScanResult({ success: true, message: `Clock In: ${name}`, show: true });
-      setCooldown(true);
-      setTimeout(() => {
-        setScanResult(null);
-        setCooldown(false);
-      }, 2000);
-    },
-    onError: (error: AxiosError<{ message?: string }>) => {
-      const msg = error.response?.data?.message || 'Scan Failed';
-      setScanResult({ success: false, message: `${msg} (Code: ${lastQrData.substring(0, 30)}...)`, show: true });
-      setCooldown(true);
-      setTimeout(() => {
-        setScanResult(null);
-        setCooldown(false);
-      }, 4000);
-    },
-  });
-
-  // Clock out mutation
-  const clockOutMutation = useMutation({
-    mutationFn: attendanceApi.clockOut,
-    onSuccess: () => {
-      const name = lastEmployeeName || 'Employee';
-      setScanResult({ success: true, message: `Clock Out: ${name}`, show: true });
+  // Unified clock mutation - backend decides clock-in or clock-out
+  const clockMutation = useMutation({
+    mutationFn: attendanceApi.clock,
+    onSuccess: (response: any) => {
+      const action = response.data?.action || 'clock_in';
+      const name = response.data?.employeeName || lastEmployeeName || 'Employee';
+      const label = action === 'clock_out' ? 'Clock Out' : 'Clock In';
+      setScanResult({ success: true, message: `${label}: ${name}`, show: true });
       setCooldown(true);
       setTimeout(() => {
         setScanResult(null);
@@ -278,8 +257,8 @@ export default function BranchQRScannerPage() {
       return;
     }
 
-    // Check if employee has active clock-in for today to determine in/out
-    checkAndPerformClockAction(qrData, parsed.employeeCode);
+    // Send to unified clock endpoint - backend decides clock-in or clock-out
+    performClockAction(qrData);
     
     if (!cameraError) {
       setTimeout(() => {
@@ -289,53 +268,10 @@ export default function BranchQRScannerPage() {
     }
   };
 
-  // Check today's attendance and decide clock in or out
-  const checkAndPerformClockAction = async (qrData: string, employeeCode: string) => {
-    try {
-      console.log('[CLOCK DEBUG] Checking employee:', employeeCode);
-      
-      // First try to find employee by code to get ID
-      const empResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'}/employees?search=${employeeCode}`, {
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-      });
-      const empData = await empResponse.json();
-      console.log('[CLOCK DEBUG] Employee search result:', empData);
-      
-      if (empData.data && empData.data.length > 0) {
-        const employee = empData.data[0];
-        console.log('[CLOCK DEBUG] Found employee ID:', employee.id);
-        
-        // Check if employee has clocked in today without clocking out
-        const todayResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'}/attendance/today?employeeId=${employee.id}`, {
-          headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-        });
-        const todayData = await todayResponse.json();
-        console.log('[CLOCK DEBUG] Today attendance:', todayData);
-        
-        // Check if there's an active record with check_in but no check_out
-        const hasActiveClockIn = todayData.data && 
-                                 todayData.data.check_in && 
-                                 !todayData.data.check_out;
-        
-        console.log('[CLOCK DEBUG] Has active clock in?', hasActiveClockIn);
-        console.log('[CLOCK DEBUG] check_in:', todayData.data?.check_in);
-        console.log('[CLOCK DEBUG] check_out:', todayData.data?.check_out);
-        
-        if (hasActiveClockIn) {
-          console.log('[CLOCK DEBUG] -> Performing CLOCK OUT');
-          clockOutMutation.mutate({ qrCodeData: qrData });
-        } else {
-          console.log('[CLOCK DEBUG] -> Performing CLOCK IN');
-          clockInMutation.mutate({ qrCodeData: qrData });
-        }
-      } else {
-        console.log('[CLOCK DEBUG] Employee not found, falling back to clock in');
-        clockInMutation.mutate({ qrCodeData: qrData });
-      }
-    } catch (error) {
-      console.error('[CLOCK DEBUG] Error checking attendance:', error);
-      clockInMutation.mutate({ qrCodeData: qrData });
-    }
+  // Unified clock action - backend decides clock-in or clock-out
+  const performClockAction = (qrData: string) => {
+    console.log('[CLOCK] Sending to unified clock endpoint:', qrData);
+    clockMutation.mutate({ qrCodeData: qrData });
   };
 
   const handleManualSubmit = () => {
@@ -451,10 +387,10 @@ export default function BranchQRScannerPage() {
               </button>
               <button
                 onClick={handleManualSubmit}
-                disabled={clockInMutation.isPending || clockOutMutation.isPending}
+                disabled={clockMutation.isPending}
                 className="flex-1 py-3 bg-yellow-500 text-black font-medium rounded-lg disabled:opacity-50"
               >
-                {clockInMutation.isPending || clockOutMutation.isPending ? 'Processing...' : 'Submit'}
+                {clockMutation.isPending ? 'Processing...' : 'Submit'}
               </button>
             </div>
           </div>

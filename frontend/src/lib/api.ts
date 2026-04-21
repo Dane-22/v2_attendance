@@ -152,6 +152,8 @@ export const attendanceApi = {
     api.get<ApiResponse<{ period: { start: string; end: string }; stats: { totalDays: number; presentDays: number; absentDays: number; lateDays: number; totalHours: number; overtimeHours: number; averageHoursPerDay: number; } }>>('/attendance/stats', { params }),
   getToday: (params: { employeeId: number }) =>
     api.get<ApiResponse<Attendance | null>>('/attendance/today', { params }),
+  clock: (data: { qrCodeData: string; notes?: string; branch_code?: string }) =>
+    api.post<ApiResponse<any>>('/attendance/clock', data),
   clockIn: (data: { qrCodeData: string; notes?: string }) =>
     api.post<ApiResponse<Attendance>>('/attendance/clock-in', data),
   clockOut: (data: { qrCodeData: string; notes?: string }) =>

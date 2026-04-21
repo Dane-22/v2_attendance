@@ -7,6 +7,177 @@ import { decodeQRCodeData, extractEmployeeCode } from '../services/qr.service';
 
 const prisma = new PrismaClient();
 
+// Get Philippines date as YYYY-MM-DD string using Intl.DateTimeFormat
+// This ensures we get the correct date components for Asia/Manila timezone
+const getPhilippinesDateString = (): string => {
+  const now = new Date();
+  // Use Intl.DateTimeFormat to get Philippines date components
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Manila',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour12: false
+  });
+  const parts = formatter.formatToParts(now);
+  const year = parts.find(p => p.type === 'year')?.value;
+  const month = parts.find(p => p.type === 'month')?.value;
+  const day = parts.find(p => p.type === 'day')?.value;
+  return `${year}-${month}-${day}`;
+};
+
+// Unified clock endpoint - uses raw SQL to bypass Prisma @db.Date timezone bugs
+export const clock = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const { qrCodeData, notes, branch_code } = req.body;
+
+    if (!qrCodeData) {
+      throw new AppError('QR code data is required', 400);
+    }
+
+    // Decode employee code from QR data
+    let employeeCode: string;
+    try {
+      const decoded = decodeQRCodeData(qrCodeData);
+      employeeCode = decoded.employeeCode;
+    } catch {
+      employeeCode = extractEmployeeCode(qrCodeData) || '';
+      if (!employeeCode) {
+        throw new AppError('Invalid QR code format', 400);
+      }
+    }
+
+    // Find employee
+    const employee = await prisma.employee.findUnique({
+      where: { employeeCode }
+    });
+
+    if (!employee) {
+      throw new AppError('Employee not found', 404);
+    }
+
+    if (employee.status !== 'Active') {
+      throw new AppError('Employee account is not active', 403);
+    }
+
+    const todayStr = getPhilippinesDateString();
+    const now = new Date();
+
+    console.log('[CLOCK] Employee:', employee.id, 'Date:', todayStr, 'Server time:', now.toISOString());
+
+    // Use raw SQL to check for active clock-in - bypasses Prisma timezone conversion
+    const activeRecords = await prisma.$queryRaw<Array<{ id: number; branch_code: string | null; check_in: Date }>>`
+      SELECT id, branch_code, check_in FROM attendance 
+      WHERE employee_id = ${employee.id} 
+      AND date = ${todayStr}
+      AND check_in IS NOT NULL 
+      AND check_out IS NULL
+      ORDER BY check_in DESC
+      LIMIT 1
+    `;
+
+    console.log('[CLOCK] Active records found:', activeRecords.length);
+
+    if (activeRecords.length > 0) {
+      // Employee has active clock-in → CLOCK OUT
+      const activeRecord = activeRecords[0];
+      const checkOutTime = new Date();
+
+      // Check branch mismatch
+      if (branch_code && activeRecord.branch_code && activeRecord.branch_code !== branch_code) {
+        throw new AppError(
+          `Cannot clock out at this branch. Active clock-in is at ${activeRecord.branch_code}.`,
+          409
+        );
+      }
+
+      // Update using raw SQL
+      await prisma.$executeRaw`
+        UPDATE attendance 
+        SET check_out = ${checkOutTime}, updated_at = NOW()
+        WHERE id = ${activeRecord.id}
+      `;
+
+      // Fetch the updated record
+      const updatedRecord = await prisma.attendance.findUnique({
+        where: { id: activeRecord.id }
+      });
+
+      console.log('[CLOCK] Clock OUT successful for employee:', employee.id);
+
+      const response: ApiResponse<any> = {
+        success: true,
+        message: `Clocked out successfully at ${checkOutTime.toLocaleTimeString()}`,
+        data: {
+          action: 'clock_out',
+          employeeId: employee.id,
+          employeeName: `${employee.firstName} ${employee.lastName}`,
+          attendance: updatedRecord
+        }
+      };
+
+      res.json(response);
+    } else {
+      // No active clock-in → CLOCK IN
+      const checkInTime = new Date();
+      const status = determineStatus(checkInTime);
+
+      // Use raw SQL to insert - bypasses Prisma timezone conversion on date field
+      const result = await prisma.$executeRaw`
+        INSERT INTO attendance (employee_id, date, check_in, status, branch_code, notes, created_at, updated_at)
+        VALUES (${employee.id}, ${todayStr}, ${checkInTime}, ${status}, ${branch_code || employee.branchName || null}, ${notes || null}, NOW(), NOW())
+      `;
+
+      // Fetch the created record
+      const newRecord = await prisma.attendance.findFirst({
+        where: { employeeId: employee.id },
+        orderBy: { id: 'desc' }
+      });
+
+      console.log('[CLOCK] Clock IN successful for employee:', employee.id, 'date:', todayStr);
+
+      const response: ApiResponse<any> = {
+        success: true,
+        message: `Clocked in successfully at ${checkInTime.toLocaleTimeString()}`,
+        data: {
+          action: 'clock_in',
+          employeeId: employee.id,
+          employeeName: `${employee.firstName} ${employee.lastName}`,
+          attendance: newRecord
+        }
+      };
+
+      res.status(201).json(response);
+    }
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Helper to get Philippines date range (for Prisma queries in manual endpoints)
+const getPhilippinesDateRange = (): { start: Date; end: Date } => {
+  const now = new Date();
+  // Use Intl.DateTimeFormat to get correct Philippines date components
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Manila',
+    year: 'numeric',
+    month: 'numeric',
+    day: 'numeric',
+    hour12: false
+  });
+  const parts = formatter.formatToParts(now);
+  const year = parseInt(parts.find(p => p.type === 'year')?.value || '0');
+  const month = parseInt(parts.find(p => p.type === 'month')?.value || '0') - 1; // 0-indexed
+  const day = parseInt(parts.find(p => p.type === 'day')?.value || '0');
+  const start = new Date(Date.UTC(year, month, day));
+  const end = new Date(Date.UTC(year, month, day + 1));
+  return { start, end };
+};
+
 type AttendanceStatus = 'present' | 'absent' | 'late' | 'half_day' | 'leave';
 
 const determineStatus = (checkInTime: Date): AttendanceStatus => {
@@ -19,32 +190,6 @@ const determineStatus = (checkInTime: Date): AttendanceStatus => {
     return 'late';
   }
   return 'present';
-};
-
-// Helper to get Philippines date range for queries
-// Returns start (midnight PH) and end (next midnight PH) as UTC Date objects
-// Using range queries eliminates timezone conversion issues with Prisma/MySQL
-const getPhilippinesDateRange = (): { start: Date; end: Date } => {
-  const now = new Date();
-  const phTime = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Manila' }));
-  const year = phTime.getFullYear();
-  const month = phTime.getMonth();
-  const day = phTime.getDate();
-  // Start of day in Philippines = midnight UTC of that date
-  const start = new Date(Date.UTC(year, month, day));
-  // End of day = start + 24 hours
-  const end = new Date(Date.UTC(year, month, day + 1));
-  return { start, end };
-};
-
-// Also return the simple date string for creating records
-const getPhilippinesDateString = (): string => {
-  const now = new Date();
-  const phTime = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Manila' }));
-  const year = phTime.getFullYear();
-  const month = String(phTime.getMonth() + 1).padStart(2, '0');
-  const day = String(phTime.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
 };
 
 const performClockIn = async (
