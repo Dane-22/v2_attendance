@@ -133,6 +133,9 @@ export default function BranchQRScannerPage() {
     };
   }, [scanning]);
 
+  // Throttle scan to every 200ms for better performance (5fps instead of 60fps)
+  const lastScanTimeRef = useRef<number>(0);
+
   // Scan video frame for QR codes
   const scanFrame = () => {
     if (!scanning || !videoRef.current || !canvasRef.current || cooldown) {
@@ -140,21 +143,33 @@ export default function BranchQRScannerPage() {
       return;
     }
 
+    // Throttle scanning to improve performance
+    const now = Date.now();
+    if (now - lastScanTimeRef.current < 200) {
+      requestAnimationFrame(scanFrame);
+      return;
+    }
+    lastScanTimeRef.current = now;
+
     const video = videoRef.current;
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
 
     if (video.readyState === video.HAVE_ENOUGH_DATA && ctx) {
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      // Use smaller canvas for better performance
+      const scanWidth = Math.min(video.videoWidth, 640);
+      const scanHeight = Math.min(video.videoHeight, 480);
+      canvas.width = scanWidth;
+      canvas.height = scanHeight;
+      ctx.drawImage(video, 0, 0, scanWidth, scanHeight);
 
-      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const imageData = ctx.getImageData(0, 0, scanWidth, scanHeight);
       const code = jsQR(imageData.data, imageData.width, imageData.height, {
         inversionAttempts: 'attemptBoth'
       });
 
       if (code && code.data !== lastScan) {
+        console.log('[QR SCAN] Found code:', code.data.substring(0, 50));
         setLastScan(code.data);
         handleScan(code.data);
       }
@@ -165,39 +180,67 @@ export default function BranchQRScannerPage() {
 
   // Parse QR code data - support multiple formats
   const parseQRData = (qrData: string) => {
+    console.log('[QR SCAN] Raw data:', qrData);
+
     // Try JAJR-EMP format: JAJR-EMP:id|code|name
-    const jajrMatch = qrData.match(/^JAJR-EMP:(\d+)\|([^|]+)\|(.+)$/);
+    const jajrMatch = qrData.match(/^JAJR-EMP:(\d+)\|([^|]+)\|(.+)$/i);
     if (jajrMatch) {
       return {
         employeeId: parseInt(jajrMatch[1], 10),
-        employeeCode: jajrMatch[2],
-        employeeName: jajrMatch[3],
+        employeeCode: jajrMatch[2].trim(),
+        employeeName: jajrMatch[3].trim(),
         format: 'JAJR-EMP'
       };
     }
-    
-    // Try simple employee code format (E0001, W0001, etc.)
-    const simpleMatch = qrData.match(/^([A-Z]\d{4,})$/);
+
+    // Try simple employee code format (E0001, W0001, etc.) - case insensitive
+    const simpleMatch = qrData.match(/^([A-Za-z]\d{4,})$/);
     if (simpleMatch) {
       return {
         employeeId: 0,
-        employeeCode: simpleMatch[1],
+        employeeCode: simpleMatch[1].toUpperCase(),
         employeeName: '',
         format: 'SIMPLE'
       };
     }
-    
+
     // Try URL format: https://jajr.com/attendance/E0001
-    const urlMatch = qrData.match(/\/attendance\/([A-Z]\d+)/);
+    const urlMatch = qrData.match(/\/attendance\/([A-Za-z]\d{4,})/i);
     if (urlMatch) {
       return {
         employeeId: 0,
-        employeeCode: urlMatch[1],
+        employeeCode: urlMatch[1].toUpperCase(),
         employeeName: '',
         format: 'URL'
       };
     }
-    
+
+    // Try old jajr.xandree.com format with emp_code query param
+    // Format: .../employee/select_employee.php?auto_timein=1&select_branch=1&emp_id=42&emp_code=E0001
+    const empCodeMatch = qrData.match(/[?&]emp_code=([^&\s]+)/i);
+    if (empCodeMatch) {
+      const decodedCode = decodeURIComponent(empCodeMatch[1]);
+      const idMatch = qrData.match(/[?&]emp_id=(\d+)/i);
+      return {
+        employeeId: idMatch ? parseInt(idMatch[1], 10) : 0,
+        employeeCode: decodedCode.toUpperCase(),
+        employeeName: '',
+        format: 'LEGACY-URL'
+      };
+    }
+
+    // Try any URL with emp= or code= parameter
+    const altCodeMatch = qrData.match(/[?&](?:emp|code|id)=([^&\s]+)/i);
+    if (altCodeMatch) {
+      return {
+        employeeId: 0,
+        employeeCode: decodeURIComponent(altCodeMatch[1]).toUpperCase(),
+        employeeName: '',
+        format: 'GENERIC-URL'
+      };
+    }
+
+    console.log('[QR SCAN] No matching format found');
     return null;
   };
 
