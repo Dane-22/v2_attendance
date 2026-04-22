@@ -27,8 +27,10 @@ model Employee {
   performanceAllowance Decimal?  @default(0.00) @map("performance_allowance") @db.Decimal(10, 2)
   hasDeduction         Boolean?  @default(true) @map("has_deduction")
   branchId             Int?      @map("branch_id")
+  branchCode           String?   @map("branch_code") @db.VarChar(10)
 
   @@index([branchName], map: "idx_employee_branch")
+  @@index([branchCode], map: "idx_employee_branch_code")
   @@map("employees")
 }
 
@@ -115,17 +117,21 @@ model notifications {
   message        String                       @db.Text
   link           String?                      @db.VarChar(255)
   is_read        Boolean?                     @default(false)
+  is_urgent      Boolean?                     @default(false)
   created_at     DateTime?                    @default(now()) @db.Timestamp(0)
   read_at        DateTime?                    @db.Timestamp(0)
 
   @@index([created_at(sort: Desc)], map: "idx_created")
   @@index([recipient_type, recipient_id], map: "idx_recipient")
   @@index([recipient_type, recipient_id, is_read], map: "idx_unread")
+  @@index([is_urgent], map: "idx_urgent")
 }
 
 enum notifications_recipient_type {
   admin
   employee
+  role_admin
+  role_branch
 }
 
 enum admins_role {

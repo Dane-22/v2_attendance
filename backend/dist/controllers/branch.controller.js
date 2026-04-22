@@ -2,6 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.getBranchEmployees = exports.getBranches = void 0;
 const client_1 = require("@prisma/client");
+const activityLogger_service_1 = require("../services/activityLogger.service");
 const prisma = new client_1.PrismaClient();
 // Branch mapping from branch_code to full name
 const branchNames = {
@@ -37,6 +38,17 @@ const getBranches = async (req, res, next) => {
             shortName: branchNames[branch.branch_code || ''] || branch.branch_code || 'Unknown',
             description: `Deploy employees to ${branchNames[branch.branch_code || ''] || branch.branch_code} for attendance.`
         }));
+        // Log branch list view
+        await (0, activityLogger_service_1.logView)({
+            userId: req.admin?.id || 0,
+            userName: req.admin?.name || 'unknown',
+            userRole: req.admin?.role || 'admin',
+            entityType: 'BRANCH',
+            description: `Viewed all branches (${branches.length} branches)`,
+            ipAddress: req.ip,
+            userAgent: req.headers['user-agent'],
+            metadata: { branchCount: branches.length },
+        });
         res.json({
             success: true,
             data: formattedBranches
@@ -56,12 +68,10 @@ const getBranchEmployees = async (req, res, next) => {
         const now = new Date();
         const today = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
         console.log('Today date:', today);
-        // Get employees for this branch (case insensitive search)
+        // Get employees for this branch using exact branch_code match
         const employees = await prisma.employee.findMany({
             where: {
-                branchName: {
-                    contains: branchCode
-                },
+                branchCode: branchCode,
                 status: 'Active'
             },
             select: {
@@ -72,6 +82,7 @@ const getBranchEmployees = async (req, res, next) => {
                 department: true,
                 position: true,
                 branchName: true,
+                branchCode: true,
             }
         });
         console.log('Found employees:', employees.length);
@@ -156,6 +167,19 @@ const getBranchEmployees = async (req, res, next) => {
         console.log('Attendance map entries:', Array.from(attendanceMap.entries()).map(([k, v]) => ({ empId: k, attId: v.id, check_in: v.check_in, check_out: v.check_out })));
         console.log('Formatted employees:', formattedEmployees.map(e => ({ id: e.id, name: e.name, timeIn: e.timeIn, timeOut: e.timeOut })));
         console.log('=== END GET BRANCH EMPLOYEES ===');
+        // Log branch employees view
+        await (0, activityLogger_service_1.logView)({
+            userId: req.admin?.id || 0,
+            userName: req.admin?.name || 'unknown',
+            userRole: req.admin?.role || 'admin',
+            entityType: 'BRANCH',
+            entityId: branchCode,
+            entityName: `Branch ${branchCode}`,
+            description: `Viewed employees for branch ${branchCode} (${employees.length} employees)`,
+            ipAddress: req.ip,
+            userAgent: req.headers['user-agent'],
+            metadata: { branchCode, employeeCount: employees.length },
+        });
         res.json({
             success: true,
             data: formattedEmployees

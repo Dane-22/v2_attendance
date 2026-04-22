@@ -4,6 +4,7 @@ exports.generateEmployeeQR = exports.verifyQRCode = exports.decodeQRCode = void 
 const client_1 = require("@prisma/client");
 const error_middleware_1 = require("../middleware/error.middleware");
 const qr_service_1 = require("../services/qr.service");
+const activityLogger_service_1 = require("../services/activityLogger.service");
 const prisma = new client_1.PrismaClient();
 const decodeQRCode = async (req, res, next) => {
     try {
@@ -24,6 +25,21 @@ const decodeQRCode = async (req, res, next) => {
                 status: true
             }
         });
+        // Log QR code scan
+        if (employee) {
+            await (0, activityLogger_service_1.logScan)({
+                userId: employee.id,
+                userName: `${employee.firstName} ${employee.lastName}`,
+                userRole: 'employee',
+                entityType: 'EMPLOYEE',
+                entityId: employee.id.toString(),
+                entityName: `${employee.firstName} ${employee.lastName}`,
+                description: `QR code decoded for employee ${employee.employeeCode}`,
+                ipAddress: req.ip,
+                userAgent: req.headers['user-agent'],
+                metadata: { employeeCode: decoded.employeeCode, version: decoded.version },
+            });
+        }
         const response = {
             success: true,
             message: 'QR code decoded successfully',
@@ -70,6 +86,21 @@ const verifyQRCode = async (req, res, next) => {
                 status: true
             }
         });
+        // Log QR code verification
+        if (employee) {
+            await (0, activityLogger_service_1.logScan)({
+                userId: employee.id,
+                userName: `${employee.firstName} ${employee.lastName}`,
+                userRole: 'employee',
+                entityType: 'EMPLOYEE',
+                entityId: employee.id.toString(),
+                entityName: `${employee.firstName} ${employee.lastName}`,
+                description: `QR code verified for employee ${employee.employeeCode}`,
+                ipAddress: req.ip,
+                userAgent: req.headers['user-agent'],
+                metadata: { employeeCode: decoded.employeeCode, version: decoded.version, isValid: isValidFormat && employee.status === 'Active' },
+            });
+        }
         const response = {
             success: true,
             message: 'QR code verified',
@@ -105,6 +136,19 @@ const generateEmployeeQR = async (req, res, next) => {
             throw new error_middleware_1.AppError('Employee has no employee code', 400);
         }
         const qrCodeData = (0, qr_service_1.generateQRCodeData)(employee.employeeCode, version);
+        // Log QR code generation
+        await (0, activityLogger_service_1.logView)({
+            userId: req.admin?.id || 0,
+            userName: req.admin?.name || 'unknown',
+            userRole: req.admin?.role || 'admin',
+            entityType: 'EMPLOYEE',
+            entityId: employee.id.toString(),
+            entityName: `${employee.firstName} ${employee.lastName}`,
+            description: `Generated QR code (Version ${version}) for employee ${employee.employeeCode}`,
+            ipAddress: req.ip,
+            userAgent: req.headers['user-agent'],
+            metadata: { employeeId, employeeCode: employee.employeeCode, version },
+        });
         // Note: QR code data is generated but not stored in database
         // as qrCodeData/qrVersion fields don't exist in the current schema
         const response = {

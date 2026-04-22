@@ -1,10 +1,12 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { branchApi, attendanceApi, employeeApi, Branch, BranchEmployee, Attendance } from '@/lib/api';
 import { AxiosError } from 'axios';
 import { Search, Plus, X, RotateCcw, Lightbulb, Clock, UserX, UserCheck, ChevronLeft, ChevronRight, CheckCircle, Loader2, LogIn, LogOut } from 'lucide-react';
+import { useWebSocket } from '@/hooks/useWebSocket';
+import RecentActivity from '@/components/RecentActivity';
 
 // Employee type from API
 interface EmployeeData {
@@ -52,10 +54,23 @@ export default function AttendancePage() {
   const [selectedBranch, setSelectedBranch] = useState<string>('');
   const [activeTab, setActiveTab] = useState('Available');
   const [searchQuery, setSearchQuery] = useState('');
+  const [flashedEmployeeId, setFlashedEmployeeId] = useState<number | null>(null);
+  const { isConnected, joinBranch, leaveBranch, on } = useWebSocket();
   
   // Pagination for branches
   const [currentPage, setCurrentPage] = useState(1);
   const branchesPerPage = 6;
+
+  // Pagination for employees
+  const [employeeCurrentPage, setEmployeeCurrentPage] = useState(1);
+  const [employeesPerPage, setEmployeesPerPage] = useState(() => {
+    // Load from localStorage or use default 20
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('employeesPerPage');
+      return saved ? Number(saved) : 20;
+    }
+    return 20;
+  });
 
   // Fetch branches from API
   const { data: branchesData, isLoading: branchesLoading } = useQuery({
@@ -143,6 +158,20 @@ export default function AttendancePage() {
     }
   });
 
+  // Individual mark absent mutation
+  const markIndividualAbsentMutation = useMutation({
+    mutationFn: (employeeId: number) => attendanceApi.markIndividualAbsent(employeeId),
+    onSuccess: async () => {
+      await queryClient.refetchQueries({ queryKey: ['branch-employees', selectedBranch], exact: true });
+      await queryClient.refetchQueries({ queryKey: ['today-attendance-all'], exact: true });
+    },
+    onError: (error: AxiosError<{ message?: string }>) => {
+      console.error('Mark absent error:', error);
+      alert(error.response?.data?.message || error.message || 'Failed to mark as absent');
+    }
+  });
+
+
   const employees = employeesData || [];
   const searchResults = searchResultsData || [];
   const todayAttendance = todayAttendanceData || [];
@@ -183,6 +212,7 @@ export default function AttendancePage() {
           department: emp.department || 'General',
           position: emp.position || 'Worker',
           branchName: emp.branchName || '',
+          branchCode: emp.branchCode || null,
           timeIn: attendance?.timeIn || null,
           timeOut: attendance?.timeOut || null,
           totalHours: attendance?.timeIn && !attendance?.timeOut ? 
@@ -219,36 +249,110 @@ export default function AttendancePage() {
     // Filter by tab status
     switch (activeTab) {
       case 'Available':
-        // Available: no time in yet OR completed shift (has both timeIn and timeOut)
-        return (emp.timeIn === null && emp.timeOut === null) || 
-               (emp.timeIn !== null && emp.timeOut !== null);
+        // Available: no time in yet OR completed shift (has both timeIn and timeOut), excluding absent
+        return emp.status !== 'absent' && 
+               ((emp.timeIn === null && emp.timeOut === null) || 
+                (emp.timeIn !== null && emp.timeOut !== null));
       case 'Present':
+        // Present: active clock-in only (timeIn && !timeOut)
         return emp.timeIn !== null && emp.timeOut === null;
       case 'Absent':
-        return emp.status === 'absent' || emp.status === null;
+        // Absent: employee has explicit absent status
+        return emp.status === 'absent';
       case 'Summary':
       default:
         return true;
     }
   });
   
-  // Sort for Summary tab: Present → Available → Absent
+  // Sort for Summary tab: Completed → Present → Absent/Available
   if (activeTab === 'Summary') {
     filteredEmployees = filteredEmployees.sort((a, b) => {
       const getPriority = (emp: typeof a) => {
-        if (emp.timeIn !== null && emp.timeOut === null) return 0;
-        if (emp.timeIn === null && emp.timeOut === null) return 1;
-        return 2;
+        if (emp.timeIn !== null && emp.timeOut !== null) return 0; // Completed first
+        if (emp.timeIn !== null && emp.timeOut === null) return 1; // Present second
+        return 2; // Absent/Available last
       };
       return getPriority(a) - getPriority(b);
     });
   }
 
-  // Stats
+  // Employee pagination calculations
+  const employeeTotalPages = Math.ceil(filteredEmployees.length / employeesPerPage);
+  const indexOfLastEmployee = employeeCurrentPage * employeesPerPage;
+  const indexOfFirstEmployee = indexOfLastEmployee - employeesPerPage;
+  const currentEmployees = filteredEmployees.slice(indexOfFirstEmployee, indexOfLastEmployee);
+
+  // Reset employee pagination when filters change (NOT on attendance mutations)
+  useEffect(() => {
+    setEmployeeCurrentPage(1);
+  }, [activeTab, searchQuery, selectedBranch]);
+
+  // WebSocket: Join/leave branch room when selection changes
+  useEffect(() => {
+    if (selectedBranch) {
+      joinBranch(selectedBranch);
+    }
+    return () => {
+      if (selectedBranch) {
+        leaveBranch(selectedBranch);
+      }
+    };
+  }, [selectedBranch, joinBranch, leaveBranch]);
+
+  // WebSocket: Listen for attendance updates
+  useEffect(() => {
+    const handleAttendanceUpdate = (data: any) => {
+      console.log('[WebSocket] Attendance update received:', data);
+      // Trigger flash animation for the updated employee
+      setFlashedEmployeeId(data.employeeId);
+      setTimeout(() => setFlashedEmployeeId(null), 1000);
+      
+      // Refetch employees and attendance data
+      queryClient.refetchQueries({ queryKey: ['branch-employees', selectedBranch], exact: true });
+      queryClient.refetchQueries({ queryKey: ['today-attendance-all'], exact: true });
+    };
+
+    on('attendance:update', handleAttendanceUpdate);
+
+    return () => {
+      // Cleanup listener
+      // Note: The off function would need to be exposed from useWebSocket
+    };
+  }, [selectedBranch, queryClient, on]);
+
+  // Keyboard navigation for pagination (works globally)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (filteredEmployees.length <= employeesPerPage) return; // Don't handle if no pagination
+
+      if (e.key === 'ArrowLeft') {
+        setEmployeeCurrentPage(prev => Math.max(1, prev - 1));
+      } else if (e.key === 'ArrowRight') {
+        setEmployeeCurrentPage(prev => Math.min(employeeTotalPages, prev + 1));
+      } else if (e.key === 'PageUp') {
+        e.preventDefault();
+        setEmployeeCurrentPage(prev => Math.max(1, prev - 1));
+      } else if (e.key === 'PageDown') {
+        e.preventDefault();
+        setEmployeeCurrentPage(prev => Math.min(employeeTotalPages, prev + 1));
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [employeeTotalPages, filteredEmployees.length, employeesPerPage]);
+
+  // Stats (based on currently filtered list)
   const totalWorkers = filteredEmployees.length;
-  const availableCount = filteredEmployees.filter(e => e.timeIn === null && e.timeOut === null).length;
+  const completedCount = filteredEmployees.filter(e => e.timeIn !== null && e.timeOut !== null).length;
+  const availableCount = filteredEmployees.filter(e => 
+    e.status !== 'absent' && 
+    ((e.timeIn === null && e.timeOut === null) || 
+     (e.timeIn !== null && e.timeOut !== null))
+  ).length;
   const presentCount = filteredEmployees.filter(e => e.timeIn !== null && e.timeOut === null).length;
-  const absentCount = filteredEmployees.filter(e => e.timeIn === null && e.timeOut === null && (e.status === 'absent' || e.status === null)).length;
+  const absentCount = filteredEmployees.filter(e => e.status === 'absent').length;
 
   // Get selected branch name
   const selectedBranchData = branches.find(b => b.code === selectedBranch);
@@ -262,15 +366,23 @@ export default function AttendancePage() {
     <div className="space-y-6">
       {/* Welcome Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
+        <div className="flex items-center gap-3">
           <h1 className="text-xl sm:text-2xl font-bold text-[#facc15]">
             Welcome! Please select a project to start!
           </h1>
+          {/* Connection Status Indicator */}
+          <div className="flex items-center gap-2">
+            <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`} />
+            <span className="text-xs text-gray-500">{isConnected ? 'Connected' : 'Disconnected'}</span>
+          </div>
         </div>
         <div className="text-gray-400 text-sm">
-          April 20, 2026 11:03
+          {new Date().toLocaleDateString('en-US', { timeZone: 'Asia/Manila', year: 'numeric', month: 'long', day: 'numeric' })} {new Date().toLocaleTimeString('en-US', { timeZone: 'Asia/Manila', hour: '2-digit', minute: '2-digit', hour12: true })}
         </div>
       </div>
+
+      {/* Recent Activity Section */}
+      {selectedBranch && <RecentActivity branchCode={selectedBranch} />}
 
       {/* Project Selection Section */}
       <div className="bg-[#141414] rounded-xl border border-[#262626] p-4 sm:p-6">
@@ -352,19 +464,23 @@ export default function AttendancePage() {
         </div>
       </div>
 
-      {/* Stats Cards - Match Filter Tab Order */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* Stats Cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+        <div className="bg-[#141414] rounded-xl border border-[#262626] p-6">
+          <p className="text-gray-400 text-sm uppercase tracking-wider mb-2">Completed</p>
+          <p className="text-3xl font-bold text-blue-400">{completedCount}</p>
+        </div>
+        <div className="bg-[#141414] rounded-xl border border-[#262626] p-6">
+          <p className="text-gray-400 text-sm uppercase tracking-wider mb-2">Present</p>
+          <p className="text-3xl font-bold text-green-400">{presentCount}</p>
+        </div>
         <div className="bg-[#141414] rounded-xl border border-[#262626] p-6">
           <p className="text-gray-400 text-sm uppercase tracking-wider mb-2">Available</p>
           <p className="text-3xl font-bold text-[#facc15]">{availableCount}</p>
         </div>
         <div className="bg-[#141414] rounded-xl border border-[#262626] p-6">
-          <p className="text-gray-400 text-sm uppercase tracking-wider mb-2">Present</p>
-          <p className="text-3xl font-bold text-[#facc15]">{presentCount}</p>
-        </div>
-        <div className="bg-[#141414] rounded-xl border border-[#262626] p-6">
           <p className="text-gray-400 text-sm uppercase tracking-wider mb-2">Absent</p>
-          <p className="text-3xl font-bold text-[#facc15]">{absentCount}</p>
+          <p className="text-3xl font-bold text-red-400">{absentCount}</p>
         </div>
         <div className="bg-[#141414] rounded-xl border border-[#262626] p-6">
           <p className="text-gray-400 text-sm uppercase tracking-wider mb-2">Total Workers</p>
@@ -430,14 +546,19 @@ export default function AttendancePage() {
             <tbody>
               {filteredEmployees.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
+                  <td colSpan={activeTab === 'Summary' ? 7 : 6} className="px-4 py-8 text-center text-gray-500">
                     No employees found
                   </td>
                 </tr>
               ) : (
-                filteredEmployees.map((employee, index) => (
-                  <tr key={employee.id} className="border-b border-[#262626] last:border-0 hover:bg-[#1a1a1a]">
-                    <td className="px-4 py-4 text-gray-400">{index + 1}</td>
+                currentEmployees.map((employee, index) => (
+                  <tr 
+                    key={employee.id} 
+                    className={`border-b border-[#262626] last:border-0 hover:bg-[#1a1a1a] transition-all ${
+                      flashedEmployeeId === employee.id ? 'bg-[#facc15]/20' : ''
+                    }`}
+                  >
+                    <td className="px-4 py-4 text-gray-400">{indexOfFirstEmployee + index + 1}</td>
                     <td className="px-4 py-4">
                       <div className="flex items-center gap-3">
                         <div className="w-8 h-8 rounded-full bg-[#facc15] flex items-center justify-center text-black text-xs font-bold">
@@ -454,32 +575,35 @@ export default function AttendancePage() {
                     <td className="px-4 py-4 text-gray-400">{employee.totalHours}</td>
                     {activeTab === 'Summary' && (
                       <td className="px-4 py-4">
-                        {employee.timeIn !== null && employee.timeOut === null ? (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-green-500/20 text-green-400 text-xs font-medium rounded-full">
-                            <CheckCircle className="w-3 h-3" />
-                            PRESENT
-                          </span>
-                        ) : employee.timeIn === null && employee.timeOut === null ? (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-[#facc15]/20 text-[#facc15] text-xs font-medium rounded-full">
-                            <Clock className="w-3 h-3" />
-                            AVAILABLE
-                          </span>
-                        ) : employee.timeIn !== null && employee.timeOut !== null ? (
+                        {employee.timeIn !== null && employee.timeOut !== null ? (
                           <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-blue-500/20 text-blue-400 text-xs font-medium rounded-full">
                             <CheckCircle className="w-3 h-3" />
                             COMPLETED
                           </span>
-                        ) : (
+                        ) : employee.timeIn !== null && employee.timeOut === null ? (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-green-500/20 text-green-400 text-xs font-medium rounded-full">
+                            <CheckCircle className="w-3 h-3" />
+                            PRESENT
+                          </span>
+                        ) : employee.status === 'absent' ? (
                           <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-red-500/20 text-red-400 text-xs font-medium rounded-full">
                             <UserX className="w-3 h-3" />
                             ABSENT
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-[#facc15]/20 text-[#facc15] text-xs font-medium rounded-full">
+                            <Clock className="w-3 h-3" />
+                            AVAILABLE
                           </span>
                         )}
                       </td>
                     )}
                     <td className="px-4 py-4">
-                      <div className="flex items-center gap-2">
-                        {employee.timeIn !== null && employee.timeOut === null ? (
+                      {employee.status === 'absent' ? (
+                        <span className="text-gray-500 text-sm">No actions available</span>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          {employee.timeIn !== null && employee.timeOut === null ? (
                           <button
                             onClick={() => {
                               console.log('Clocking out employee:', employee.id);
@@ -513,13 +637,14 @@ export default function AttendancePage() {
                             Time In
                           </button>
                         ) : (
-                          <button
-                            onClick={() => {
-                              console.log('Clocking in employee:', employee.id);
-                              clockInMutation.mutate({ employeeId: employee.id, branchCode: selectedBranch });
-                            }}
-                            disabled={clockInMutation.isPending}
-                            className="inline-flex items-center gap-1 px-3 py-1.5 bg-green-500/20 text-green-400 text-xs font-medium rounded-full hover:bg-green-500/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                          <>
+                            <button
+                              onClick={() => {
+                                console.log('Clocking in employee:', employee.id);
+                                clockInMutation.mutate({ employeeId: employee.id, branchCode: selectedBranch });
+                              }}
+                              disabled={clockInMutation.isPending}
+                              className="inline-flex items-center gap-1 px-3 py-1.5 bg-green-500/20 text-green-400 text-xs font-medium rounded-full hover:bg-green-500/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                           >
                             {clockInMutation.isPending ? (
                               <Loader2 className="w-3 h-3 animate-spin" />
@@ -528,8 +653,30 @@ export default function AttendancePage() {
                             )}
                             Time In
                           </button>
+                            <button
+                              onClick={() => {
+                                console.log('Absent button clicked for employee:', employee.id, employee.name);
+                                if (window.confirm(`Mark ${employee.name} as absent for today?`)) {
+                                  console.log('Confirmed, marking absent');
+                                  markIndividualAbsentMutation.mutate(employee.id);
+                                } else {
+                                  console.log('Cancelled');
+                                }
+                              }}
+                              disabled={markIndividualAbsentMutation.isPending}
+                              className="inline-flex items-center gap-1 px-3 py-1.5 bg-red-500/20 text-red-400 text-xs font-medium rounded-full hover:bg-red-500/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              {markIndividualAbsentMutation.isPending ? (
+                                <Loader2 className="w-3 h-3 animate-spin" />
+                              ) : (
+                                <UserX className="w-3 h-3" />
+                              )}
+                              Absent
+                            </button>
+                          </>
                         )}
                       </div>
+                      )}
                     </td>
                   </tr>
                 ))
@@ -538,6 +685,71 @@ export default function AttendancePage() {
           </table>
         </div>
       </div>
+
+      {/* Employee Pagination Controls - Mobile Simplified */}
+      {filteredEmployees.length > employeesPerPage && (
+        <div className="flex flex-col sm:flex-row items-center justify-between px-4 py-4 border-t border-[#262626] gap-4">
+          <span className="text-sm text-gray-500">
+            {indexOfFirstEmployee + 1}-{Math.min(indexOfLastEmployee, filteredEmployees.length)} of {filteredEmployees.length}
+          </span>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setEmployeeCurrentPage(prev => Math.max(1, prev - 1))}
+              disabled={employeeCurrentPage === 1}
+              className="p-2 rounded-lg bg-[#1a1a1a] border border-[#262626] text-gray-400 hover:border-[#facc15] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              title="Previous page (Arrow Left)"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            <span className="text-sm text-gray-400 px-2">
+              {employeeCurrentPage}/{employeeTotalPages}
+            </span>
+            <button
+              onClick={() => setEmployeeCurrentPage(prev => Math.min(employeeTotalPages, prev + 1))}
+              disabled={employeeCurrentPage === employeeTotalPages}
+              className="p-2 rounded-lg bg-[#1a1a1a] border border-[#262626] text-gray-400 hover:border-[#facc15] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              title="Next page (Arrow Right)"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-gray-500">Go to:</span>
+            <input
+              type="number"
+              min="1"
+              max={employeeTotalPages}
+              value={employeeCurrentPage}
+              onChange={(e) => {
+                const page = Number(e.target.value);
+                if (page >= 1 && page <= employeeTotalPages) {
+                  setEmployeeCurrentPage(page);
+                }
+              }}
+              className="w-16 bg-[#1a1a1a] border border-[#262626] rounded-lg px-2 py-1.5 text-sm text-gray-400 focus:outline-none focus:border-[#facc15]"
+              placeholder="1"
+            />
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-gray-500">Show:</span>
+            <select
+              value={employeesPerPage}
+              onChange={(e) => {
+                const newSize = Number(e.target.value);
+                setEmployeesPerPage(newSize);
+                localStorage.setItem('employeesPerPage', newSize.toString());
+                setEmployeeCurrentPage(1);
+              }}
+              className="bg-[#1a1a1a] border border-[#262626] rounded-lg px-2 py-1 text-sm text-gray-400 focus:outline-none focus:border-[#facc15]"
+            >
+              <option value={10}>10</option>
+              <option value={20}>20</option>
+              <option value={50}>50</option>
+              <option value={100}>100</option>
+            </select>
+          </div>
+        </div>
+      )}
 
       {/* Quick Tips */}
       <div className="bg-[#141414] rounded-xl border border-[#262626] p-4 sm:p-6">

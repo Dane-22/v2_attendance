@@ -4,6 +4,8 @@ import { AppError } from '../middleware/error.middleware';
 import { AuthenticatedRequest } from '../middleware/auth.middleware';
 import { ApiResponse, PaginatedResponse, AttendanceResponse } from '../types/api.types';
 import { decodeQRCodeData, extractEmployeeCode } from '../services/qr.service';
+import { logScan, logCreate, logUpdate, logError } from '../services/activityLogger.service';
+import { emitAttendanceUpdate, emitStatsUpdate } from '../routes/websocket.routes';
 
 const prisma = new PrismaClient();
 
@@ -114,6 +116,38 @@ export const clock = async (
 
       console.log('[CLOCK] Clock OUT successful for employee:', employee.id);
 
+      // Log clock out
+      await logUpdate({
+        userId: req.admin?.id || employee.id,
+        userName: req.admin?.name || employee.firstName || 'unknown',
+        userRole: req.admin?.role || 'employee',
+        entityType: 'ATTENDANCE',
+        entityId: updatedRecord?.id.toString(),
+        entityName: `Attendance for ${employee.firstName} ${employee.lastName}`,
+        description: `Clock OUT: ${employee.firstName} ${employee.lastName} at ${checkOutTime.toLocaleTimeString()}`,
+        detailsBefore: activeRecord,
+        detailsAfter: updatedRecord,
+        ipAddress: req.ip,
+        userAgent: req.headers['user-agent'],
+        branchId: employee.branchId || undefined,
+        metadata: { method: 'qr_scan', branch_code: activeRecord.branch_code },
+      });
+
+      // Emit WebSocket event for real-time update
+      if (global.io && activeRecord.branch_code) {
+        emitAttendanceUpdate(global.io, activeRecord.branch_code, {
+          type: 'clock_out',
+          employeeId: employee.id,
+          employeeName: `${employee.firstName} ${employee.lastName}`,
+          employeeCode: employee.employeeCode || '',
+          branchCode: activeRecord.branch_code,
+          branchName: activeRecord.branch_code || '',
+          timestamp: checkOutTime.toISOString(),
+          previousStatus: 'present',
+          newStatus: 'completed'
+        });
+      }
+
       const response: ApiResponse<any> = {
         success: true,
         message: `Clocked out successfully at ${checkOutTime.toLocaleTimeString()}`,
@@ -145,6 +179,38 @@ export const clock = async (
       });
 
       console.log('[CLOCK] Clock IN successful for employee:', employee.id, 'date range:', todayStart.toISOString());
+
+      // Log clock in
+      await logScan({
+        userId: req.admin?.id || employee.id,
+        userName: req.admin?.name || employee.firstName || 'unknown',
+        userRole: req.admin?.role || 'employee',
+        entityType: 'ATTENDANCE',
+        entityId: newRecord?.id.toString(),
+        entityName: `Attendance for ${employee.firstName} ${employee.lastName}`,
+        description: `Clock IN: ${employee.firstName} ${employee.lastName} at ${checkInTime.toLocaleTimeString()}`,
+        detailsAfter: newRecord,
+        ipAddress: req.ip,
+        userAgent: req.headers['user-agent'],
+        branchId: employee.branchId || undefined,
+        metadata: { method: 'qr_scan', branch_code: adminBranchCode || employee.branchName, status },
+      });
+
+      // Emit WebSocket event for real-time update
+      const branchCode = adminBranchCode || employee.branchName || 'A';
+      if (global.io) {
+        emitAttendanceUpdate(global.io, branchCode, {
+          type: 'clock_in',
+          employeeId: employee.id,
+          employeeName: `${employee.firstName} ${employee.lastName}`,
+          employeeCode: employee.employeeCode || '',
+          branchCode: branchCode,
+          branchName: branchCode,
+          timestamp: checkInTime.toISOString(),
+          previousStatus: 'available',
+          newStatus: status
+        });
+      }
 
       const response: ApiResponse<any> = {
         success: true,
@@ -239,11 +305,43 @@ const performClockIn = async (
   const checkInTime = new Date();
   const status = determineStatus(checkInTime);
 
-  // Always create new attendance record (allow multiple per day)
+  // Check if employee has an existing absent row for today (auto-marked absent)
+  const absentRecord = await prisma.attendance.findFirst({
+    where: {
+      employeeId: employee.id,
+      date: {
+        gte: todayStart,
+        lt: todayEnd
+      },
+      status: 'absent',
+      check_in: null,
+      check_out: null
+    }
+  });
+
+  if (absentRecord) {
+    // Update the existing absent row instead of creating a new one
+    const attendance = await prisma.attendance.update({
+      where: { id: absentRecord.id },
+      data: {
+        check_in: checkInTime,
+        status,
+        branch_code: branchCode || employee.branchName || absentRecord.branch_code || undefined,
+        notes: notes || absentRecord.notes
+      }
+    });
+
+    const method = isManual ? 'Manually clocked in' : 'Clocked in';
+    const message = `${method} successfully at ${checkInTime.toLocaleTimeString()}`;
+
+    return { attendance, message };
+  }
+
+  // No absent record - create new attendance record (allow multiple per day)
   const attendance = await prisma.attendance.create({
     data: {
       employeeId: employee.id,
-      date: todayStr as any,
+      date: todayStart,
       check_in: checkInTime,
       status,
       branch_code: branchCode || employee.branchName || undefined,
@@ -345,6 +443,38 @@ export const clockIn = async (
     const { attendance, message } = await performClockIn(employee, notes, false);
     console.log('[API DEBUG] Created attendance record:', { id: attendance.id, date: attendance.date, check_in: attendance.check_in });
 
+    // Log QR scan clock in
+    await logScan({
+      userId: employee.id,
+      userName: `${employee.firstName} ${employee.lastName}`,
+      userRole: 'employee',
+      entityType: 'ATTENDANCE',
+      entityId: attendance.id.toString(),
+      entityName: `Attendance for ${employee.firstName} ${employee.lastName}`,
+      description: `QR Scan Clock IN: ${employee.firstName} ${employee.lastName}`,
+      detailsAfter: attendance,
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+      branchId: employee.branchId || undefined,
+      metadata: { method: 'qr_scan', employeeCode: employee.employeeCode },
+    });
+
+    // Emit WebSocket event for real-time update
+    const branchCode = employee.branchCode || employee.branchName || 'A';
+    if (global.io) {
+      emitAttendanceUpdate(global.io, branchCode, {
+        type: 'clock_in',
+        employeeId: employee.id,
+        employeeName: `${employee.firstName} ${employee.lastName}`,
+        employeeCode: employee.employeeCode || '',
+        branchCode: branchCode,
+        branchName: branchCode,
+        timestamp: new Date().toISOString(),
+        previousStatus: 'available',
+        newStatus: attendance.status || 'present'
+      });
+    }
+
     const response: ApiResponse<AttendanceResponse> = {
       success: true,
       message,
@@ -382,6 +512,38 @@ export const manualClockIn = async (
     }
 
     const { attendance, message } = await performClockIn(employee, notes, true, branch_code);
+
+    // Log manual clock in
+    await logCreate({
+      userId: req.admin?.id || 0,
+      userName: req.admin?.name || 'unknown',
+      userRole: req.admin?.role || 'admin',
+      entityType: 'ATTENDANCE',
+      entityId: attendance.id.toString(),
+      entityName: `Attendance for ${employee.firstName} ${employee.lastName}`,
+      description: `Manual Clock IN: ${employee.firstName} ${employee.lastName} by ${req.admin?.name}`,
+      detailsAfter: attendance,
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+      branchId: employee.branchId || undefined,
+      metadata: { method: 'manual', employeeId: employee.id, branch_code },
+    });
+
+    // Emit WebSocket event for real-time update
+    const branchCode = branch_code || employee.branchCode || employee.branchName || 'A';
+    if (global.io) {
+      emitAttendanceUpdate(global.io, branchCode, {
+        type: 'clock_in',
+        employeeId: employee.id,
+        employeeName: `${employee.firstName} ${employee.lastName}`,
+        employeeCode: employee.employeeCode || '',
+        branchCode: branchCode,
+        branchName: branchCode,
+        timestamp: new Date().toISOString(),
+        previousStatus: 'available',
+        newStatus: attendance.status || 'present'
+      });
+    }
 
     const response: ApiResponse<AttendanceResponse> = {
       success: true,
@@ -429,6 +591,38 @@ export const clockOut = async (
 
     const { attendance, message } = await performClockOut(employee, notes, false);
 
+    // Log QR scan clock out
+    await logUpdate({
+      userId: employee.id,
+      userName: `${employee.firstName} ${employee.lastName}`,
+      userRole: 'employee',
+      entityType: 'ATTENDANCE',
+      entityId: attendance.id.toString(),
+      entityName: `Attendance for ${employee.firstName} ${employee.lastName}`,
+      description: `QR Scan Clock OUT: ${employee.firstName} ${employee.lastName}`,
+      detailsAfter: attendance,
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+      branchId: employee.branchId || undefined,
+      metadata: { method: 'qr_scan', employeeCode: employee.employeeCode },
+    });
+
+    // Emit WebSocket event for real-time update
+    const branchCode = employee.branchCode || employee.branchName || 'A';
+    if (global.io) {
+      emitAttendanceUpdate(global.io, branchCode, {
+        type: 'clock_out',
+        employeeId: employee.id,
+        employeeName: `${employee.firstName} ${employee.lastName}`,
+        employeeCode: employee.employeeCode || '',
+        branchCode: branchCode,
+        branchName: branchCode,
+        timestamp: new Date().toISOString(),
+        previousStatus: 'present',
+        newStatus: 'completed'
+      });
+    }
+
     const response: ApiResponse<AttendanceResponse> = {
       success: true,
       message,
@@ -462,6 +656,38 @@ export const manualClockOut = async (
     }
 
     const { attendance, message } = await performClockOut(employee, notes, true);
+
+    // Log manual clock out
+    await logUpdate({
+      userId: req.admin?.id || 0,
+      userName: req.admin?.name || 'unknown',
+      userRole: req.admin?.role || 'admin',
+      entityType: 'ATTENDANCE',
+      entityId: attendance.id.toString(),
+      entityName: `Attendance for ${employee.firstName} ${employee.lastName}`,
+      description: `Manual Clock OUT: ${employee.firstName} ${employee.lastName} by ${req.admin?.name}`,
+      detailsAfter: attendance,
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+      branchId: employee.branchId || undefined,
+      metadata: { method: 'manual', employeeId: employee.id },
+    });
+
+    // Emit WebSocket event for real-time update
+    const branchCode = employee.branchCode || employee.branchName || 'A';
+    if (global.io) {
+      emitAttendanceUpdate(global.io, branchCode, {
+        type: 'clock_out',
+        employeeId: employee.id,
+        employeeName: `${employee.firstName} ${employee.lastName}`,
+        employeeCode: employee.employeeCode || '',
+        branchCode: branchCode,
+        branchName: branchCode,
+        timestamp: new Date().toISOString(),
+        previousStatus: 'present',
+        newStatus: 'completed'
+      });
+    }
 
     const response: ApiResponse<AttendanceResponse> = {
       success: true,
@@ -709,6 +935,224 @@ export const getTodayAttendance = async (
       success: true,
       message: attendance ? 'Today\'s attendance record found' : 'No attendance record for today',
       data: attendance
+    };
+
+    res.json(response);
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const markIndividualAbsent = async (
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const employeeId = parseInt(req.params.employeeId);
+
+    if (!employeeId) {
+      throw new AppError('Employee ID is required', 400);
+    }
+
+    // Get employee to find their branch
+    const employee = await prisma.employee.findUnique({
+      where: { id: employeeId },
+      select: { id: true, branchCode: true }
+    });
+
+    if (!employee) {
+      throw new AppError('Employee not found', 404);
+    }
+
+    if (!employee.branchCode) {
+      throw new AppError('Employee has no branch assigned', 400);
+    }
+
+    // Get today's date range (Philippines)
+    const { start: todayStart, end: todayEnd } = getPhilippinesDateRange();
+
+    // Check if employee already has an attendance record for today
+    const existingAttendance = await prisma.attendance.findFirst({
+      where: {
+        employeeId,
+        date: {
+          gte: todayStart,
+          lt: todayEnd
+        }
+      }
+    });
+
+    if (existingAttendance) {
+      throw new AppError('Employee already has an attendance record for today', 409);
+    }
+
+    // Create absent record
+    const attendance = await prisma.attendance.create({
+      data: {
+        employeeId,
+        date: todayStart,
+        check_in: null,
+        check_out: null,
+        status: 'absent',
+        branch_code: employee.branchCode
+      }
+    });
+
+    // Log mark absent
+    await logCreate({
+      userId: req.admin?.id || 0,
+      userName: req.admin?.name || 'unknown',
+      userRole: req.admin?.role || 'admin',
+      entityType: 'ATTENDANCE',
+      entityId: attendance.id.toString(),
+      entityName: `Attendance for employee ${employeeId}`,
+      description: `Marked employee ${employeeId} as absent`,
+      detailsAfter: attendance,
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+      metadata: { method: 'manual', employeeId, branch_code: employee.branchCode },
+    });
+
+    // Emit WebSocket event for real-time update
+    const branchCode = employee.branchCode || 'A';
+    if (global.io) {
+      emitAttendanceUpdate(global.io, branchCode, {
+        type: 'mark_absent',
+        employeeId: employee.id,
+        employeeName: `Employee ${employeeId}`,
+        employeeCode: '',
+        branchCode: branchCode,
+        branchName: branchCode,
+        timestamp: new Date().toISOString(),
+        previousStatus: 'available',
+        newStatus: 'absent'
+      });
+    }
+
+    const response: ApiResponse<typeof attendance> = {
+      success: true,
+      message: 'Employee marked as absent',
+      data: attendance
+    };
+
+    res.json(response);
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const markAbsent = async (
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const { branch_code } = req.body;
+
+    if (!branch_code) {
+      throw new AppError('Branch code is required', 400);
+    }
+
+    // Get all active employees for this branch
+    const employees = await prisma.employee.findMany({
+      where: {
+        branchCode: branch_code,
+        status: 'Active'
+      },
+      select: { id: true, branchCode: true }
+    });
+
+    if (employees.length === 0) {
+      const response: ApiResponse<null> = {
+        success: true,
+        message: 'No employees found for this branch',
+        data: null
+      };
+      res.json(response);
+      return;
+    }
+
+    const employeeIds = employees.map(e => e.id);
+
+    // Get today's date range (Philippines)
+    const { start: todayStart, end: todayEnd } = getPhilippinesDateRange();
+
+    // Find employees who already have attendance records today
+    const existingAttendance = await prisma.attendance.findMany({
+      where: {
+        employeeId: { in: employeeIds },
+        date: {
+          gte: todayStart,
+          lt: todayEnd
+        }
+      },
+      select: { employeeId: true }
+    });
+
+    const employeesWithRecords = new Set(existingAttendance.map(a => a.employeeId));
+
+    // Filter to employees with NO attendance record at all today
+    const absentEmployeeIds = employeeIds.filter(id => !employeesWithRecords.has(id));
+
+    if (absentEmployeeIds.length === 0) {
+      const response: ApiResponse<null> = {
+        success: true,
+        message: 'All employees already have attendance records for today',
+        data: null
+      };
+      res.json(response);
+      return;
+    }
+
+    // Insert absent records for each employee without a record
+    const absentRecords = [];
+    for (const empId of absentEmployeeIds) {
+      absentRecords.push({
+        employeeId: empId,
+        date: todayStart,
+        check_in: null,
+        check_out: null,
+        status: 'absent' as const,
+        branch_code: branch_code
+      });
+    }
+
+    await prisma.attendance.createMany({
+      data: absentRecords
+    });
+
+    // Log bulk mark absent
+    await logCreate({
+      userId: req.admin?.id || 0,
+      userName: req.admin?.name || 'unknown',
+      userRole: req.admin?.role || 'admin',
+      entityType: 'ATTENDANCE',
+      description: `Bulk marked ${absentEmployeeIds.length} employees as absent for branch ${branch_code}`,
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+      metadata: { method: 'bulk', markedCount: absentEmployeeIds.length, branch_code, employeeIds: absentEmployeeIds },
+    });
+
+    // Emit WebSocket event for real-time update
+    if (global.io) {
+      emitAttendanceUpdate(global.io, branch_code, {
+        type: 'mark_absent',
+        employeeId: 0,
+        employeeName: `Bulk mark absent (${absentEmployeeIds.length} employees)`,
+        employeeCode: '',
+        branchCode: branch_code,
+        branchName: branch_code,
+        timestamp: new Date().toISOString(),
+        previousStatus: 'available',
+        newStatus: 'absent'
+      });
+    }
+
+    const response: ApiResponse<{ markedCount: number }> = {
+      success: true,
+      message: `${absentEmployeeIds.length} employees marked as absent`,
+      data: { markedCount: absentEmployeeIds.length }
     };
 
     res.json(response);

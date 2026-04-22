@@ -3,6 +3,8 @@ import { PrismaClient, PayrollRecord } from '@prisma/client';
 import { AppError } from '../middleware/error.middleware';
 import { AuthenticatedRequest } from '../middleware/auth.middleware';
 import { ApiResponse, PaginatedResponse, PayrollCalculationRequest } from '../types/api.types';
+import { logCreate, logUpdate, logApprove, logView } from '../services/activityLogger.service';
+import { detectChanges } from '../utils/changeDetector';
 
 const prisma = new PrismaClient();
 
@@ -86,6 +88,18 @@ export const getAllPayroll = async (
       }
     };
 
+    // Log payroll view
+    await logView({
+      userId: req.admin?.id || 0,
+      userName: req.admin?.name || 'unknown',
+      userRole: req.admin?.role || 'admin',
+      entityType: 'PAYROLL',
+      description: `Viewed all payroll records (${total} records)`,
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+      metadata: { page, limit, total, employeeId, status, startDate, endDate },
+    });
+
     res.json(response);
   } catch (error) {
     next(error);
@@ -129,6 +143,20 @@ export const getMyPayroll = async (
       }
     };
 
+    // Log employee payroll view
+    await logView({
+      userId: req.admin?.id || employeeId,
+      userName: req.admin?.name || 'unknown',
+      userRole: req.admin?.role || 'admin',
+      entityType: 'PAYROLL',
+      entityId: employeeId.toString(),
+      entityName: `Payroll for employee ${employeeId}`,
+      description: `Viewed payroll for employee ${employeeId} (${total} records)`,
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+      metadata: { employeeId, page, limit, total },
+    });
+
     res.json(response);
   } catch (error) {
     next(error);
@@ -156,6 +184,20 @@ export const getPayrollById = async (
       message: 'Payroll record retrieved successfully',
       data: record
     };
+
+    // Log payroll record view
+    await logView({
+      userId: req.admin?.id || 0,
+      userName: req.admin?.name || 'unknown',
+      userRole: req.admin?.role || 'admin',
+      entityType: 'PAYROLL',
+      entityId: record.id.toString(),
+      entityName: `Payroll record ${record.id}`,
+      description: `Viewed payroll record ${id}`,
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+      metadata: { payrollId: id },
+    });
 
     res.json(response);
   } catch (error) {
@@ -219,6 +261,20 @@ export const calculatePayroll = async (
     let payrollRecord;
     
     if (existingRecord) {
+      // Detect changes
+      const changes = detectChanges(existingRecord, {
+        days_worked: daysWorked,
+        overtimeHours: overtimeHours,
+        basic_pay: calculations.basicPay,
+        overtime_amount: calculations.overtimeAmount,
+        grossPay: calculations.grossPay,
+        sss_contribution: calculations.sssContribution,
+        phic_contribution: calculations.phicContribution,
+        hdmf_contribution: calculations.hdmfContribution,
+        total_deductions: calculations.totalDeductions,
+        netPay: calculations.netPay
+      }, 'PAYROLL');
+
       payrollRecord = await prisma.payrollRecord.update({
         where: { id: existingRecord.id },
         data: {
@@ -233,6 +289,23 @@ export const calculatePayroll = async (
           total_deductions: calculations.totalDeductions,
           netPay: calculations.netPay
         }
+      });
+
+      // Log payroll update
+      await logUpdate({
+        userId: req.admin?.id || 0,
+        userName: req.admin?.name || 'unknown',
+        userRole: req.admin?.role || 'admin',
+        entityType: 'PAYROLL',
+        entityId: payrollRecord.id.toString(),
+        entityName: `Payroll for employee ${employeeId}`,
+        description: `Updated payroll for employee ${employeeId} (${employee.firstName} ${employee.lastName})`,
+        detailsBefore: existingRecord,
+        detailsAfter: payrollRecord,
+        changes: changes,
+        ipAddress: req.ip,
+        userAgent: req.headers['user-agent'],
+        metadata: { employeeId, weekStart, weekEnd, daysWorked, netPay: calculations.netPay },
       });
     } else {
       payrollRecord = await prisma.payrollRecord.create({
@@ -257,6 +330,21 @@ export const calculatePayroll = async (
           netPay: calculations.netPay,
           status: 'draft'
         }
+      });
+
+      // Log payroll creation
+      await logCreate({
+        userId: req.admin?.id || 0,
+        userName: req.admin?.name || 'unknown',
+        userRole: req.admin?.role || 'admin',
+        entityType: 'PAYROLL',
+        entityId: payrollRecord.id.toString(),
+        entityName: `Payroll for employee ${employeeId}`,
+        description: `Created payroll for employee ${employeeId} (${employee.firstName} ${employee.lastName})`,
+        detailsAfter: payrollRecord,
+        ipAddress: req.ip,
+        userAgent: req.headers['user-agent'],
+        metadata: { employeeId, weekStart, weekEnd, daysWorked, netPay: calculations.netPay },
       });
     }
 
@@ -297,6 +385,21 @@ export const processPayroll = async (
       data: { status: 'processed' }
     });
 
+    // Log payroll approval/processing
+    await logApprove({
+      userId: req.admin?.id || 0,
+      userName: req.admin?.name || 'unknown',
+      userRole: req.admin?.role || 'admin',
+      entityType: 'PAYROLL',
+      entityId: updatedRecord.id.toString(),
+      entityName: `Payroll record ${updatedRecord.id}`,
+      description: `Processed payroll record ${id}`,
+      detailsAfter: updatedRecord,
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+      metadata: { payrollId: id, previousStatus: record.status, newStatus: 'processed' },
+    });
+
     const response: ApiResponse<typeof updatedRecord> = {
       success: true,
       message: 'Payroll processed successfully',
@@ -333,6 +436,22 @@ export const updatePayrollStatus = async (
     const updatedRecord = await prisma.payrollRecord.update({
       where: { id },
       data: { status }
+    });
+
+    // Log payroll status update
+    await logUpdate({
+      userId: req.admin?.id || 0,
+      userName: req.admin?.name || 'unknown',
+      userRole: req.admin?.role || 'admin',
+      entityType: 'PAYROLL',
+      entityId: updatedRecord.id.toString(),
+      entityName: `Payroll record ${updatedRecord.id}`,
+      description: `Updated payroll status to ${status}`,
+      detailsBefore: record,
+      detailsAfter: updatedRecord,
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+      metadata: { payrollId: id, previousStatus: record.status, newStatus: status },
     });
 
     const response: ApiResponse<typeof updatedRecord> = {

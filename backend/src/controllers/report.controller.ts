@@ -3,6 +3,7 @@ import { PrismaClient } from '@prisma/client';
 import { AppError } from '../middleware/error.middleware';
 import { AuthenticatedRequest } from '../middleware/auth.middleware';
 import { ApiResponse, AttendanceStats, PayrollSummary } from '../types/api.types';
+import { logView, logExport } from '../services/activityLogger.service';
 
 const prisma = new PrismaClient();
 
@@ -75,6 +76,18 @@ export const getAttendanceReport = async (
       }
     };
 
+    // Log attendance report view
+    await logView({
+      userId: req.admin?.id || 0,
+      userName: req.admin?.name || 'unknown',
+      userRole: req.admin?.role || 'admin',
+      entityType: 'ATTENDANCE',
+      description: `Generated attendance report for period ${startDate.toISOString().split('T')[0]} to ${endDate.toISOString().split('T')[0]}`,
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+      metadata: { startDate, endDate, department, recordCount: filteredAttendances.length },
+    });
+
     res.json(response);
   } catch (error) {
     next(error);
@@ -132,6 +145,18 @@ export const getPayrollReport = async (
         records: filteredRecords
       }
     };
+
+    // Log payroll report view
+    await logView({
+      userId: req.admin?.id || 0,
+      userName: req.admin?.name || 'unknown',
+      userRole: req.admin?.role || 'admin',
+      entityType: 'PAYROLL',
+      description: `Generated payroll report for period ${startDate.toISOString().split('T')[0]} to ${endDate.toISOString().split('T')[0]}`,
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+      metadata: { startDate, endDate, department, recordCount: filteredRecords.length, totalGross: summary.totalGross },
+    });
 
     res.json(response);
   } catch (error) {
@@ -219,6 +244,18 @@ export const getEmployeeSummary = async (
       data: summary
     };
 
+    // Log employee summary view
+    await logView({
+      userId: req.admin?.id || 0,
+      userName: req.admin?.name || 'unknown',
+      userRole: req.admin?.role || 'admin',
+      entityType: 'EMPLOYEE',
+      description: `Generated employee summary for ${year}-${month}`,
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+      metadata: { year, month, employeeCount: employees.length },
+    });
+
     res.json(response);
   } catch (error) {
     next(error);
@@ -275,12 +312,24 @@ export const exportReport = async (
 
     if (format === 'csv') {
       const headers = Object.keys(data[0] || {}).join(',');
-      const rows = data.map(row => 
-        Object.values(row).map(v => 
+      const rows = data.map(row =>
+        Object.values(row).map(v =>
           typeof v === 'string' ? `"${v.replace(/"/g, '""')}"` : v
         ).join(',')
       );
       const csv = [headers, ...rows].join('\n');
+
+      // Log report export
+      await logExport({
+        userId: req.admin?.id || 0,
+        userName: req.admin?.name || 'unknown',
+        userRole: req.admin?.role || 'admin',
+        entityType: type.toUpperCase() as any,
+        description: `Exported ${type} report as CSV`,
+        ipAddress: req.ip,
+        userAgent: req.headers['user-agent'],
+        metadata: { type, format, recordCount: data.length, filename },
+      });
 
       res.setHeader('Content-Type', 'text/csv');
       res.setHeader('Content-Disposition', `attachment; filename="${filename}.csv"`);
@@ -291,6 +340,19 @@ export const exportReport = async (
         message: 'Report exported successfully',
         data
       };
+
+      // Log report export
+      await logExport({
+        userId: req.admin?.id || 0,
+        userName: req.admin?.name || 'unknown',
+        userRole: req.admin?.role || 'admin',
+        entityType: type.toUpperCase() as any,
+        description: `Exported ${type} report as JSON`,
+        ipAddress: req.ip,
+        userAgent: req.headers['user-agent'],
+        metadata: { type, format, recordCount: data.length, filename },
+      });
+
       res.json(response);
     }
   } catch (error) {

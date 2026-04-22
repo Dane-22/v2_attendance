@@ -10,7 +10,9 @@ import {
   getMyAttendance,
   getAttendanceStats,
   getTodayAttendance,
-  getAttendanceAudit
+  getAttendanceAudit,
+  markAbsent,
+  markIndividualAbsent
 } from '../controllers/attendance.controller';
 
 const router = Router();
@@ -20,6 +22,8 @@ router.post('/clock-in', optionalAuth, clockIn);
 router.post('/clock-out', optionalAuth, clockOut);
 router.post('/manual-clock-in', authenticate, manualClockIn);
 router.post('/manual-clock-out', authenticate, manualClockOut);
+router.post('/mark-absent', authenticate, markAbsent);
+router.post('/mark-absent/:employeeId', authenticate, markIndividualAbsent);
 router.get('/audit', authenticate, getAttendanceAudit);
 router.get('/today', authenticate, getTodayAttendance);
 router.get('/stats', authenticate, getAttendanceStats);

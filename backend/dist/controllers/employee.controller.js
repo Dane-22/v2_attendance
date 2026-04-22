@@ -3,6 +3,8 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.generateQRCode = exports.deleteEmployee = exports.updateEmployee = exports.createEmployee = exports.getEmployeeById = exports.getAllEmployees = void 0;
 const client_1 = require("@prisma/client");
 const error_middleware_1 = require("../middleware/error.middleware");
+const activityLogger_service_1 = require("../services/activityLogger.service");
+const changeDetector_1 = require("../utils/changeDetector");
 const prisma = new client_1.PrismaClient();
 const getAllEmployees = async (req, res, next) => {
     try {
@@ -42,6 +44,7 @@ const getAllEmployees = async (req, res, next) => {
                     department: true,
                     position: true,
                     branchName: true,
+                    branchCode: true,
                     status: true,
                     dailyRate: true,
                     hasDeductions: true,
@@ -138,6 +141,7 @@ const createEmployee = async (req, res, next) => {
                 department: data.department,
                 position: data.position,
                 branchName: data.branchName,
+                branchCode: data.branchCode,
                 dailyRate: data.dailyRate,
                 performanceAllowance: data.performanceAllowance,
                 hasDeductions: data.hasDeductions,
@@ -154,6 +158,7 @@ const createEmployee = async (req, res, next) => {
                 department: true,
                 position: true,
                 branchName: true,
+                branchCode: true,
                 status: true,
                 dailyRate: true,
                 hasDeductions: true,
@@ -164,6 +169,20 @@ const createEmployee = async (req, res, next) => {
                 createdAt: true,
                 updatedAt: true
             }
+        });
+        // Log employee creation
+        await (0, activityLogger_service_1.logCreate)({
+            userId: req.admin?.id || 0,
+            userName: req.admin?.name || 'unknown',
+            userRole: req.admin?.role || 'admin',
+            entityType: 'EMPLOYEE',
+            entityId: employee.id.toString(),
+            entityName: `${employee.firstName} ${employee.lastName}`,
+            description: `Created new employee: ${employee.employeeCode} - ${employee.firstName} ${employee.lastName}`,
+            detailsAfter: employee,
+            ipAddress: req.ip,
+            userAgent: req.headers['user-agent'],
+            branchId: employee.branchId || undefined,
         });
         const response = {
             success: true,
@@ -195,6 +214,8 @@ const updateEmployee = async (req, res, next) => {
                 throw new error_middleware_1.AppError('Email already exists', 409);
             }
         }
+        // Detect changes
+        const changes = (0, changeDetector_1.detectChanges)(existingEmployee, data, 'EMPLOYEE');
         const employee = await prisma.employee.update({
             where: { id },
             data,
@@ -208,6 +229,7 @@ const updateEmployee = async (req, res, next) => {
                 department: true,
                 position: true,
                 branchName: true,
+                branchCode: true,
                 status: true,
                 dailyRate: true,
                 hasDeductions: true,
@@ -218,6 +240,22 @@ const updateEmployee = async (req, res, next) => {
                 createdAt: true,
                 updatedAt: true
             }
+        });
+        // Log employee update
+        await (0, activityLogger_service_1.logUpdate)({
+            userId: req.admin?.id || 0,
+            userName: req.admin?.name || 'unknown',
+            userRole: req.admin?.role || 'admin',
+            entityType: 'EMPLOYEE',
+            entityId: employee.id.toString(),
+            entityName: `${employee.firstName} ${employee.lastName}`,
+            description: `Updated employee: ${employee.employeeCode} - ${employee.firstName} ${employee.lastName}`,
+            detailsBefore: existingEmployee,
+            detailsAfter: employee,
+            changes: changes,
+            ipAddress: req.ip,
+            userAgent: req.headers['user-agent'],
+            branchId: employee.branchId || undefined,
         });
         const response = {
             success: true,
@@ -241,6 +279,20 @@ const deleteEmployee = async (req, res, next) => {
             throw new error_middleware_1.AppError('Employee not found', 404);
         }
         await prisma.employee.delete({ where: { id } });
+        // Log employee deletion
+        await (0, activityLogger_service_1.logDelete)({
+            userId: req.admin?.id || 0,
+            userName: req.admin?.name || 'unknown',
+            userRole: req.admin?.role || 'admin',
+            entityType: 'EMPLOYEE',
+            entityId: employee.id.toString(),
+            entityName: `${employee.firstName} ${employee.lastName}`,
+            description: `Deleted employee: ${employee.employeeCode} - ${employee.firstName} ${employee.lastName}`,
+            detailsBefore: employee,
+            ipAddress: req.ip,
+            userAgent: req.headers['user-agent'],
+            branchId: employee.branchId || undefined,
+        });
         const response = {
             success: true,
             message: 'Employee deleted successfully'
@@ -263,6 +315,20 @@ const generateQRCode = async (req, res, next) => {
         }
         // Generate QR code data (employee code only - V1 format)
         const qrData = `https://jajr.com/attendance/${employee.employeeCode}`;
+        // Log QR code generation
+        await (0, activityLogger_service_1.logCreate)({
+            userId: req.admin?.id || 0,
+            userName: req.admin?.name || 'unknown',
+            userRole: req.admin?.role || 'admin',
+            entityType: 'EMPLOYEE',
+            entityId: employee.id.toString(),
+            entityName: `${employee.firstName} ${employee.lastName}`,
+            description: `Generated QR code for employee: ${employee.employeeCode}`,
+            ipAddress: req.ip,
+            userAgent: req.headers['user-agent'],
+            branchId: employee.branchId || undefined,
+            metadata: { qrData },
+        });
         const response = {
             success: true,
             message: 'QR code data generated',

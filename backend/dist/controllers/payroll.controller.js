@@ -3,6 +3,8 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.updatePayrollStatus = exports.processPayroll = exports.calculatePayroll = exports.getPayrollById = exports.getMyPayroll = exports.getAllPayroll = void 0;
 const client_1 = require("@prisma/client");
 const error_middleware_1 = require("../middleware/error.middleware");
+const activityLogger_service_1 = require("../services/activityLogger.service");
+const changeDetector_1 = require("../utils/changeDetector");
 const prisma = new client_1.PrismaClient();
 // Calculate payroll based on daily rate and days worked
 const calculatePayrollDetails = (dailyRate, daysWorked, overtimeHours, performanceAllowance, hasDeductions) => {
@@ -69,6 +71,17 @@ const getAllPayroll = async (req, res, next) => {
                 totalPages: Math.ceil(total / limit)
             }
         };
+        // Log payroll view
+        await (0, activityLogger_service_1.logView)({
+            userId: req.admin?.id || 0,
+            userName: req.admin?.name || 'unknown',
+            userRole: req.admin?.role || 'admin',
+            entityType: 'PAYROLL',
+            description: `Viewed all payroll records (${total} records)`,
+            ipAddress: req.ip,
+            userAgent: req.headers['user-agent'],
+            metadata: { page, limit, total, employeeId, status, startDate, endDate },
+        });
         res.json(response);
     }
     catch (error) {
@@ -105,6 +118,19 @@ const getMyPayroll = async (req, res, next) => {
                 totalPages: Math.ceil(total / limit)
             }
         };
+        // Log employee payroll view
+        await (0, activityLogger_service_1.logView)({
+            userId: req.admin?.id || employeeId,
+            userName: req.admin?.name || 'unknown',
+            userRole: req.admin?.role || 'admin',
+            entityType: 'PAYROLL',
+            entityId: employeeId.toString(),
+            entityName: `Payroll for employee ${employeeId}`,
+            description: `Viewed payroll for employee ${employeeId} (${total} records)`,
+            ipAddress: req.ip,
+            userAgent: req.headers['user-agent'],
+            metadata: { employeeId, page, limit, total },
+        });
         res.json(response);
     }
     catch (error) {
@@ -126,6 +152,19 @@ const getPayrollById = async (req, res, next) => {
             message: 'Payroll record retrieved successfully',
             data: record
         };
+        // Log payroll record view
+        await (0, activityLogger_service_1.logView)({
+            userId: req.admin?.id || 0,
+            userName: req.admin?.name || 'unknown',
+            userRole: req.admin?.role || 'admin',
+            entityType: 'PAYROLL',
+            entityId: record.id.toString(),
+            entityName: `Payroll record ${record.id}`,
+            description: `Viewed payroll record ${id}`,
+            ipAddress: req.ip,
+            userAgent: req.headers['user-agent'],
+            metadata: { payrollId: id },
+        });
         res.json(response);
     }
     catch (error) {
@@ -174,6 +213,19 @@ const calculatePayroll = async (req, res, next) => {
         });
         let payrollRecord;
         if (existingRecord) {
+            // Detect changes
+            const changes = (0, changeDetector_1.detectChanges)(existingRecord, {
+                days_worked: daysWorked,
+                overtimeHours: overtimeHours,
+                basic_pay: calculations.basicPay,
+                overtime_amount: calculations.overtimeAmount,
+                grossPay: calculations.grossPay,
+                sss_contribution: calculations.sssContribution,
+                phic_contribution: calculations.phicContribution,
+                hdmf_contribution: calculations.hdmfContribution,
+                total_deductions: calculations.totalDeductions,
+                netPay: calculations.netPay
+            }, 'PAYROLL');
             payrollRecord = await prisma.payrollRecord.update({
                 where: { id: existingRecord.id },
                 data: {
@@ -188,6 +240,22 @@ const calculatePayroll = async (req, res, next) => {
                     total_deductions: calculations.totalDeductions,
                     netPay: calculations.netPay
                 }
+            });
+            // Log payroll update
+            await (0, activityLogger_service_1.logUpdate)({
+                userId: req.admin?.id || 0,
+                userName: req.admin?.name || 'unknown',
+                userRole: req.admin?.role || 'admin',
+                entityType: 'PAYROLL',
+                entityId: payrollRecord.id.toString(),
+                entityName: `Payroll for employee ${employeeId}`,
+                description: `Updated payroll for employee ${employeeId} (${employee.firstName} ${employee.lastName})`,
+                detailsBefore: existingRecord,
+                detailsAfter: payrollRecord,
+                changes: changes,
+                ipAddress: req.ip,
+                userAgent: req.headers['user-agent'],
+                metadata: { employeeId, weekStart, weekEnd, daysWorked, netPay: calculations.netPay },
             });
         }
         else {
@@ -213,6 +281,20 @@ const calculatePayroll = async (req, res, next) => {
                     netPay: calculations.netPay,
                     status: 'draft'
                 }
+            });
+            // Log payroll creation
+            await (0, activityLogger_service_1.logCreate)({
+                userId: req.admin?.id || 0,
+                userName: req.admin?.name || 'unknown',
+                userRole: req.admin?.role || 'admin',
+                entityType: 'PAYROLL',
+                entityId: payrollRecord.id.toString(),
+                entityName: `Payroll for employee ${employeeId}`,
+                description: `Created payroll for employee ${employeeId} (${employee.firstName} ${employee.lastName})`,
+                detailsAfter: payrollRecord,
+                ipAddress: req.ip,
+                userAgent: req.headers['user-agent'],
+                metadata: { employeeId, weekStart, weekEnd, daysWorked, netPay: calculations.netPay },
             });
         }
         const response = {
@@ -243,6 +325,20 @@ const processPayroll = async (req, res, next) => {
             where: { id },
             data: { status: 'processed' }
         });
+        // Log payroll approval/processing
+        await (0, activityLogger_service_1.logApprove)({
+            userId: req.admin?.id || 0,
+            userName: req.admin?.name || 'unknown',
+            userRole: req.admin?.role || 'admin',
+            entityType: 'PAYROLL',
+            entityId: updatedRecord.id.toString(),
+            entityName: `Payroll record ${updatedRecord.id}`,
+            description: `Processed payroll record ${id}`,
+            detailsAfter: updatedRecord,
+            ipAddress: req.ip,
+            userAgent: req.headers['user-agent'],
+            metadata: { payrollId: id, previousStatus: record.status, newStatus: 'processed' },
+        });
         const response = {
             success: true,
             message: 'Payroll processed successfully',
@@ -271,6 +367,21 @@ const updatePayrollStatus = async (req, res, next) => {
         const updatedRecord = await prisma.payrollRecord.update({
             where: { id },
             data: { status }
+        });
+        // Log payroll status update
+        await (0, activityLogger_service_1.logUpdate)({
+            userId: req.admin?.id || 0,
+            userName: req.admin?.name || 'unknown',
+            userRole: req.admin?.role || 'admin',
+            entityType: 'PAYROLL',
+            entityId: updatedRecord.id.toString(),
+            entityName: `Payroll record ${updatedRecord.id}`,
+            description: `Updated payroll status to ${status}`,
+            detailsBefore: record,
+            detailsAfter: updatedRecord,
+            ipAddress: req.ip,
+            userAgent: req.headers['user-agent'],
+            metadata: { payrollId: id, previousStatus: record.status, newStatus: status },
         });
         const response = {
             success: true,

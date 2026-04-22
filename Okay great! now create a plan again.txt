@@ -1,0 +1,1 @@
+Okay great! now create a plan again because I want that if I time in and time out employee 1 in testing branch then time in at Sto. Rosario it will create a time in record and update the branch name to Sto. Rosario. Don't implement it yet and wait for my go signal  

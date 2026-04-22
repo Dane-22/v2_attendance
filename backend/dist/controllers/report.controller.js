@@ -3,6 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.exportReport = exports.getEmployeeSummary = exports.getPayrollReport = exports.getAttendanceReport = void 0;
 const client_1 = require("@prisma/client");
 const error_middleware_1 = require("../middleware/error.middleware");
+const activityLogger_service_1 = require("../services/activityLogger.service");
 const prisma = new client_1.PrismaClient();
 const getAttendanceReport = async (req, res, next) => {
     try {
@@ -57,6 +58,17 @@ const getAttendanceReport = async (req, res, next) => {
                 records: filteredAttendances
             }
         };
+        // Log attendance report view
+        await (0, activityLogger_service_1.logView)({
+            userId: req.admin?.id || 0,
+            userName: req.admin?.name || 'unknown',
+            userRole: req.admin?.role || 'admin',
+            entityType: 'ATTENDANCE',
+            description: `Generated attendance report for period ${startDate.toISOString().split('T')[0]} to ${endDate.toISOString().split('T')[0]}`,
+            ipAddress: req.ip,
+            userAgent: req.headers['user-agent'],
+            metadata: { startDate, endDate, department, recordCount: filteredAttendances.length },
+        });
         res.json(response);
     }
     catch (error) {
@@ -103,6 +115,17 @@ const getPayrollReport = async (req, res, next) => {
                 records: filteredRecords
             }
         };
+        // Log payroll report view
+        await (0, activityLogger_service_1.logView)({
+            userId: req.admin?.id || 0,
+            userName: req.admin?.name || 'unknown',
+            userRole: req.admin?.role || 'admin',
+            entityType: 'PAYROLL',
+            description: `Generated payroll report for period ${startDate.toISOString().split('T')[0]} to ${endDate.toISOString().split('T')[0]}`,
+            ipAddress: req.ip,
+            userAgent: req.headers['user-agent'],
+            metadata: { startDate, endDate, department, recordCount: filteredRecords.length, totalGross: summary.totalGross },
+        });
         res.json(response);
     }
     catch (error) {
@@ -175,6 +198,17 @@ const getEmployeeSummary = async (req, res, next) => {
             message: 'Employee summary generated',
             data: summary
         };
+        // Log employee summary view
+        await (0, activityLogger_service_1.logView)({
+            userId: req.admin?.id || 0,
+            userName: req.admin?.name || 'unknown',
+            userRole: req.admin?.role || 'admin',
+            entityType: 'EMPLOYEE',
+            description: `Generated employee summary for ${year}-${month}`,
+            ipAddress: req.ip,
+            userAgent: req.headers['user-agent'],
+            metadata: { year, month, employeeCount: employees.length },
+        });
         res.json(response);
     }
     catch (error) {
@@ -227,6 +261,17 @@ const exportReport = async (req, res, next) => {
             const headers = Object.keys(data[0] || {}).join(',');
             const rows = data.map(row => Object.values(row).map(v => typeof v === 'string' ? `"${v.replace(/"/g, '""')}"` : v).join(','));
             const csv = [headers, ...rows].join('\n');
+            // Log report export
+            await (0, activityLogger_service_1.logExport)({
+                userId: req.admin?.id || 0,
+                userName: req.admin?.name || 'unknown',
+                userRole: req.admin?.role || 'admin',
+                entityType: type.toUpperCase(),
+                description: `Exported ${type} report as CSV`,
+                ipAddress: req.ip,
+                userAgent: req.headers['user-agent'],
+                metadata: { type, format, recordCount: data.length, filename },
+            });
             res.setHeader('Content-Type', 'text/csv');
             res.setHeader('Content-Disposition', `attachment; filename="${filename}.csv"`);
             res.send(csv);
@@ -237,6 +282,17 @@ const exportReport = async (req, res, next) => {
                 message: 'Report exported successfully',
                 data
             };
+            // Log report export
+            await (0, activityLogger_service_1.logExport)({
+                userId: req.admin?.id || 0,
+                userName: req.admin?.name || 'unknown',
+                userRole: req.admin?.role || 'admin',
+                entityType: type.toUpperCase(),
+                description: `Exported ${type} report as JSON`,
+                ipAddress: req.ip,
+                userAgent: req.headers['user-agent'],
+                metadata: { type, format, recordCount: data.length, filename },
+            });
             res.json(response);
         }
     }

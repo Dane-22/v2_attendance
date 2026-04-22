@@ -6,6 +6,7 @@ import { useMutation } from '@tanstack/react-query';
 import { attendanceApi } from '@/lib/api';
 import { AxiosError } from 'axios';
 import jsQR from 'jsqr';
+import { useWebSocket } from '@/hooks/useWebSocket';
 
 interface User {
   id: number;
@@ -42,6 +43,27 @@ export default function BranchQRScannerPage() {
   const [cameraError, setCameraError] = useState(false);
   const [manualCode, setManualCode] = useState('');
   const [showManualEntry, setShowManualEntry] = useState(false);
+  const [showPresentList, setShowPresentList] = useState(false);
+  const [presentEmployees, setPresentEmployees] = useState<string[]>([]);
+  const { isConnected, joinBranch, emit } = useWebSocket();
+
+  // Play success sound on scan
+  const playSuccessSound = () => {
+    const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+    const oscillator = audioContext.createOscillator();
+    const gainNode = audioContext.createGain();
+    
+    oscillator.connect(gainNode);
+    gainNode.connect(audioContext.destination);
+    
+    oscillator.frequency.value = 800;
+    oscillator.type = 'sine';
+    gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.1);
+    
+    oscillator.start(audioContext.currentTime);
+    oscillator.stop(audioContext.currentTime + 0.1);
+  };
 
   // Get user info on mount
   useEffect(() => {
@@ -58,6 +80,13 @@ export default function BranchQRScannerPage() {
     }
   }, [router]);
 
+  // Join branch room when user is loaded
+  useEffect(() => {
+    if (user && user.branch_code) {
+      joinBranch(user.branch_code);
+    }
+  }, [user, joinBranch]);
+
   // Store parsed employee info for success messages
   const [lastEmployeeName, setLastEmployeeName] = useState('');
   const [lastEmployeeCode, setLastEmployeeCode] = useState('');
@@ -72,6 +101,21 @@ export default function BranchQRScannerPage() {
       const label = action === 'clock_out' ? 'Clock Out' : 'Clock In';
       setScanResult({ success: true, message: `${label}: ${name}`, show: true });
       setCooldown(true);
+
+      // Play success sound
+      playSuccessSound();
+
+      // Emit scan success event via WebSocket
+      if (user?.branch_code && lastEmployeeName) {
+        emit('scan:success', {
+          employeeName: lastEmployeeName,
+          employeeCode: lastEmployeeCode,
+          action: action,
+          branchCode: user.branch_code,
+          timestamp: new Date().toISOString(),
+        });
+      }
+
       setTimeout(() => {
         setScanResult(null);
         setCooldown(false);
@@ -304,6 +348,10 @@ export default function BranchQRScannerPage() {
             {branchCode}
           </div>
           <span className="text-white font-medium text-sm">{branchName}</span>
+          {/* Connection Status Indicator */}
+          <div className="flex items-center gap-2">
+            <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`} />
+          </div>
         </div>
         <button
           onClick={handleLogout}
@@ -315,6 +363,36 @@ export default function BranchQRScannerPage() {
           Logout
         </button>
       </div>
+
+      {/* Currently Present Button */}
+      <div className="px-4 py-2 bg-gray-900">
+        <button
+          onClick={() => setShowPresentList(!showPresentList)}
+          className="flex items-center gap-2 text-gray-400 hover:text-white text-sm bg-gray-800 px-3 py-1.5 rounded"
+        >
+          <span>View Present ({presentEmployees.length})</span>
+          <svg className={`w-4 h-4 transition-transform ${showPresentList ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
+        </button>
+      </div>
+
+      {/* Currently Present List */}
+      {showPresentList && (
+        <div className="px-4 py-3 bg-gray-800 border-t border-gray-700">
+          {presentEmployees.length === 0 ? (
+            <p className="text-gray-500 text-sm text-center">No employees currently present</p>
+          ) : (
+            <ul className="space-y-1">
+              {presentEmployees.map((name, index) => (
+                <li key={index} className="text-gray-300 text-sm py-1 px-2 bg-gray-700 rounded">
+                  {name}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
 
       {/* Scanner Area */}
       <div className="flex-1 relative flex items-center justify-center overflow-hidden">

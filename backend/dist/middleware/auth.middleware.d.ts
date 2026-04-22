@@ -6,6 +6,7 @@ export interface AuthenticatedRequest extends Request {
         name: string;
         email: string;
         role: string | null;
+        branch_code: string | null;
     };
     token?: string;
 }

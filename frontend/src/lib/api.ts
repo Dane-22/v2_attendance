@@ -60,6 +60,7 @@ export interface Employee {
   department: string | null;
   position: string | null;
   branchName: string | null;
+  branchCode: string | null;
   status: string | null;
   dailyRate: number | null;
   performanceAllowance: number | null;
@@ -164,6 +165,10 @@ export const attendanceApi = {
     api.post<ApiResponse<Attendance>>('/attendance/manual-clock-out', data),
   getAudit: (params: { date?: string; branch_code?: string; status?: string }) =>
     api.get<ApiResponse<{ date: string; records: { id: number; employeeId: number; name: string; code: string; branch: string; timeIn: string; timeOut: string; hours: string; status: string; rawStatus: string; }[]; stats: { totalRecords: number; currentlyPresent: number; completedShifts: number; absent: number; present: number; late: number; } }>>('/attendance/audit', { params }),
+  markAbsent: (data: { branch_code: string }) =>
+    api.post<ApiResponse<{ markedCount: number }>>('/attendance/mark-absent', data),
+  markIndividualAbsent: (employeeId: number) =>
+    api.post<ApiResponse<Attendance>>(`/attendance/mark-absent/${employeeId}`),
 };
 
 export const payrollApi = {
@@ -248,6 +253,7 @@ export interface BranchEmployee {
   department: string;
   position: string;
   branchName: string;
+  branchCode: string | null;
   timeIn: string | null;
   timeOut: string | null;
   totalHours: string;
@@ -260,6 +266,71 @@ export const branchApi = {
     api.get<ApiResponse<Branch[]>>('/branches'),
   getEmployees: (branchCode: string) =>
     api.get<ApiResponse<BranchEmployee[]>>(`/branches/${branchCode}/employees`),
+};
+
+// Notification types
+export interface Notification {
+  id: number;
+  recipient_type: string;
+  recipient_id: number;
+  type: 'ATTENDANCE' | 'PAYROLL' | 'SYSTEM' | 'SECURITY' | 'PROJECT' | 'FINANCE';
+  title: string;
+  message: string;
+  link: string | null;
+  is_read: boolean;
+  is_urgent: boolean;
+  created_at: string;
+  read_at: string | null;
+}
+
+export interface NotificationStats {
+  total: number;
+  unread: number;
+  urgent: number;
+  byType: {
+    ATTENDANCE: number;
+    PAYROLL: number;
+    SYSTEM: number;
+    SECURITY: number;
+    PROJECT: number;
+    FINANCE: number;
+  };
+}
+
+export interface NotificationsResponse {
+  notifications: Notification[];
+  stats: NotificationStats;
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+}
+
+export type NotificationFilter = 'ALL' | 'UNREAD' | 'URGENT' | 'ATTENDANCE' | 'PAYROLL' | 'SYSTEM' | 'FINANCE' | 'PROJECT' | 'SECURITY';
+
+export const notificationApi = {
+  getNotifications: (params?: { page?: number; limit?: number; filter?: NotificationFilter }) =>
+    api.get<ApiResponse<NotificationsResponse>>('/notifications', { params }),
+
+  getUnreadCount: () =>
+    api.get<ApiResponse<{ unreadCount: number }>>('/notifications/unread-count'),
+
+  markAsRead: (id: number) =>
+    api.put<ApiResponse<Notification>>(`/notifications/${id}/read`),
+
+  markAllAsRead: () =>
+    api.put<ApiResponse<{ markedCount: number }>>('/notifications/read-all'),
+
+  deleteNotification: (id: number) =>
+    api.delete<ApiResponse<void>>(`/notifications/${id}`),
+
+  clearAll: () =>
+    api.delete<ApiResponse<{ clearedCount: number }>>('/notifications/clear-all'),
+
+  createTestNotification: (data: { type: string; isUrgent?: boolean }) =>
+    api.post<ApiResponse<Notification>>('/notifications/test', data),
 };
 
 export default api;

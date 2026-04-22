@@ -3,6 +3,8 @@ import { PrismaClient, Employee } from '@prisma/client';
 import { AppError } from '../middleware/error.middleware';
 import { AuthenticatedRequest } from '../middleware/auth.middleware';
 import { ApiResponse, PaginatedResponse, CreateEmployeeRequest, UpdateEmployeeRequest } from '../types/api.types';
+import { logCreate, logUpdate, logDelete, logError } from '../services/activityLogger.service';
+import { detectChanges } from '../utils/changeDetector';
 
 const prisma = new PrismaClient();
 
@@ -50,6 +52,7 @@ export const getAllEmployees = async (
           department: true,
           position: true,
           branchName: true,
+          branchCode: true,
           status: true,
           dailyRate: true,
           hasDeductions: true,
@@ -163,6 +166,7 @@ export const createEmployee = async (
         department: data.department,
         position: data.position,
         branchName: data.branchName,
+        branchCode: data.branchCode,
         dailyRate: data.dailyRate,
         performanceAllowance: data.performanceAllowance,
         hasDeductions: data.hasDeductions,
@@ -179,6 +183,7 @@ export const createEmployee = async (
         department: true,
         position: true,
         branchName: true,
+        branchCode: true,
         status: true,
         dailyRate: true,
         hasDeductions: true,
@@ -189,6 +194,21 @@ export const createEmployee = async (
         createdAt: true,
         updatedAt: true
       }
+    });
+
+    // Log employee creation
+    await logCreate({
+      userId: req.admin?.id || 0,
+      userName: req.admin?.name || 'unknown',
+      userRole: req.admin?.role || 'admin',
+      entityType: 'EMPLOYEE',
+      entityId: employee.id.toString(),
+      entityName: `${employee.firstName} ${employee.lastName}`,
+      description: `Created new employee: ${employee.employeeCode} - ${employee.firstName} ${employee.lastName}`,
+      detailsAfter: employee,
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+      branchId: employee.branchId || undefined,
     });
 
     const response: ApiResponse<typeof employee> = {
@@ -229,6 +249,9 @@ export const updateEmployee = async (
       }
     }
 
+    // Detect changes
+    const changes = detectChanges(existingEmployee, data, 'EMPLOYEE');
+
     const employee = await prisma.employee.update({
       where: { id },
       data,
@@ -242,6 +265,7 @@ export const updateEmployee = async (
         department: true,
         position: true,
         branchName: true,
+        branchCode: true,
         status: true,
         dailyRate: true,
         hasDeductions: true,
@@ -252,6 +276,23 @@ export const updateEmployee = async (
         createdAt: true,
         updatedAt: true
       }
+    });
+
+    // Log employee update
+    await logUpdate({
+      userId: req.admin?.id || 0,
+      userName: req.admin?.name || 'unknown',
+      userRole: req.admin?.role || 'admin',
+      entityType: 'EMPLOYEE',
+      entityId: employee.id.toString(),
+      entityName: `${employee.firstName} ${employee.lastName}`,
+      description: `Updated employee: ${employee.employeeCode} - ${employee.firstName} ${employee.lastName}`,
+      detailsBefore: existingEmployee,
+      detailsAfter: employee,
+      changes: changes,
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+      branchId: employee.branchId || undefined,
     });
 
     const response: ApiResponse<typeof employee> = {
@@ -284,6 +325,21 @@ export const deleteEmployee = async (
 
     await prisma.employee.delete({ where: { id } });
 
+    // Log employee deletion
+    await logDelete({
+      userId: req.admin?.id || 0,
+      userName: req.admin?.name || 'unknown',
+      userRole: req.admin?.role || 'admin',
+      entityType: 'EMPLOYEE',
+      entityId: employee.id.toString(),
+      entityName: `${employee.firstName} ${employee.lastName}`,
+      description: `Deleted employee: ${employee.employeeCode} - ${employee.firstName} ${employee.lastName}`,
+      detailsBefore: employee,
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+      branchId: employee.branchId || undefined,
+    });
+
     const response: ApiResponse<null> = {
       success: true,
       message: 'Employee deleted successfully'
@@ -313,6 +369,21 @@ export const generateQRCode = async (
 
     // Generate QR code data (employee code only - V1 format)
     const qrData = `https://jajr.com/attendance/${employee.employeeCode}`;
+
+    // Log QR code generation
+    await logCreate({
+      userId: req.admin?.id || 0,
+      userName: req.admin?.name || 'unknown',
+      userRole: req.admin?.role || 'admin',
+      entityType: 'EMPLOYEE',
+      entityId: employee.id.toString(),
+      entityName: `${employee.firstName} ${employee.lastName}`,
+      description: `Generated QR code for employee: ${employee.employeeCode}`,
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+      branchId: employee.branchId || undefined,
+      metadata: { qrData },
+    });
 
     const response: ApiResponse<{ employeeId: number; employeeCode: string | null; qrData: string }> = {
       success: true,

@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { attendanceApi, branchApi } from '@/lib/api';
+import { attendanceApi, branchApi, Attendance } from '@/lib/api';
 import { 
   Search, 
   Calendar,
@@ -51,66 +51,57 @@ const getPhilippinesDay = (): number => {
 };
 
 // Generate calendar data based on branch filter
-const generateCalendarDays = (branchFilter: string, currentDay: number) => {
-  // Base record counts per day (for "ALL" branches)
-  const baseRecords: Record<number, number> = {
-    1: 67, 2: 2, 3: 2, 4: 2, 5: 2, 6: 4, 7: 2, 8: 2, 9: 2, 10: 2, 11: 2,
-    12: 2, 13: 2, 14: 2, 15: 2, 16: 2, 17: 2, 18: 2, 19: 2, 20: 53, 21: 2, 
-    22: 2, 23: 2, 24: 2, 25: 2, 26: 2, 27: 2, 28: 2, 29: 2, 30: 2,
-  };
-  
-  // Filtered counts based on branch
-  const getRecordCount = (day: number) => {
-    if (branchFilter === 'ALL') return baseRecords[day] || 0;
-    
-    // Simulate branch-specific data - each branch has roughly 10-30% of total
-    const branchFactors: Record<string, number> = {
-      'A': 0.15, // Sto. Rosario
-      'B': 0.25, // BCDA
-      'C': 0.12, // Sundara
-      'D': 0.10, // Panicsican
-      'E': 0.20, // Main Office
-      'F': 0.08, // Capitol
-      'H': 0.10, // Testing Branch
-    };
-    
-    const factor = branchFactors[branchFilter] || 0.2;
-    return Math.floor((baseRecords[day] || 0) * factor);
-  };
-  
-  // Build calendar array with dynamic today marker
+const generateCalendarDays = (branchFilter: string, currentDay: number, month: number, year: number) => {
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const firstDayOfMonth = new Date(year, month, 1).getDay();
+
+  // Get current Philippines date for "today" marker
+  const now = new Date();
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Manila',
+    day: 'numeric',
+    month: 'numeric',
+    year: 'numeric'
+  });
+  const philippinesDate = formatter.format(now);
+  const [pMonth, pDay, pYear] = philippinesDate.split('/').map(Number);
+  const philippinesMonth = pMonth - 1; // Convert to 0-11
+  const philippinesYear = pYear;
+  const philippinesDay = pDay;
+
   const days = [];
+
   // Previous month padding
-  days.push({ day: 30, prevMonth: true }, { day: 31, prevMonth: true });
-  
-  // Current month days (April 2026)
-  for (let day = 1; day <= 30; day++) {
-    const dayData: any = { day, records: getRecordCount(day) };
-    // Mark today based on Philippines current date
-    if (day === currentDay) {
+  const prevMonthDays = new Date(year, month, 0).getDate();
+  for (let i = firstDayOfMonth - 1; i >= 0; i--) {
+    days.push({ day: prevMonthDays - i, prevMonth: true });
+  }
+
+  // Current month days
+  for (let day = 1; day <= daysInMonth; day++) {
+    const dayData: any = { day };
+
+    // Mark today based on Philippines date
+    if (year === philippinesYear && month === philippinesMonth && day === philippinesDay) {
       dayData.today = true;
     }
-    // Mark selected (first load selects today)
+
+    // Mark selected
     if (day === currentDay) {
       dayData.selected = true;
     }
+
     days.push(dayData);
   }
-  
+
   // Next month padding
-  days.push({ day: 1, nextMonth: true }, { day: 2, nextMonth: true });
-  
+  const remainingCells = 42 - days.length;
+  for (let day = 1; day <= remainingCells; day++) {
+    days.push({ day, nextMonth: true });
+  }
+
   return days;
 };
-
-const filterTabs = [
-  { id: 'all', label: 'All', count: null },
-  { id: 'present', label: 'Present', count: 53 },
-  { id: 'late', label: 'Late', count: null },
-  { id: 'completed', label: 'Completed', count: 0 },
-  { id: 'absent', label: 'Absent', count: 24 },
-  { id: 'voided', label: 'Voided', count: null },
-];
 
 // Branch data based on database schema (branches table: branch_code, branch_name)
 const branches = [
@@ -802,6 +793,14 @@ export default function AttendanceAuditPage() {
   const [activeFilter, setActiveFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedDate, setSelectedDate] = useState(getPhilippinesDay());
+  const [calendarMonth, setCalendarMonth] = useState(() => {
+    const now = new Date();
+    return now.getMonth(); // 0-11
+  });
+  const [calendarYear, setCalendarYear] = useState(() => {
+    const now = new Date();
+    return now.getFullYear();
+  });
   const [selectedEmployee, setSelectedEmployee] = useState<AuditRecord | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedBranch, setSelectedBranch] = useState<string | null>(null);
@@ -810,19 +809,25 @@ export default function AttendanceAuditPage() {
   const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
   const [selectedBranchFilter, setSelectedBranchFilter] = useState('ALL');
 
-  // Format date for API (YYYY-MM-DD) using Philippines timezone
+  // Format date for API (YYYY-MM-DD) using calendar month/year
   const formattedDate = useMemo(() => {
-    // Always get fresh Philippines date when selectedDate changes to today
-    if (selectedDate === getPhilippinesDay()) {
-      return getPhilippinesDateString();
-    }
-    // For other dates, construct from current month/year
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const year = calendarYear;
+    const month = String(calendarMonth + 1).padStart(2, '0');
     const day = String(selectedDate).padStart(2, '0');
     return `${year}-${month}-${day}`;
-  }, [selectedDate]);
+  }, [selectedDate, calendarMonth, calendarYear]);
+
+  // Format date for display (e.g., "April 22, 2026 (Wednesday)")
+  const displayDate = useMemo(() => {
+    const date = new Date(calendarYear, calendarMonth, selectedDate);
+    const options: Intl.DateTimeFormatOptions = {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    };
+    return date.toLocaleDateString('en-US', options);
+  }, [calendarYear, calendarMonth, selectedDate]);
 
   // Fetch attendance audit data
   const { data: auditData, isLoading } = useQuery({
@@ -839,9 +844,101 @@ export default function AttendanceAuditPage() {
 
   const records = auditData?.records || [];
   const stats = auditData?.stats || { totalRecords: 0, currentlyPresent: 0, completedShifts: 0, absent: 0, present: 0, late: 0 };
-  
+
+  // Dynamic filter tabs with counts from stats
+  const filterTabs = [
+    { id: 'all', label: 'All', count: stats.totalRecords },
+    { id: 'present', label: 'Present', count: stats.present },
+    { id: 'late', label: 'Late', count: stats.late },
+    { id: 'completed', label: 'Completed', count: stats.completedShifts },
+    { id: 'absent', label: 'Absent', count: stats.absent },
+    { id: 'voided', label: 'Voided', count: 0 },
+  ];
+
+  // Calculate date range for monthly data
+  const startDate = useMemo(() => {
+    return `${calendarYear}-${String(calendarMonth + 1).padStart(2, '0')}-01`;
+  }, [calendarMonth, calendarYear]);
+
+  const endDate = useMemo(() => {
+    const daysInMonth = new Date(calendarYear, calendarMonth + 1, 0).getDate();
+    return `${calendarYear}-${String(calendarMonth + 1).padStart(2, '0')}-${String(daysInMonth).padStart(2, '0')}`;
+  }, [calendarMonth, calendarYear]);
+
+  // Fetch monthly attendance data for calendar counts
+  const { data: monthlyAttendanceData } = useQuery({
+    queryKey: ['attendance-monthly', startDate, endDate, selectedBranchFilter],
+    queryFn: async () => {
+      const response = await attendanceApi.getAll({
+        startDate,
+        endDate
+      });
+      return response.data.data || [];
+    },
+    enabled: !!startDate && !!endDate
+  });
+
   // Generate calendar days based on branch filter
-  const calendarDays = generateCalendarDays(selectedBranchFilter, getPhilippinesDay());
+  const calendarDays = generateCalendarDays(selectedBranchFilter, selectedDate, calendarMonth, calendarYear);
+
+  // Aggregate daily record counts from monthly data
+  const dailyRecordCounts = useMemo(() => {
+    const counts: Record<number, number> = {};
+
+    if (!monthlyAttendanceData || monthlyAttendanceData.length === 0) {
+      return counts;
+    }
+
+    monthlyAttendanceData.forEach((record: Attendance) => {
+      // Filter by branch if not "ALL"
+      if (selectedBranchFilter !== 'ALL' && record.branch_code !== selectedBranchFilter) {
+        return;
+      }
+
+      const recordDate = new Date(record.date);
+      const day = recordDate.getDate();
+      const month = recordDate.getMonth();
+      const year = recordDate.getFullYear();
+
+      // Only count records for the displayed month
+      if (month === calendarMonth && year === calendarYear) {
+        counts[day] = (counts[day] || 0) + 1;
+      }
+    });
+
+    return counts;
+  }, [monthlyAttendanceData, calendarMonth, calendarYear, selectedBranchFilter]);
+
+  // Month names for display
+  const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+
+  // Month navigation handlers
+  const navigateMonth = (direction: 'prev' | 'next') => {
+    if (direction === 'prev') {
+      if (calendarMonth === 0) {
+        setCalendarMonth(11);
+        setCalendarYear(y => y - 1);
+      } else {
+        setCalendarMonth(m => m - 1);
+      }
+    } else {
+      if (calendarMonth === 11) {
+        setCalendarMonth(0);
+        setCalendarYear(y => y + 1);
+      } else {
+        setCalendarMonth(m => m + 1);
+      }
+    }
+    // Reset selected date to 1st of month when navigating
+    setSelectedDate(1);
+  };
+
+  const goToToday = () => {
+    const now = new Date();
+    setCalendarMonth(now.getMonth());
+    setCalendarYear(now.getFullYear());
+    setSelectedDate(now.getDate());
+  };
 
   // Filter data based on search query and active filter (client-side)
   const filteredData = useMemo(() => {
@@ -864,6 +961,7 @@ export default function AttendanceAuditPage() {
         if (activeFilter === 'late') return emp.rawStatus === 'late';
         if (activeFilter === 'absent') return emp.rawStatus === 'absent' || emp.rawStatus === null;
         if (activeFilter === 'completed') return emp.timeOut !== '-';
+        if (activeFilter === 'voided') return emp.rawStatus === 'voided';
         return true;
       });
     }
@@ -960,15 +1058,15 @@ export default function AttendanceAuditPage() {
         {/* Calendar Section */}
         <div className="xl:col-span-1 bg-[#141414] rounded-xl border border-[#262626] p-6">
           <div className="flex items-center justify-between mb-6">
-            <h2 className="text-lg font-semibold text-white">April 2026</h2>
+            <h2 className="text-lg font-semibold text-white">{monthNames[calendarMonth]} {calendarYear}</h2>
             <div className="flex items-center gap-2">
-              <button className="p-1 hover:bg-[#262626] rounded transition-colors">
+              <button onClick={() => navigateMonth('prev')} className="p-1 hover:bg-[#262626] rounded transition-colors">
                 <ChevronLeft className="w-5 h-5 text-gray-400" />
               </button>
-              <button className="px-3 py-1 bg-[#facc15] text-black text-sm font-medium rounded">
+              <button onClick={goToToday} className="px-3 py-1 bg-[#facc15] text-black text-sm font-medium rounded">
                 Today
               </button>
-              <button className="p-1 hover:bg-[#262626] rounded transition-colors">
+              <button onClick={() => navigateMonth('next')} className="p-1 hover:bg-[#262626] rounded transition-colors">
                 <ChevronRight className="w-5 h-5 text-gray-400" />
               </button>
             </div>
@@ -997,9 +1095,9 @@ export default function AttendanceAuditPage() {
               >
                 <div className="flex flex-col items-center">
                   <span>{item.day}</span>
-                  {item.records && !item.prevMonth && !item.nextMonth && (
+                  {dailyRecordCounts[item.day] > 0 && !item.prevMonth && !item.nextMonth && (
                     <span className={`text-[10px] mt-0.5 ${selectedDate === item.day ? 'text-black/70' : 'text-gray-500'}`}>
-                      {item.records} rec
+                      {dailyRecordCounts[item.day]} rec
                     </span>
                   )}
                 </div>
@@ -1050,7 +1148,7 @@ export default function AttendanceAuditPage() {
           <div className="bg-[#facc15]/10 border border-[#facc15]/30 rounded-xl p-4">
             <div className="flex items-center gap-2 mb-2">
               <Calendar className="w-5 h-5 text-[#facc15]" />
-              <h3 className="text-[#facc15] font-semibold">April 20, 2026 (Monday)</h3>
+              <h3 className="text-[#facc15] font-semibold">{displayDate}</h3>
             </div>
             <div className="flex items-center gap-2 text-sm text-gray-400">
               <AlertCircle className="w-4 h-4 text-yellow-500" />

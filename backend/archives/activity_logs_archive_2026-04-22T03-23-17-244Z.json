@@ -1,0 +1,23 @@
+[
+  {
+    "id": "log-test-001",
+    "timestamp": "2026-04-20T14:10:01.000Z",
+    "userId": 1,
+    "userName": "Admin User",
+    "userRole": "super_admin",
+    "actionType": "LOGIN",
+    "entityType": "USER",
+    "entityId": null,
+    "entityName": "System",
+    "description": "User logged in successfully",
+    "detailsBefore": null,
+    "detailsAfter": null,
+    "changes": null,
+    "ipAddress": null,
+    "userAgent": null,
+    "status": "SUCCESS",
+    "metadata": null,
+    "branchId": null,
+    "createdAt": "2026-04-20T14:10:01.000Z"
+  }
+]

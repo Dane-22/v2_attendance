@@ -3,6 +3,7 @@ import { PrismaClient } from '@prisma/client';
 import { AppError } from '../middleware/error.middleware';
 import { AuthenticatedRequest } from '../middleware/auth.middleware';
 import { ApiResponse } from '../types/api.types';
+import { logView } from '../services/activityLogger.service';
 
 const prisma = new PrismaClient();
 
@@ -47,6 +48,18 @@ export const getBranches = async (
       description: `Deploy employees to ${branchNames[branch.branch_code || ''] || branch.branch_code} for attendance.`
     }));
 
+    // Log branch list view
+    await logView({
+      userId: req.admin?.id || 0,
+      userName: req.admin?.name || 'unknown',
+      userRole: req.admin?.role || 'admin',
+      entityType: 'BRANCH',
+      description: `Viewed all branches (${branches.length} branches)`,
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+      metadata: { branchCount: branches.length },
+    });
+
     res.json({
       success: true,
       data: formattedBranches
@@ -71,12 +84,10 @@ export const getBranchEmployees = async (
     const today = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
     console.log('Today date:', today);
 
-    // Get employees for this branch (case insensitive search)
+    // Get employees for this branch using exact branch_code match
     const employees = await prisma.employee.findMany({
       where: {
-        branchName: {
-          contains: branchCode
-        },
+        branchCode: branchCode,
         status: 'Active'
       },
       select: {
@@ -87,6 +98,7 @@ export const getBranchEmployees = async (
         department: true,
         position: true,
         branchName: true,
+        branchCode: true,
       }
     });
 
@@ -176,6 +188,20 @@ export const getBranchEmployees = async (
     console.log('Attendance map entries:', Array.from(attendanceMap.entries()).map(([k, v]) => ({ empId: k, attId: v.id, check_in: v.check_in, check_out: v.check_out })));
     console.log('Formatted employees:', formattedEmployees.map(e => ({ id: e.id, name: e.name, timeIn: e.timeIn, timeOut: e.timeOut })));
     console.log('=== END GET BRANCH EMPLOYEES ===');
+
+    // Log branch employees view
+    await logView({
+      userId: req.admin?.id || 0,
+      userName: req.admin?.name || 'unknown',
+      userRole: req.admin?.role || 'admin',
+      entityType: 'BRANCH',
+      entityId: branchCode,
+      entityName: `Branch ${branchCode}`,
+      description: `Viewed employees for branch ${branchCode} (${employees.length} employees)`,
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+      metadata: { branchCode, employeeCount: employees.length },
+    });
 
     res.json({
       success: true,

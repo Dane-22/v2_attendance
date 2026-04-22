@@ -1,14 +1,27 @@
 'use client';
 
 import { useState } from 'react';
+import { useMutation } from '@tanstack/react-query';
 import { NotificationSettings as NotificationSettingsType } from '../types';
 import { defaultNotificationSettings } from '../data';
-import { Bell, Mail, Smartphone, AlertTriangle, DollarSign, RefreshCw, Check, Save } from 'lucide-react';
+import { notificationApi } from '@/lib/api';
+import { Bell, Mail, Smartphone, AlertTriangle, DollarSign, RefreshCw, Check, Save, Send, Loader2 } from 'lucide-react';
+
+const notificationTypes = [
+  { value: 'ATTENDANCE', label: 'Attendance', color: 'text-blue-400' },
+  { value: 'PAYROLL', label: 'Payroll', color: 'text-green-400' },
+  { value: 'FINANCE', label: 'Finance', color: 'text-cyan-400' },
+  { value: 'SYSTEM', label: 'System', color: 'text-purple-400' },
+  { value: 'SECURITY', label: 'Security', color: 'text-red-400' },
+  { value: 'PROJECT', label: 'Project', color: 'text-orange-400' },
+];
 
 export default function NotificationSettings() {
   const [settings, setSettings] = useState<NotificationSettingsType>(defaultNotificationSettings);
   const [isSaving, setIsSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [testType, setTestType] = useState('SYSTEM');
+  const [testUrgent, setTestUrgent] = useState(false);
 
   const handleSave = () => {
     setIsSaving(true);
@@ -22,6 +35,15 @@ export default function NotificationSettings() {
   const toggleSetting = (key: keyof NotificationSettingsType) => {
     setSettings({ ...settings, [key]: !settings[key] });
   };
+
+  // Test notification mutation
+  const testNotificationMutation = useMutation({
+    mutationFn: () => notificationApi.createTestNotification({ type: testType, isUrgent: testUrgent }),
+    onSuccess: () => {
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+    },
+  });
 
   const notificationGroups = [
     {
@@ -169,6 +191,73 @@ export default function NotificationSettings() {
             </div>
           </div>
         )}
+      </div>
+
+      {/* Test Notification */}
+      <div className="bg-[#141414] rounded-xl border border-[#262626] p-6">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-8 h-8 rounded-lg bg-[#facc15]/10 border border-[#facc15]/30 flex items-center justify-center">
+            <Send className="w-4 h-4 text-[#facc15]" />
+          </div>
+          <div>
+            <h4 className="text-white font-medium">Test Notification</h4>
+            <p className="text-sm text-gray-400">Send a test notification to verify the system</p>
+          </div>
+        </div>
+
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm text-gray-400 mb-2">Notification Type</label>
+            <div className="grid grid-cols-3 gap-2">
+              {notificationTypes.map((type) => (
+                <button
+                  key={type.value}
+                  onClick={() => setTestType(type.value)}
+                  className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    testType === type.value
+                      ? 'bg-[#facc15] text-black'
+                      : 'bg-[#0f0f0f] border border-[#262626] text-gray-400 hover:text-white hover:border-[#404040]'
+                  }`}
+                >
+                  <span className={testType === type.value ? '' : type.color}>{type.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={testUrgent}
+              onChange={(e) => setTestUrgent(e.target.checked)}
+              className="w-4 h-4 rounded border-[#262626] bg-[#0f0f0f] text-[#facc15] focus:ring-[#facc15]"
+            />
+            <span className="text-sm text-gray-400">Mark as urgent</span>
+          </label>
+
+          <button
+            onClick={() => testNotificationMutation.mutate()}
+            disabled={testNotificationMutation.isPending}
+            className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-[#facc15] text-black font-medium rounded-lg hover:bg-yellow-400 transition-colors disabled:opacity-50"
+          >
+            {testNotificationMutation.isPending ? (
+              <>
+                <Loader2 className="w-5 h-5 animate-spin" />
+                Sending...
+              </>
+            ) : testNotificationMutation.isSuccess ? (
+              <>
+                <Check className="w-5 h-5" />
+                Test Notification Sent!
+              </>
+            ) : (
+              <>
+                <Send className="w-5 h-5" />
+                Send Test Notification
+              </>
+            )}
+          </button>
+        </div>
       </div>
 
       {/* Save Button */}

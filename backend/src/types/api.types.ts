@@ -44,6 +44,7 @@ export interface CreateEmployeeRequest {
   department?: string;
   position?: string;
   branchName?: string;
+  branchCode?: string;
   dailyRate?: number;
   performanceAllowance?: number;
   hasDeductions?: boolean;
@@ -58,6 +59,7 @@ export interface UpdateEmployeeRequest {
   department?: string;
   position?: string;
   branchName?: string;
+  branchCode?: string;
   status?: string;
   dailyRate?: number;
   performanceAllowance?: number;

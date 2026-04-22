@@ -26,7 +26,8 @@ const authenticate = async (req, res, next) => {
                 username: true,
                 name: true,
                 email: true,
-                role: true
+                role: true,
+                branch_code: true
             }
         });
         if (!admin) {
@@ -63,7 +64,8 @@ const optionalAuth = async (req, res, next) => {
                 username: true,
                 name: true,
                 email: true,
-                role: true
+                role: true,
+                branch_code: true
             }
         });
         if (admin) {
