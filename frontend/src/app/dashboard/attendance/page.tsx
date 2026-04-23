@@ -639,8 +639,55 @@ export default function AttendancePage() {
                         </button>
                       </div>
                     </div>
+                  ) : activeTab === 'Present' ? (
+                    // Present tab: Time Out button only, no status badge, no modal
+                    <div
+                      className={`flex items-center gap-3 p-4 border-b border-[#262626] last:border-0 transition-all ${
+                        flashedEmployeeId === employee.id ? 'bg-[#facc15]/20' : ''
+                      }`}
+                    >
+                      <span className="text-gray-400 text-sm w-6">{indexOfFirstEmployee + index + 1}</span>
+                      <div className="w-10 h-10 rounded-full bg-[#facc15] flex items-center justify-center text-black text-sm font-bold flex-shrink-0">
+                        {employee.avatar}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-white font-medium text-sm truncate">{employee.name}</p>
+                      </div>
+                      <div className="flex-shrink-0">
+                        <button
+                          onClick={() => clockOutMutation.mutate(employee.id)}
+                          disabled={clockOutMutation.isPending}
+                          className="inline-flex items-center gap-1 px-3 py-1.5 bg-red-500/20 text-red-400 text-xs font-medium rounded-full hover:bg-red-500/30 transition-colors disabled:opacity-50"
+                        >
+                          {clockOutMutation.isPending ? (
+                            <Loader2 className="w-3 h-3 animate-spin" />
+                          ) : (
+                            <LogOut className="w-3 h-3" />
+                          )}
+                          Time Out
+                        </button>
+                      </div>
+                    </div>
+                  ) : activeTab === 'Absent' ? (
+                    // Absent tab: No actions available, no status badge, no modal
+                    <div
+                      className={`flex items-center gap-3 p-4 border-b border-[#262626] last:border-0 transition-all ${
+                        flashedEmployeeId === employee.id ? 'bg-[#facc15]/20' : ''
+                      }`}
+                    >
+                      <span className="text-gray-400 text-sm w-6">{indexOfFirstEmployee + index + 1}</span>
+                      <div className="w-10 h-10 rounded-full bg-[#facc15] flex items-center justify-center text-black text-sm font-bold flex-shrink-0">
+                        {employee.avatar}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-white font-medium text-sm truncate">{employee.name}</p>
+                      </div>
+                      <div className="flex-shrink-0">
+                        <span className="text-gray-500 text-sm">No actions available</span>
+                      </div>
+                    </div>
                   ) : (
-                    // Other tabs (Summary, Present, Absent): keep clickable card with modal
+                    // Summary tab: Keep clickable card with status badge + modal
                     <div
                       onClick={() => setSelectedEmployeeForModal(employee)}
                       className={`flex items-center gap-3 p-4 border-b border-[#262626] last:border-0 hover:bg-[#1a1a1a] transition-all cursor-pointer ${
