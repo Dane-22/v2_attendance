@@ -550,7 +550,7 @@ export default function AttendancePage() {
       <div className="bg-[#141414] rounded-xl border border-[#262626] overflow-hidden">
         {/* Mobile Card Layout */}
         {isMobile && (
-          <div className="sm:hidden">
+          <div className="sm:hidden w-full overflow-hidden">
             {filteredEmployees.length === 0 ? (
               <div className="p-8 text-center text-gray-400">
                 {!selectedBranch ? (
@@ -591,43 +591,94 @@ export default function AttendancePage() {
               </div>
             ) : (
               currentEmployees.map((employee, index) => (
-                <div
-                  key={employee.id}
-                  onClick={() => setSelectedEmployeeForModal(employee)}
-                  className={`flex items-center gap-3 p-4 border-b border-[#262626] last:border-0 hover:bg-[#1a1a1a] transition-all cursor-pointer ${
-                    flashedEmployeeId === employee.id ? 'bg-[#facc15]/20' : ''
-                  }`}
-                >
-                  <span className="text-gray-400 text-sm w-6">{indexOfFirstEmployee + index + 1}</span>
-                  <div className="w-10 h-10 rounded-full bg-[#facc15] flex items-center justify-center text-black text-sm font-bold flex-shrink-0">
-                    {employee.avatar}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-white font-medium text-sm truncate">{employee.name}</p>
-                  </div>
-                  <div className="flex-shrink-0">
-                    {employee.timeIn !== null && employee.timeOut !== null ? (
-                      <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-blue-500/20 text-blue-400 text-xs font-medium rounded-full">
-                        <CheckCircle className="w-3 h-3" />
-                        COMPLETED
-                      </span>
-                    ) : employee.timeIn !== null && employee.timeOut === null ? (
-                      <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-green-500/20 text-green-400 text-xs font-medium rounded-full">
-                        <CheckCircle className="w-3 h-3" />
-                        PRESENT
-                      </span>
-                    ) : employee.status === 'absent' ? (
-                      <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-red-500/20 text-red-400 text-xs font-medium rounded-full">
-                        <UserX className="w-3 h-3" />
-                        ABSENT
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-[#facc15]/20 text-[#facc15] text-xs font-medium rounded-full">
-                        <Clock className="w-3 h-3" />
-                        AVAILABLE
-                      </span>
-                    )}
-                  </div>
+                <div key={employee.id}>
+                  {activeTab === 'Available' ? (
+                    // Available tab: show action buttons directly on card
+                    <div
+                      className={`flex items-center gap-3 p-4 border-b border-[#262626] last:border-0 transition-all ${
+                        flashedEmployeeId === employee.id ? 'bg-[#facc15]/20' : ''
+                      }`}
+                    >
+                      <span className="text-gray-400 text-sm w-6">{indexOfFirstEmployee + index + 1}</span>
+                      <div className="w-10 h-10 rounded-full bg-[#facc15] flex items-center justify-center text-black text-sm font-bold flex-shrink-0">
+                        {employee.avatar}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-white font-medium text-sm truncate">{employee.name}</p>
+                      </div>
+                      <div className="flex flex-col gap-2 flex-shrink-0">
+                        <button
+                          onClick={() => {
+                            clockInMutation.mutate({ employeeId: employee.id, branchCode: selectedBranch });
+                          }}
+                          disabled={clockInMutation.isPending}
+                          className="inline-flex items-center gap-1 px-3 py-1.5 bg-green-500/20 text-green-400 text-xs font-medium rounded-full hover:bg-green-500/30 transition-colors disabled:opacity-50"
+                        >
+                          {clockInMutation.isPending ? (
+                            <Loader2 className="w-3 h-3 animate-spin" />
+                          ) : (
+                            <LogIn className="w-3 h-3" />
+                          )}
+                          Time In
+                        </button>
+                        <button
+                          onClick={() => {
+                            if (window.confirm(`Mark ${employee.name} as absent for today?`)) {
+                              markIndividualAbsentMutation.mutate(employee.id);
+                            }
+                          }}
+                          disabled={markIndividualAbsentMutation.isPending}
+                          className="inline-flex items-center gap-1 px-3 py-1.5 bg-red-500/20 text-red-400 text-xs font-medium rounded-full hover:bg-red-500/30 transition-colors disabled:opacity-50"
+                        >
+                          {markIndividualAbsentMutation.isPending ? (
+                            <Loader2 className="w-3 h-3 animate-spin" />
+                          ) : (
+                            <UserX className="w-3 h-3" />
+                          )}
+                          Absent
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    // Other tabs (Summary, Present, Absent): keep clickable card with modal
+                    <div
+                      onClick={() => setSelectedEmployeeForModal(employee)}
+                      className={`flex items-center gap-3 p-4 border-b border-[#262626] last:border-0 hover:bg-[#1a1a1a] transition-all cursor-pointer ${
+                        flashedEmployeeId === employee.id ? 'bg-[#facc15]/20' : ''
+                      }`}
+                    >
+                      <span className="text-gray-400 text-sm w-6">{indexOfFirstEmployee + index + 1}</span>
+                      <div className="w-10 h-10 rounded-full bg-[#facc15] flex items-center justify-center text-black text-sm font-bold flex-shrink-0">
+                        {employee.avatar}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-white font-medium text-sm truncate">{employee.name}</p>
+                      </div>
+                      <div className="flex-shrink-0">
+                        {employee.timeIn !== null && employee.timeOut !== null ? (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-blue-500/20 text-blue-400 text-xs font-medium rounded-full">
+                            <CheckCircle className="w-3 h-3" />
+                            COMPLETED
+                          </span>
+                        ) : employee.timeIn !== null && employee.timeOut === null ? (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-green-500/20 text-green-400 text-xs font-medium rounded-full">
+                            <CheckCircle className="w-3 h-3" />
+                            PRESENT
+                          </span>
+                        ) : employee.status === 'absent' ? (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-red-500/20 text-red-400 text-xs font-medium rounded-full">
+                            <UserX className="w-3 h-3" />
+                            ABSENT
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-[#facc15]/20 text-[#facc15] text-xs font-medium rounded-full">
+                            <Clock className="w-3 h-3" />
+                            AVAILABLE
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
               ))
             )}
