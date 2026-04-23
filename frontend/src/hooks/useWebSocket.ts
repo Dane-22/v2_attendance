@@ -20,14 +20,18 @@ export const useWebSocket = (): WebSocketHookReturn => {
   const socketRef = useRef<Socket | null>(null);
 
   useEffect(() => {
-    // Derive WebSocket URL from API URL or use default
-    // If NEXT_PUBLIC_API_URL is https://domain.com/api, use https://domain.com for WebSocket
+    // Derive WebSocket URL from API URL, window.location, or use default
+    // Priority: 1) NEXT_PUBLIC_API_URL, 2) window.location, 3) localhost fallback
     const apiUrl = process.env.NEXT_PUBLIC_API_URL;
     let wsUrl: string;
 
     if (apiUrl) {
       // Remove '/api' suffix if present to get base URL
       wsUrl = apiUrl.replace(/\/api\/?$/, '');
+    } else if (typeof window !== 'undefined' && window.location.hostname !== 'localhost') {
+      // Auto-detect from current domain in production
+      const protocol = window.location.protocol === 'https:' ? 'https:' : 'http:';
+      wsUrl = `${protocol}//${window.location.host}`;
     } else {
       wsUrl = 'http://localhost:5002';
     }
