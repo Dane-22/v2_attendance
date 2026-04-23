@@ -88,13 +88,16 @@ export default function AttendancePage() {
   const currentBranches = branches.slice(indexOfFirstBranch, indexOfLastBranch);
 
   // Fetch employees for selected branch
-  const { data: employeesData, isLoading: employeesLoading, refetch: refetchEmployees } = useQuery({
+  const { data: employeesData, isLoading: employeesLoading, refetch: refetchEmployees, error: employeesError } = useQuery({
     queryKey: ['branch-employees', selectedBranch],
     queryFn: async () => {
       if (!selectedBranch) return [];
+      console.log('[Attendance] Fetching employees for branch:', selectedBranch);
       const response = await branchApi.getEmployees(selectedBranch);
-      console.log('Fetched employees:', response.data.data);
-      return response.data.data || [];
+      console.log('[Attendance] API response:', response.data);
+      const employees = response.data?.data || [];
+      console.log('[Attendance] Parsed employees:', employees.length, 'items');
+      return employees;
     },
     enabled: !!selectedBranch
   });
@@ -456,6 +459,9 @@ export default function AttendancePage() {
               <h3 className={`font-semibold text-sm mb-1 ${selectedBranch === branch.code ? 'text-black' : 'text-white'}`}>
                 {branch.shortName}
               </h3>
+              <p className={`text-xs font-mono mb-1 ${selectedBranch === branch.code ? 'text-black/70' : 'text-gray-500'}`}>
+                Code: {branch.code}
+              </p>
               <p className={`text-xs ${selectedBranch === branch.code ? 'text-black/70' : 'text-gray-500'}`}>
                 {branch.description}
               </p>
@@ -546,8 +552,57 @@ export default function AttendancePage() {
             <tbody>
               {filteredEmployees.length === 0 ? (
                 <tr>
-                  <td colSpan={activeTab === 'Summary' ? 7 : 6} className="px-4 py-8 text-center text-gray-500">
-                    No employees found
+                  <td colSpan={activeTab === 'Summary' ? 7 : 6} className="px-4 py-8 text-center">
+                    {!selectedBranch ? (
+                      <div className="text-gray-400">
+                        <p className="text-lg mb-2">Select a branch to view employees</p>
+                        <p className="text-sm text-gray-500">Click on a project card above to load employees</p>
+                      </div>
+                    ) : employeesLoading ? (
+                      <div className="text-gray-400">
+                        <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" />
+                        <p>Loading employees...</p>
+                      </div>
+                    ) : employeesError ? (
+                      <div className="text-red-400">
+                        <p className="text-lg mb-2">Error loading employees</p>
+                        <p className="text-sm text-red-500">
+                          {String((employeesError as Error)?.message || 'Failed to fetch employees')}
+                        </p>
+                        <button
+                          onClick={() => refetchEmployees()}
+                          className="mt-3 text-sm text-[#facc15] hover:underline"
+                        >
+                          Retry
+                        </button>
+                      </div>
+                    ) : employees.length === 0 ? (
+                      <div className="text-gray-400">
+                        <p className="text-lg mb-2">No employees in this branch</p>
+                        <p className="text-sm text-gray-500">
+                          Branch: <span className="text-[#facc15]">{selectedBranch}</span> has no assigned employees
+                        </p>
+                        <p className="text-xs text-gray-600 mt-2">
+                          (Check: 1) Employees have branchCode=&quot;{selectedBranch}&quot; in DB, 2) status=&quot;Active&quot;)
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="text-gray-400">
+                        <p className="text-lg mb-2">No employees match current filters</p>
+                        <p className="text-sm text-gray-500">
+                          Tab: <span className="text-[#facc15]">{activeTab}</span>
+                          {searchQuery && (
+                            <span> | Search: &quot;<span className="text-[#facc15]">{searchQuery}</span>&quot;</span>
+                          )}
+                        </p>
+                        <button
+                          onClick={() => { setActiveTab('Summary'); setSearchQuery(''); }}
+                          className="mt-3 text-sm text-[#facc15] hover:underline"
+                        >
+                          Clear filters
+                        </button>
+                      </div>
+                    )}
                   </td>
                 </tr>
               ) : (
