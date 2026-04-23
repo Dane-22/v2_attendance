@@ -21,7 +21,7 @@ export const useWebSocket = (): WebSocketHookReturn => {
 
   useEffect(() => {
     // Get WebSocket URL from environment or use default
-    const wsUrl = process.env.NEXT_PUBLIC_WS_URL || 'http://localhost:5000';
+    const wsUrl = process.env.NEXT_PUBLIC_WS_URL || 'http://localhost:5002';
     const token = typeof window !== 'undefined' ? localStorage.getItem('token') : '';
 
     console.log('[WebSocket] Connecting to:', wsUrl);

@@ -106,7 +106,7 @@ io.on('connection', (socket) => {
 
 app.use(cors({
   origin: process.env.NODE_ENV === 'production' 
-    ? ['https://yourdomain.com'] 
+    ? process.env.FRONTEND_URL || 'https://attendacev2.xandree.com'
     : ['http://localhost:3000', 'http://localhost:3001'],
   credentials: true
 }));
