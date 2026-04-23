@@ -17,6 +17,24 @@ The server's CPU usage spiked to abnormally high levels (196% CPU usage), causin
 - Server performance severely degraded
 - Process `./chronyd2 --config=.xmr.json` consuming excessive resources
 - Three production projects affected: jajr-project, v2_attendance, and attendance
+- The backend is trying to use port 5000 instead of 5002. Check your .env file:
+
+```bash
+cat /var/www/version2_attendance/backend/.env
+```
+
+Ensure it has:
+```
+PORT=5002
+NODE_ENV=production
+DATABASE_URL="mysql://root:JaJr12390786@localhost:3306/attendance-system"
+```
+
+Then restart:
+```bash
+pm2 restart v2_attendance-api --update-env
+pm2 logs v2_attendance-api --lines 30
+```
 
 ### Impact
 - Reduced server performance for all users

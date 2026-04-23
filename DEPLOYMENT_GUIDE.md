@@ -285,6 +285,21 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_cache_bypass $http_upgrade;
     }
+
+    # WebSocket/Socket.IO
+    location /socket.io/ {
+        proxy_pass http://localhost:5002/socket.io/;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 86400;
+        proxy_connect_timeout 86400;
+        proxy_send_timeout 86400;
+    }
 }
 ```
 
@@ -417,6 +432,35 @@ lsof -i :5002
 lsof -i :3001
 # Kill process if needed: kill -9 <PID>
 ```
+
+### WebSocket Connection Issues
+
+If you see console errors like "WebSocket connection failed":
+
+1. **Verify Nginx WebSocket config** - Ensure the `/socket.io/` location block exists:
+   ```bash
+   nginx -t
+   cat /etc/nginx/sites-available/attendance | grep -A 15 "socket.io"
+   ```
+
+2. **Check backend is running**:
+   ```bash
+   pm2 logs v2-attendance-api
+   curl http://localhost:5002/health
+   ```
+
+3. **Test WebSocket locally**:
+   ```bash
+   # From your server, test if Socket.IO is accessible
+   curl -i -N -H "Connection: Upgrade" \
+        -H "Upgrade: websocket" \
+        -H "Host: localhost:5002" \
+        http://localhost:5002/socket.io/?EIO=4&transport=websocket
+   ```
+
+4. **Verify CORS settings** - Check `backend/src/server.ts` has your domain in CORS origin
+
+5. **Firewall/Cloudflare** - If using Cloudflare, ensure WebSocket is enabled in network settings
 
 ---
 
