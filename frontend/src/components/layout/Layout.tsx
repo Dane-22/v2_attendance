@@ -6,6 +6,7 @@ import Header from './Header';
 import Sidebar from './Sidebar';
 import Footer from './Footer';
 import { useAppStore } from '@/store/appStore';
+import { ToastProvider } from '@/components/Toast';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -45,27 +46,29 @@ export default function Layout({
   }, []);
 
   return (
-    <div className={`min-h-screen flex ${isDark ? 'bg-[#0a0a0a]' : 'bg-gray-50'} transition-colors duration-300`}>
-      {!hideSidebar && <Header />}
-      {!hideSidebar && <Sidebar />}
+    <ToastProvider>
+      <div className={`min-h-screen flex ${isDark ? 'bg-[#0a0a0a]' : 'bg-gray-50'} transition-colors duration-300`}>
+        {!hideSidebar && <Header />}
+        {!hideSidebar && <Sidebar />}
 
-      {/* Main Content Area - Flexbox for maximum width */}
-      <main
-        className={`main-content flex-1 min-h-screen transition-all duration-300 ${
-          !hideSidebar
-            ? `pt-16 ${!hideFooter ? 'pb-12' : ''} ${
-                sidebarOpen ? 'lg:ml-[280px]' : 'lg:ml-20'
-              } ml-0`
-            : ''
-        }`}
-      >
-        {/* Content Wrapper - Full width with consistent breathing room */}
-        <div className={`h-full ${fullWidth ? 'px-6 lg:px-10' : 'px-6 lg:px-10 py-6'}`}>
-          {children}
-        </div>
-      </main>
+        {/* Main Content Area - Flexbox for maximum width */}
+        <main
+          className={`main-content flex-1 min-h-screen transition-all duration-300 ${
+            !hideSidebar
+              ? `pt-16 ${!hideFooter ? 'pb-12' : ''} ${
+                  sidebarOpen ? 'lg:ml-[280px]' : 'lg:ml-20'
+                } ml-0`
+              : ''
+          }`}
+        >
+          {/* Content Wrapper - Full width with consistent breathing room */}
+          <div className={`h-full ${fullWidth ? 'px-6 lg:px-10' : 'px-6 lg:px-10 py-6'}`}>
+            {children}
+          </div>
+        </main>
 
-      {!hideSidebar && !hideFooter && <Footer />}
-    </div>
+        {!hideSidebar && !hideFooter && <Footer />}
+      </div>
+    </ToastProvider>
   );
 }

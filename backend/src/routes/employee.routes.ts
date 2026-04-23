@@ -6,7 +6,9 @@ import {
   createEmployee,
   updateEmployee,
   deleteEmployee,
-  generateQRCode
+  generateQRCode,
+  uploadProfileImage,
+  uploadMiddleware
 } from '../controllers/employee.controller';
 
 const router = Router();
@@ -17,5 +19,6 @@ router.get('/:id', authenticate, getEmployeeById);
 router.put('/:id', authenticate, updateEmployee);
 router.delete('/:id', authenticate, deleteEmployee);
 router.get('/:id/qr', authenticate, generateQRCode);
+router.post('/:id/upload-profile-image', authenticate, uploadMiddleware, uploadProfileImage);
 
 export default router;

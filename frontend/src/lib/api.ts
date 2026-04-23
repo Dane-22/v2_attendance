@@ -142,6 +142,15 @@ export const employeeApi = {
     api.delete<ApiResponse<null>>(`/employees/${id}`),
   generateQR: (id: number) =>
     api.get<ApiResponse<{ employeeId: number; employeeCode: string | null; qrData: string }>>(`/employees/${id}/qr`),
+  uploadProfileImage: (id: number, file: File) => {
+    const formData = new FormData();
+    formData.append('profileImage', file);
+    return api.post<ApiResponse<Employee>>(`/employees/${id}/upload-profile-image`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+  },
 };
 
 export const attendanceApi = {

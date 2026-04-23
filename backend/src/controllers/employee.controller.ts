@@ -5,8 +5,49 @@ import { AuthenticatedRequest } from '../middleware/auth.middleware';
 import { ApiResponse, PaginatedResponse, CreateEmployeeRequest, UpdateEmployeeRequest } from '../types/api.types';
 import { logCreate, logUpdate, logDelete, logError } from '../services/activityLogger.service';
 import { detectChanges } from '../utils/changeDetector';
+import multer from 'multer';
+import path from 'path';
+import fs from 'fs';
 
 const prisma = new PrismaClient();
+
+// Configure multer for profile image uploads
+const uploadDir = path.join(process.cwd(), 'public', 'uploads', 'profile-images');
+
+// Ensure upload directory exists
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir, { recursive: true });
+}
+
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, uploadDir);
+  },
+  filename: (req, file, cb) => {
+    const employeeId = req.params.id;
+    const timestamp = Date.now();
+    const ext = path.extname(file.originalname);
+    cb(null, `${employeeId}_${timestamp}${ext}`);
+  }
+});
+
+const upload = multer({
+  storage,
+  limits: {
+    fileSize: 10 * 1024 * 1024, // 10MB
+  },
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = /jpeg|jpg|png|gif|webp/;
+    const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
+    const mimetype = allowedTypes.test(file.mimetype);
+
+    if (extname && mimetype) {
+      cb(null, true);
+    } else {
+      cb(new Error('Invalid file type. Only JPG, PNG, GIF, and WebP are allowed.'));
+    }
+  }
+});
 
 export const getAllEmployees = async (
   req: AuthenticatedRequest,
@@ -400,3 +441,84 @@ export const generateQRCode = async (
     next(error);
   }
 };
+
+export const uploadProfileImage = async (
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const id = parseInt(req.params.id);
+
+    const employee = await prisma.employee.findUnique({
+      where: { id }
+    });
+
+    if (!employee) {
+      throw new AppError('Employee not found', 404);
+    }
+
+    if (!req.file) {
+      throw new AppError('No file uploaded', 400);
+    }
+
+    // Generate the image URL path
+    const imagePath = `/uploads/profile-images/${req.file.filename}`;
+
+    // Update employee with new profile image
+    const updatedEmployee = await prisma.employee.update({
+      where: { id },
+      data: { profileImage: imagePath },
+      select: {
+        id: true,
+        employeeCode: true,
+        firstName: true,
+        middleName: true,
+        lastName: true,
+        email: true,
+        department: true,
+        position: true,
+        branchName: true,
+        branchCode: true,
+        status: true,
+        dailyRate: true,
+        hasDeductions: true,
+        performanceAllowance: true,
+        hasDeduction: true,
+        branchId: true,
+        profileImage: true,
+        createdAt: true,
+        updatedAt: true
+      }
+    });
+
+    // Log profile image update
+    await logUpdate({
+      userId: req.admin?.id || 0,
+      userName: req.admin?.name || 'unknown',
+      userRole: req.admin?.role || 'admin',
+      entityType: 'EMPLOYEE',
+      entityId: employee.id.toString(),
+      entityName: `${employee.firstName} ${employee.lastName}`,
+      description: `Updated profile image for employee: ${employee.employeeCode}`,
+      detailsBefore: { profileImage: employee.profileImage },
+      detailsAfter: { profileImage: imagePath },
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+      branchId: employee.branchId || undefined,
+    });
+
+    const response: ApiResponse<typeof updatedEmployee> = {
+      success: true,
+      message: 'Profile image uploaded successfully',
+      data: updatedEmployee
+    };
+
+    res.json(response);
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Export upload middleware for use in routes
+export const uploadMiddleware = upload.single('profileImage');

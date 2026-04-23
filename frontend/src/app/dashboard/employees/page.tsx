@@ -1,48 +1,23 @@
 'use client';
 
-import { useState } from 'react';
-import { 
-  Search, 
-  Plus, 
-  QrCode, 
-  Edit2, 
-  X, 
-  Download, 
-  ChevronLeft, 
+import { useState, useEffect, useRef } from 'react';
+import {
+  Search,
+  Plus,
+  QrCode,
+  Edit2,
+  X,
+  Download,
+  ChevronLeft,
   ChevronRight,
   Save,
   Key,
   UserPlus,
-  Check
+  Check,
+  Loader2
 } from 'lucide-react';
-
-// Mock employee data
-const mockEmployees = [
-  { id: 1, firstName: 'CESAR', lastName: 'ABUBO', email: 'cesar.abubo@example.com', employeeCode: 'E0002', position: 'Worker', status: 'Active', dailyRate: 550.00, hasDeductions: true, profileImage: null },
-  { id: 2, firstName: 'Santi', lastName: 'Abubo', email: 's.abubo@gmail.com', employeeCode: 'E0072', position: 'Worker', status: 'Active', dailyRate: 550.00, hasDeductions: false, profileImage: null },
-  { id: 3, firstName: 'Admin', lastName: 'Super', email: 'admin@jajrconstruction.com', employeeCode: 'SA001', position: 'Super Admin', status: 'Active', dailyRate: 800.00, hasDeductions: false, profileImage: null },
-  { id: 4, firstName: 'Elaine', lastName: 'Aguilar', email: 'aguilar.elaine@example.com', employeeCode: 'ADMIN 2026-0001', position: 'Admin', status: 'Active', dailyRate: 600.00, hasDeductions: false, profileImage: null },
-  { id: 5, firstName: 'MARLON', lastName: 'AGUILAR', email: 'marlon.aguilar@example.com', employeeCode: 'E0003', position: 'Worker', status: 'Active', dailyRate: 550.00, hasDeductions: false, profileImage: null },
-  { id: 6, firstName: 'GIN TYRONE', lastName: 'AGUINO', email: 'aguino@gmail.com', employeeCode: 'E0089', position: 'Worker', status: 'Active', dailyRate: 550.00, hasDeductions: false, profileImage: null },
-  { id: 7, firstName: 'Kyle', lastName: 'Arrieta', email: 'kyle@hotmail.com', employeeCode: 'E0078', position: 'Worker', status: 'Active', dailyRate: 550.00, hasDeductions: false, profileImage: null },
-  { id: 8, firstName: 'Marc Justin', lastName: 'Arzadan', email: 'arzadan@gmail.com', employeeCode: 'SA 2026-004', position: 'Admin', status: 'Active', dailyRate: 700.00, hasDeductions: false, profileImage: null },
-  { id: 9, firstName: 'JERICHO', lastName: 'BALTAZAR', email: 'jericho.baltazar@example.com', employeeCode: 'E0088', position: 'Worker', status: 'Active', dailyRate: 550.00, hasDeductions: true, profileImage: null },
-  { id: 10, firstName: 'ROLLY', lastName: 'BALTAZAR', email: 'r.baltazar@yahoo.com', employeeCode: 'E0007', position: 'Worker', status: 'Active', dailyRate: 550.00, hasDeductions: false, profileImage: null },
-];
-
-// Types
-interface Employee {
-  id: number;
-  firstName: string;
-  lastName: string;
-  email: string;
-  employeeCode: string;
-  position: string;
-  status: string;
-  dailyRate: number;
-  hasDeductions: boolean;
-  profileImage: string | null;
-}
+import { employeeApi, Employee } from '@/lib/api';
+import { useToast } from '@/components/Toast';
 
 // QR Code Modal Component
 function QRCodeModal({ employee, isOpen, onClose }: { employee: Employee | null; isOpen: boolean; onClose: () => void }) {
@@ -103,6 +78,125 @@ function QRCodeModal({ employee, isOpen, onClose }: { employee: Employee | null;
 // Edit Employee Modal Component
 function EditEmployeeModal({ employee, isOpen, onClose }: { employee: Employee | null; isOpen: boolean; onClose: () => void }) {
   const [formData, setFormData] = useState<Partial<Employee>>({});
+  const [selectedImage, setSelectedImage] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const { showToast } = useToast();
+
+  useEffect(() => {
+    if (employee) {
+      setFormData(employee);
+      setImagePreview(employee.profileImage ? `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5002'}${employee.profileImage}` : null);
+    }
+  }, [employee]);
+
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      // Validate file type
+      const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
+      if (!allowedTypes.includes(file.type)) {
+        showToast('error', 'Invalid file type. Only JPG, PNG, GIF, and WebP are allowed.');
+        return;
+      }
+
+      // Validate file size (10MB)
+      if (file.size > 10 * 1024 * 1024) {
+        showToast('error', 'File size exceeds 10MB limit.');
+        return;
+      }
+
+      setSelectedImage(file);
+      const previewUrl = URL.createObjectURL(file);
+      setImagePreview(previewUrl);
+    }
+  };
+
+  const compressImage = async (file: File): Promise<File> => {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+
+      img.onload = () => {
+        const maxWidth = 800;
+        const maxHeight = 800;
+        let width = img.width;
+        let height = img.height;
+
+        if (width > height) {
+          if (width > maxWidth) {
+            height = (height * maxWidth) / width;
+            width = maxWidth;
+          }
+        } else {
+          if (height > maxHeight) {
+            width = (width * maxHeight) / height;
+            height = maxHeight;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, width, height);
+          canvas.toBlob(
+            (blob) => {
+              if (blob) {
+                const compressedFile = new File([blob], file.name, {
+                  type: file.type,
+                  lastModified: Date.now(),
+                });
+                resolve(compressedFile);
+              } else {
+                reject(new Error('Failed to compress image'));
+              }
+            },
+            file.type,
+            0.8
+          );
+        } else {
+          reject(new Error('Failed to get canvas context'));
+        }
+      };
+
+      img.onerror = () => reject(new Error('Failed to load image'));
+      img.src = URL.createObjectURL(file);
+    });
+  };
+
+  const handleSave = async () => {
+    if (!employee) return;
+
+    setIsLoading(true);
+    try {
+      // Upload image if selected
+      if (selectedImage) {
+        const compressedImage = await compressImage(selectedImage);
+        const uploadResponse = await employeeApi.uploadProfileImage(employee.id, compressedImage);
+        const uploadedData = uploadResponse.data?.data;
+        if (uploadedData?.profileImage) {
+          setFormData(prev => ({ ...prev, profileImage: uploadedData.profileImage }));
+        }
+      }
+
+      // Update employee data
+      const updateResponse = await employeeApi.update(employee.id, formData);
+      if (updateResponse.data?.success) {
+        showToast('success', 'Employee updated successfully');
+        onClose();
+        // Refresh employee list
+        window.location.reload();
+      }
+    } catch (error) {
+      showToast('error', 'Failed to update employee');
+      console.error('Error updating employee:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   if (!isOpen || !employee) return null;
 
@@ -114,7 +208,7 @@ function EditEmployeeModal({ employee, isOpen, onClose }: { employee: Employee |
           <div>
             <h2 className="text-xl font-bold text-[#facc15]">Edit Employee</h2>
             <span className="inline-flex items-center px-2 py-0.5 bg-[#facc15]/20 text-[#facc15] text-xs font-medium rounded mt-1">
-              {employee.employeeCode}
+              {employee.employeeCode || 'N/A'}
             </span>
           </div>
           <button onClick={onClose} className="p-1 hover:bg-red-500/20 text-gray-400 hover:text-red-400 rounded-lg transition-colors">
@@ -130,19 +224,39 @@ function EditEmployeeModal({ employee, isOpen, onClose }: { employee: Employee |
             <div className="grid grid-cols-4 gap-4">
               <div>
                 <label className="block text-gray-400 text-sm mb-1">Employee Code <span className="text-red-400">*</span></label>
-                <input type="text" defaultValue={employee.employeeCode} className="w-full px-4 py-2 bg-[#141414] border border-[#facc15]/30 rounded-lg text-white focus:outline-none focus:border-[#facc15]" />
+                <input
+                  type="text"
+                  value={formData.employeeCode || ''}
+                  onChange={(e) => setFormData({ ...formData, employeeCode: e.target.value })}
+                  className="w-full px-4 py-2 bg-[#141414] border border-[#facc15]/30 rounded-lg text-white focus:outline-none focus:border-[#facc15]"
+                />
               </div>
               <div>
                 <label className="block text-gray-400 text-sm mb-1">First Name <span className="text-red-400">*</span></label>
-                <input type="text" defaultValue={employee.firstName} className="w-full px-4 py-2 bg-[#141414] border border-[#facc15]/30 rounded-lg text-white focus:outline-none focus:border-[#facc15]" />
+                <input
+                  type="text"
+                  value={formData.firstName || ''}
+                  onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
+                  className="w-full px-4 py-2 bg-[#141414] border border-[#facc15]/30 rounded-lg text-white focus:outline-none focus:border-[#facc15]"
+                />
               </div>
               <div>
                 <label className="block text-gray-400 text-sm mb-1">Middle Name</label>
-                <input type="text" className="w-full px-4 py-2 bg-[#141414] border border-[#262626] rounded-lg text-white focus:outline-none focus:border-[#facc15]" />
+                <input
+                  type="text"
+                  value={formData.middleName || ''}
+                  onChange={(e) => setFormData({ ...formData, middleName: e.target.value })}
+                  className="w-full px-4 py-2 bg-[#141414] border border-[#262626] rounded-lg text-white focus:outline-none focus:border-[#facc15]"
+                />
               </div>
               <div>
                 <label className="block text-gray-400 text-sm mb-1">Last Name <span className="text-red-400">*</span></label>
-                <input type="text" defaultValue={employee.lastName} className="w-full px-4 py-2 bg-[#141414] border border-[#facc15]/30 rounded-lg text-white focus:outline-none focus:border-[#facc15]" />
+                <input
+                  type="text"
+                  value={formData.lastName || ''}
+                  onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
+                  className="w-full px-4 py-2 bg-[#141414] border border-[#facc15]/30 rounded-lg text-white focus:outline-none focus:border-[#facc15]"
+                />
               </div>
             </div>
           </div>
@@ -153,7 +267,12 @@ function EditEmployeeModal({ employee, isOpen, onClose }: { employee: Employee |
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-gray-400 text-sm mb-1">Email Address <span className="text-red-400">*</span></label>
-                <input type="email" defaultValue={employee.email} className="w-full px-4 py-2 bg-[#141414] border border-[#facc15]/30 rounded-lg text-white focus:outline-none focus:border-[#facc15]" />
+                <input
+                  type="email"
+                  value={formData.email || ''}
+                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  className="w-full px-4 py-2 bg-[#141414] border border-[#facc15]/30 rounded-lg text-white focus:outline-none focus:border-[#facc15]"
+                />
               </div>
             </div>
           </div>
@@ -164,7 +283,12 @@ function EditEmployeeModal({ employee, isOpen, onClose }: { employee: Employee |
             <div className="grid grid-cols-4 gap-4">
               <div>
                 <label className="block text-gray-400 text-sm mb-1">Position <span className="text-red-400">*</span></label>
-                <select defaultValue={employee.position} className="w-full px-4 py-2 bg-[#141414] border border-[#facc15]/30 rounded-lg text-white focus:outline-none focus:border-[#facc15]">
+                <select
+                  value={formData.position || ''}
+                  onChange={(e) => setFormData({ ...formData, position: e.target.value })}
+                  className="w-full px-4 py-2 bg-[#141414] border border-[#facc15]/30 rounded-lg text-white focus:outline-none focus:border-[#facc15]"
+                >
+                  <option value="">Select Position</option>
                   <option>Worker</option>
                   <option>Admin</option>
                   <option>Super Admin</option>
@@ -172,19 +296,32 @@ function EditEmployeeModal({ employee, isOpen, onClose }: { employee: Employee |
               </div>
               <div>
                 <label className="block text-gray-400 text-sm mb-1">Status</label>
-                <select defaultValue={employee.status} className="w-full px-4 py-2 bg-[#141414] border border-[#262626] rounded-lg text-white focus:outline-none focus:border-[#facc15]">
+                <select
+                  value={formData.status || ''}
+                  onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+                  className="w-full px-4 py-2 bg-[#141414] border border-[#262626] rounded-lg text-white focus:outline-none focus:border-[#facc15]"
+                >
+                  <option value="">Select Status</option>
                   <option>Active</option>
                   <option>Inactive</option>
                 </select>
               </div>
               <div>
                 <label className="block text-gray-400 text-sm mb-1">Daily Rate (₱)</label>
-                <input type="number" defaultValue={employee.dailyRate} className="w-full px-4 py-2 bg-[#141414] border border-[#262626] rounded-lg text-white focus:outline-none focus:border-[#facc15]" />
+                <input
+                  type="number"
+                  value={formData.dailyRate || ''}
+                  onChange={(e) => setFormData({ ...formData, dailyRate: parseFloat(e.target.value) || 0 })}
+                  className="w-full px-4 py-2 bg-[#141414] border border-[#262626] rounded-lg text-white focus:outline-none focus:border-[#facc15]"
+                />
               </div>
               <div className="flex items-end">
                 <label className="flex items-center gap-3 cursor-pointer">
-                  <div className={`w-12 h-6 rounded-full transition-colors ${employee.hasDeductions ? 'bg-green-500' : 'bg-gray-600'}`}>
-                    <div className={`w-5 h-5 bg-white rounded-full transition-transform mt-0.5 ${employee.hasDeductions ? 'translate-x-6' : 'translate-x-0.5'}`} />
+                  <div
+                    className={`w-12 h-6 rounded-full transition-colors ${formData.hasDeductions ? 'bg-green-500' : 'bg-gray-600'}`}
+                    onClick={() => setFormData({ ...formData, hasDeductions: !formData.hasDeductions })}
+                  >
+                    <div className={`w-5 h-5 bg-white rounded-full transition-transform mt-0.5 ${formData.hasDeductions ? 'translate-x-6' : 'translate-x-0.5'}`} />
                   </div>
                   <span className="text-white text-sm">With SSS/PhilHealth/PagIBIG</span>
                 </label>
@@ -199,14 +336,44 @@ function EditEmployeeModal({ employee, isOpen, onClose }: { employee: Employee |
           <div className="mb-6">
             <h3 className="text-[#facc15] font-semibold mb-4 pb-2 border-b border-[#262626]">Profile Image</h3>
             <div className="flex items-center gap-4">
-              <div className="w-20 h-20 rounded-full bg-[#262626] flex items-center justify-center text-[#facc15] text-xl font-bold border-2 border-[#facc15]/30">
-                {employee.firstName[0]}{employee.lastName[0]}
+              <div className="w-20 h-20 rounded-full bg-[#262626] flex items-center justify-center text-[#facc15] text-xl font-bold border-2 border-[#facc15]/30 overflow-hidden">
+                {imagePreview ? (
+                  <img src={imagePreview} alt="Profile" className="w-full h-full object-cover" />
+                ) : (
+                  <span>{(employee.firstName || '')?.[0]}{(employee.lastName || '')?.[0]}</span>
+                )}
               </div>
               <div className="flex-1 max-w-md">
-                <button className="w-full flex items-center justify-center gap-2 px-4 py-3 border-2 border-dashed border-[#facc15]/30 rounded-lg text-[#facc15] hover:bg-[#facc15]/10 transition-colors">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
+                  onChange={handleImageChange}
+                  className="hidden"
+                />
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-3 border-2 border-dashed border-[#facc15]/30 rounded-lg text-[#facc15] hover:bg-[#facc15]/10 transition-colors"
+                >
                   <UserPlus className="w-5 h-5" />
                   Choose New Profile Image
                 </button>
+                {selectedImage && (
+                  <div className="flex items-center gap-2 mt-2">
+                    <button
+                      onClick={() => {
+                        setSelectedImage(null);
+                        setImagePreview(employee.profileImage ? `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5002'}${employee.profileImage}` : null);
+                      }}
+                      className="text-xs text-red-400 hover:text-red-300"
+                    >
+                      Remove selected image
+                    </button>
+                    <span className="text-xs text-gray-400">
+                      {selectedImage.name} ({(selectedImage.size / 1024).toFixed(1)} KB)
+                    </span>
+                  </div>
+                )}
                 <p className="text-gray-500 text-xs mt-2">Max file size: 10MB • Auto-compressed to ~500KB • Formats: JPG, PNG, GIF, WebP</p>
               </div>
             </div>
@@ -222,9 +389,13 @@ function EditEmployeeModal({ employee, isOpen, onClose }: { employee: Employee |
             <Key className="w-4 h-4" />
             Reset Password
           </button>
-          <button className="flex items-center gap-2 px-6 py-2 bg-[#facc15] text-black font-medium rounded-lg hover:bg-yellow-400 transition-colors">
-            <Save className="w-4 h-4" />
-            Save Changes
+          <button
+            onClick={handleSave}
+            disabled={isLoading}
+            className="flex items-center gap-2 px-6 py-2 bg-[#facc15] text-black font-medium rounded-lg hover:bg-yellow-400 transition-colors disabled:opacity-50"
+          >
+            {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+            {isLoading ? 'Saving...' : 'Save Changes'}
           </button>
         </div>
       </div>
@@ -341,16 +512,40 @@ export default function EmployeesPage() {
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [addModalOpen, setAddModalOpen] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [totalEmployees, setTotalEmployees] = useState(0);
+  const { showToast } = useToast();
 
   const employeesPerPage = 10;
-  const totalEmployees = 70; // Mock total
   const totalPages = Math.ceil(totalEmployees / employeesPerPage);
 
+  // Fetch employees from API
+  useEffect(() => {
+    fetchEmployees();
+  }, [page]);
+
+  const fetchEmployees = async () => {
+    try {
+      setIsLoading(true);
+      const response = await employeeApi.getAll({ page, limit: employeesPerPage, search });
+      if (response.data?.success && response.data?.data) {
+        setEmployees(response.data.data);
+        setTotalEmployees(response.data.meta?.total || 0);
+      }
+    } catch (error) {
+      showToast('error', 'Failed to load employees');
+      console.error('Error fetching employees:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   // Filter employees based on search
-  const filteredEmployees = mockEmployees.filter(emp => 
-    emp.firstName.toLowerCase().includes(search.toLowerCase()) ||
-    emp.lastName.toLowerCase().includes(search.toLowerCase()) ||
-    emp.employeeCode.toLowerCase().includes(search.toLowerCase())
+  const filteredEmployees = employees.filter(emp =>
+    (emp.firstName?.toLowerCase() || '').includes(search.toLowerCase()) ||
+    (emp.lastName?.toLowerCase() || '').includes(search.toLowerCase()) ||
+    (emp.employeeCode?.toLowerCase() || '').includes(search.toLowerCase())
   );
 
   const handleQRClick = (employee: Employee) => {
@@ -417,8 +612,16 @@ export default function EmployeesPage() {
                   <tr key={employee.id} className="border-b border-[#262626] last:border-0 hover:bg-[#1a1a1a]">
                     <td className="px-4 py-4">
                       <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-[#facc15] flex items-center justify-center text-black text-sm font-bold">
-                          {employee.firstName[0]}{employee.lastName[0]}
+                        <div className="w-10 h-10 rounded-full bg-[#facc15] flex items-center justify-center text-black text-sm font-bold overflow-hidden">
+                          {employee.profileImage ? (
+                            <img
+                              src={`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5002'}${employee.profileImage}`}
+                              alt={`${employee.firstName} ${employee.lastName}`}
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <span>{(employee.firstName || '')?.[0]}{(employee.lastName || '')?.[0]}</span>
+                          )}
                         </div>
                         <div>
                           <p className="text-white font-medium text-sm">{employee.firstName} {employee.lastName}</p>

@@ -5,6 +5,8 @@ import { PrismaClient } from '@prisma/client';
 import { createServer } from 'http';
 import { Server as SocketIOServer } from 'socket.io';
 import jwt from 'jsonwebtoken';
+import path from 'path';
+import fs from 'fs';
 
 import authRoutes from './routes/auth.routes';
 import employeeRoutes from './routes/employee.routes';
@@ -105,7 +107,7 @@ io.on('connection', (socket) => {
 });
 
 app.use(cors({
-  origin: process.env.NODE_ENV === 'production' 
+  origin: process.env.NODE_ENV === 'production'
     ? process.env.FRONTEND_URL || 'https://attendacev2.xandree.com'
     : ['http://localhost:3000', 'http://localhost:3001'],
   credentials: true
@@ -113,6 +115,13 @@ app.use(cors({
 
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
+
+// Serve static files from public directory
+const publicDir = path.join(process.cwd(), 'public');
+if (!fs.existsSync(publicDir)) {
+  fs.mkdirSync(publicDir, { recursive: true });
+}
+app.use('/uploads', express.static(path.join(publicDir, 'uploads')));
 
 app.get('/health', (req, res) => {
   res.json({ 
