@@ -621,7 +621,6 @@ export default function AttendancePage() {
                         </div>
                         <div>
                           <p className="text-white font-medium text-sm">{employee.name}</p>
-                          <p className="text-gray-500 text-xs">Branch: {selectedBranchName} • Dept: {employee.department}</p>
                         </div>
                       </div>
                     </td>
