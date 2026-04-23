@@ -57,6 +57,20 @@ export default function AttendancePage() {
   const [flashedEmployeeId, setFlashedEmployeeId] = useState<number | null>(null);
   const { isConnected, joinBranch, leaveBranch, on } = useWebSocket();
   
+  // Mobile detection
+  const [isMobile, setIsMobile] = useState(false);
+  
+  // Mobile detail modal state
+  const [selectedEmployeeForModal, setSelectedEmployeeForModal] = useState<BranchEmployee | null>(null);
+  
+  // Mobile detection effect
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 640);
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+  
   // Pagination for branches
   const [currentPage, setCurrentPage] = useState(1);
   const branchesPerPage = 6;
@@ -534,25 +548,115 @@ export default function AttendancePage() {
 
       {/* Employee Table */}
       <div className="bg-[#141414] rounded-xl border border-[#262626] overflow-hidden">
-        <div className="overflow-x-auto">
+        {/* Mobile Card Layout */}
+        {isMobile && (
+          <div className="sm:hidden">
+            {filteredEmployees.length === 0 ? (
+              <div className="p-8 text-center text-gray-400">
+                {!selectedBranch ? (
+                  <div>
+                    <p className="text-lg mb-2">Select a branch to view employees</p>
+                    <p className="text-sm text-gray-500">Click on a project card above to load employees</p>
+                  </div>
+                ) : employeesLoading ? (
+                  <div>
+                    <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" />
+                    <p>Loading employees...</p>
+                  </div>
+                ) : employeesError ? (
+                  <div className="text-red-400">
+                    <p className="text-lg mb-2">Error loading employees</p>
+                    <p className="text-sm text-red-500">
+                      {String((employeesError as Error)?.message || 'Failed to fetch employees')}
+                    </p>
+                  </div>
+                ) : employees.length === 0 ? (
+                  <div>
+                    <p className="text-lg mb-2">No employees in this branch</p>
+                    <p className="text-sm text-gray-500">
+                      Branch: <span className="text-[#facc15]">{selectedBranch}</span> has no assigned employees
+                    </p>
+                  </div>
+                ) : (
+                  <div>
+                    <p className="text-lg mb-2">No employees match current filters</p>
+                    <p className="text-sm text-gray-500">
+                      Tab: <span className="text-[#facc15]">{activeTab}</span>
+                      {searchQuery && (
+                        <span> | Search: "<span className="text-[#facc15]">{searchQuery}</span>"</span>
+                      )}
+                    </p>
+                  </div>
+                )}
+              </div>
+            ) : (
+              currentEmployees.map((employee, index) => (
+                <div
+                  key={employee.id}
+                  onClick={() => setSelectedEmployeeForModal(employee)}
+                  className={`flex items-center gap-3 p-4 border-b border-[#262626] last:border-0 hover:bg-[#1a1a1a] transition-all cursor-pointer ${
+                    flashedEmployeeId === employee.id ? 'bg-[#facc15]/20' : ''
+                  }`}
+                >
+                  <span className="text-gray-400 text-sm w-6">{indexOfFirstEmployee + index + 1}</span>
+                  <div className="w-10 h-10 rounded-full bg-[#facc15] flex items-center justify-center text-black text-sm font-bold flex-shrink-0">
+                    {employee.avatar}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-white font-medium text-sm truncate">{employee.name}</p>
+                  </div>
+                  <div className="flex-shrink-0">
+                    {employee.timeIn !== null && employee.timeOut !== null ? (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-blue-500/20 text-blue-400 text-xs font-medium rounded-full">
+                        <CheckCircle className="w-3 h-3" />
+                        COMPLETED
+                      </span>
+                    ) : employee.timeIn !== null && employee.timeOut === null ? (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-green-500/20 text-green-400 text-xs font-medium rounded-full">
+                        <CheckCircle className="w-3 h-3" />
+                        PRESENT
+                      </span>
+                    ) : employee.status === 'absent' ? (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-red-500/20 text-red-400 text-xs font-medium rounded-full">
+                        <UserX className="w-3 h-3" />
+                        ABSENT
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-[#facc15]/20 text-[#facc15] text-xs font-medium rounded-full">
+                        <Clock className="w-3 h-3" />
+                        AVAILABLE
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        )}
+
+        {/* Desktop Table */}
+        <div className={`overflow-x-auto ${isMobile ? 'hidden' : ''}`}>
           <table className="w-full">
             <thead>
               <tr className="border-b border-[#262626]">
-                <th className="px-4 py-4 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">#</th>
+                <th className="px-4 py-4 text-left text-xs font-medium text-gray-400 uppercase tracking-wider hidden sm:table-cell">#</th>
                 <th className="px-4 py-4 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Employee</th>
-                <th className="px-4 py-4 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Time In</th>
-                <th className="px-4 py-4 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Time Out</th>
-                <th className="px-4 py-4 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Total Hours</th>
+                <th className="px-4 py-4 text-left text-xs font-medium text-gray-400 uppercase tracking-wider hidden sm:table-cell">Time In</th>
+                <th className="px-4 py-4 text-left text-xs font-medium text-gray-400 uppercase tracking-wider hidden sm:table-cell">Time Out</th>
+                <th className="px-4 py-4 text-left text-xs font-medium text-gray-400 uppercase tracking-wider hidden sm:table-cell">Total Hours</th>
                 {activeTab === 'Summary' && (
-                  <th className="px-4 py-4 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Remarks</th>
+                  <th className="px-4 py-4 text-left text-xs font-medium text-gray-400 uppercase tracking-wider hidden sm:table-cell">Remarks</th>
                 )}
-                <th className="px-4 py-4 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Actions</th>
+                {/* Actions column - hide ONLY in Summary tab on mobile, visible in other tabs on mobile */}
+                {!(activeTab === 'Summary' && isMobile) && (
+                  <th className="px-4 py-4 text-left text-xs font-medium text-gray-400 uppercase tracking-wider hidden sm:table-cell">Actions</th>
+                )}
               </tr>
             </thead>
             <tbody>
               {filteredEmployees.length === 0 ? (
                 <tr>
-                  <td colSpan={activeTab === 'Summary' ? 7 : 6} className="px-4 py-8 text-center">
+                  <td colSpan={isMobile ? 2 : (activeTab === 'Summary' ? 7 : 6)} className="px-4 py-8 text-center">
                     {!selectedBranch ? (
                       <div className="text-gray-400">
                         <p className="text-lg mb-2">Select a branch to view employees</p>
@@ -607,13 +711,13 @@ export default function AttendancePage() {
                 </tr>
               ) : (
                 currentEmployees.map((employee, index) => (
-                  <tr 
-                    key={employee.id} 
+                  <tr
+                    key={employee.id}
                     className={`border-b border-[#262626] last:border-0 hover:bg-[#1a1a1a] transition-all ${
                       flashedEmployeeId === employee.id ? 'bg-[#facc15]/20' : ''
                     }`}
                   >
-                    <td className="px-4 py-4 text-gray-400">{indexOfFirstEmployee + index + 1}</td>
+                    <td className="px-4 py-4 text-gray-400 hidden sm:table-cell">{indexOfFirstEmployee + index + 1}</td>
                     <td className="px-4 py-4">
                       <div className="flex items-center gap-3">
                         <div className="w-8 h-8 rounded-full bg-[#facc15] flex items-center justify-center text-black text-xs font-bold">
@@ -624,11 +728,11 @@ export default function AttendancePage() {
                         </div>
                       </div>
                     </td>
-                    <td className="px-4 py-4 text-gray-400">{employee.timeIn || '--'}</td>
-                    <td className="px-4 py-4 text-gray-400">{employee.timeOut || '--'}</td>
-                    <td className="px-4 py-4 text-gray-400">{employee.totalHours}</td>
+                    <td className="px-4 py-4 text-gray-400 hidden sm:table-cell">{employee.timeIn || '--'}</td>
+                    <td className="px-4 py-4 text-gray-400 hidden sm:table-cell">{employee.timeOut || '--'}</td>
+                    <td className="px-4 py-4 text-gray-400 hidden sm:table-cell">{employee.totalHours}</td>
                     {activeTab === 'Summary' && (
-                      <td className="px-4 py-4">
+                      <td className="px-4 py-4 hidden sm:table-cell">
                         {employee.timeIn !== null && employee.timeOut !== null ? (
                           <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-blue-500/20 text-blue-400 text-xs font-medium rounded-full">
                             <CheckCircle className="w-3 h-3" />
@@ -652,7 +756,8 @@ export default function AttendancePage() {
                         )}
                       </td>
                     )}
-                    <td className="px-4 py-4">
+                    {!(activeTab === 'Summary' && isMobile) && (
+                      <td className="px-4 py-4 hidden sm:table-cell">
                       {employee.status === 'absent' ? (
                         <span className="text-gray-500 text-sm">No actions available</span>
                       ) : (
@@ -732,6 +837,7 @@ export default function AttendancePage() {
                       </div>
                       )}
                     </td>
+                    )}
                   </tr>
                 ))
               )}
@@ -739,6 +845,150 @@ export default function AttendancePage() {
           </table>
         </div>
       </div>
+
+      {/* Mobile Employee Detail Modal */}
+      {selectedEmployeeForModal && isMobile && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+          <div className="bg-[#141414] rounded-xl border border-[#262626] w-full max-w-sm">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-white">Employee Details</h3>
+                <button
+                  onClick={() => setSelectedEmployeeForModal(null)}
+                  className="text-gray-400 hover:text-white"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="flex items-center gap-4 mb-6">
+                <div className="w-16 h-16 rounded-full bg-[#facc15] flex items-center justify-center text-black text-xl font-bold">
+                  {selectedEmployeeForModal.avatar}
+                </div>
+                <div>
+                  <p className="text-white font-semibold text-lg">{selectedEmployeeForModal.name}</p>
+                  <p className="text-gray-400 text-sm">ID: {selectedEmployeeForModal.id}</p>
+                </div>
+              </div>
+
+              {/* Status Badge */}
+              <div className="mb-6">
+                {selectedEmployeeForModal.timeIn !== null && selectedEmployeeForModal.timeOut !== null ? (
+                  <span className="inline-flex items-center gap-1 px-3 py-1.5 bg-blue-500/20 text-blue-400 text-sm font-medium rounded-full">
+                    <CheckCircle className="w-4 h-4" />
+                    COMPLETED
+                  </span>
+                ) : selectedEmployeeForModal.timeIn !== null && selectedEmployeeForModal.timeOut === null ? (
+                  <span className="inline-flex items-center gap-1 px-3 py-1.5 bg-green-500/20 text-green-400 text-sm font-medium rounded-full">
+                    <CheckCircle className="w-4 h-4" />
+                    PRESENT
+                  </span>
+                ) : selectedEmployeeForModal.status === 'absent' ? (
+                  <span className="inline-flex items-center gap-1 px-3 py-1.5 bg-red-500/20 text-red-400 text-sm font-medium rounded-full">
+                    <UserX className="w-4 h-4" />
+                    ABSENT
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 px-3 py-1.5 bg-[#facc15]/20 text-[#facc15] text-sm font-medium rounded-full">
+                    <Clock className="w-4 h-4" />
+                    AVAILABLE
+                  </span>
+                )}
+              </div>
+
+              {/* Time Details */}
+              <div className="space-y-3 mb-6">
+                <div className="flex justify-between">
+                  <span className="text-gray-400 text-sm">Time In:</span>
+                  <span className="text-white text-sm">{selectedEmployeeForModal.timeIn || '--'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-400 text-sm">Time Out:</span>
+                  <span className="text-white text-sm">{selectedEmployeeForModal.timeOut || '--'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-400 text-sm">Total Hours:</span>
+                  <span className="text-white text-sm">{selectedEmployeeForModal.totalHours}</span>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              {selectedEmployeeForModal.status !== 'absent' && (
+                <div className="flex flex-col gap-3">
+                  {selectedEmployeeForModal.timeIn !== null && selectedEmployeeForModal.timeOut === null ? (
+                    <button
+                      onClick={() => {
+                        clockOutMutation.mutate(selectedEmployeeForModal.id);
+                        setSelectedEmployeeForModal(null);
+                      }}
+                      disabled={clockOutMutation.isPending}
+                      className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 bg-red-500/20 text-red-400 text-sm font-medium rounded-lg hover:bg-red-500/30 transition-colors disabled:opacity-50"
+                    >
+                      {clockOutMutation.isPending ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <LogOut className="w-4 h-4" />
+                      )}
+                      Time Out
+                    </button>
+                  ) : selectedEmployeeForModal.timeIn !== null && selectedEmployeeForModal.timeOut !== null ? (
+                    <button
+                      onClick={() => {
+                        clockInMutation.mutate({ employeeId: selectedEmployeeForModal.id, branchCode: selectedBranch });
+                        setSelectedEmployeeForModal(null);
+                      }}
+                      disabled={clockInMutation.isPending}
+                      className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 bg-green-500/20 text-green-400 text-sm font-medium rounded-lg hover:bg-green-500/30 transition-colors disabled:opacity-50"
+                    >
+                      {clockInMutation.isPending ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <LogIn className="w-4 h-4" />
+                      )}
+                      Time In
+                    </button>
+                  ) : (
+                    <>
+                      <button
+                        onClick={() => {
+                          clockInMutation.mutate({ employeeId: selectedEmployeeForModal.id, branchCode: selectedBranch });
+                          setSelectedEmployeeForModal(null);
+                        }}
+                        disabled={clockInMutation.isPending}
+                        className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 bg-green-500/20 text-green-400 text-sm font-medium rounded-lg hover:bg-green-500/30 transition-colors disabled:opacity-50"
+                      >
+                        {clockInMutation.isPending ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <LogIn className="w-4 h-4" />
+                        )}
+                        Time In
+                      </button>
+                      <button
+                        onClick={() => {
+                          if (window.confirm(`Mark ${selectedEmployeeForModal.name} as absent for today?`)) {
+                            markIndividualAbsentMutation.mutate(selectedEmployeeForModal.id);
+                            setSelectedEmployeeForModal(null);
+                          }
+                        }}
+                        disabled={markIndividualAbsentMutation.isPending}
+                        className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 bg-red-500/20 text-red-400 text-sm font-medium rounded-lg hover:bg-red-500/30 transition-colors disabled:opacity-50"
+                      >
+                        {markIndividualAbsentMutation.isPending ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <UserX className="w-4 h-4" />
+                        )}
+                        Mark Absent
+                      </button>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Employee Pagination Controls - Mobile Simplified */}
       {filteredEmployees.length > employeesPerPage && (
