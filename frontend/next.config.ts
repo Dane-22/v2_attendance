@@ -9,14 +9,15 @@ const nextConfig: NextConfig = {
   async rewrites() {
     // Only use rewrites in development
     if (process.env.NODE_ENV === 'development') {
-      return [
-        {
-          source: '/api/:path*',
-          destination: 'http://localhost:5002/api/:path*',
-        },
-      ];
+    return [
+      {
+        source: '/api/:path*',
+        destination: 'http://localhost:5002/api/:path*',
+      },
+    ];
     }
     return [];
+
   },
 };
 
