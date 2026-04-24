@@ -189,6 +189,18 @@ function EmployeeAttendanceModal({
   const [modalYear, setModalYear] = useState(initialYear);
   const [attendanceHistory, setAttendanceHistory] = useState<Record<number, any>>({});
   
+  // Prevent body scroll when modal is open
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'auto';
+    }
+    return () => {
+      document.body.style.overflow = 'auto';
+    };
+  }, [isOpen]);
+  
   // Regenerate attendance history when month/year changes
   useEffect(() => {
     if (employee) {
@@ -400,6 +412,18 @@ function BranchAttendanceModal({
   const [modalMonth, setModalMonth] = useState(initialMonth);
   const [modalYear, setModalYear] = useState(initialYear);
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
+
+  // Prevent body scroll when modal is open
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'auto';
+    }
+    return () => {
+      document.body.style.overflow = 'auto';
+    };
+  }, [isOpen]);
 
   if (!isOpen || !branch) return null;
 
@@ -687,6 +711,18 @@ function DayDetailsModal({
   monthlyAttendanceData: Attendance[];
   selectedBranchFilter: string;
 }) {
+  // Prevent body scroll when modal is open
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'auto';
+    }
+    return () => {
+      document.body.style.overflow = 'auto';
+    };
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
   // Filter records for the selected date
@@ -824,9 +860,21 @@ function ScheduleModal({
   isOpen: boolean;
   onClose: () => void;
 }) {
-  const [currentWeek, setCurrentWeek] = useState(20); // Week starting April 20
+  // Prevent body scroll when modal is open
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'auto';
+    }
+    return () => {
+      document.body.style.overflow = 'auto';
+    };
+  }, [isOpen]);
 
   if (!isOpen || !employee) return null;
+
+  const [currentWeek, setCurrentWeek] = useState(20); // Week starting April 20
 
   // Generate week days (Sun-Sat)
   const weekDays = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
