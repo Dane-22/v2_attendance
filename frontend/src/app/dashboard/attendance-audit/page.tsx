@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { createPortal } from 'react-dom';
 import { attendanceApi, branchApi, Attendance } from '@/lib/api';
 import { 
   Search, 
@@ -276,7 +277,7 @@ function EmployeeAttendanceModal({
     }
   };
   
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
       <div className="w-full max-w-4xl bg-[#141414] rounded-2xl border border-[#262626] shadow-2xl overflow-hidden">
         {/* Modal Header */}
@@ -389,7 +390,8 @@ function EmployeeAttendanceModal({
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
@@ -529,7 +531,7 @@ function BranchAttendanceModal({
     }
   };
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
       <div className="w-full max-w-7xl bg-[#141414] rounded-2xl border border-[#262626] shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
         {/* Modal Header */}
@@ -689,7 +691,8 @@ function BranchAttendanceModal({
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
@@ -764,7 +767,7 @@ function DayDetailsModal({
     }
   };
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
       <div className="w-full max-w-4xl bg-[#141414] rounded-2xl border border-[#262626] shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
         {/* Modal Header */}
@@ -846,7 +849,8 @@ function DayDetailsModal({
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
@@ -938,7 +942,7 @@ function ScheduleModal({
     }
   };
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
       <div className="w-full max-w-6xl bg-[#141414] rounded-2xl border border-[#262626] shadow-2xl overflow-hidden">
         {/* Modal Header */}
@@ -1051,24 +1055,25 @@ function ScheduleModal({
         {/* Legend */}
         <div className="flex items-center justify-center gap-6 px-6 py-4 border-t border-[#262626] text-xs">
           <div className="flex items-center gap-2">
-            <div className="w-4 h-4 rounded bg-green-500/20 border border-green-500/30" />
-            <span className="text-gray-400">Present (On Time)</span>
+            <div className="w-4 h-4 rounded bg-green-500/30 border border-green-500/50" />
+            <span className="text-gray-400">Present</span>
           </div>
           <div className="flex items-center gap-2">
-            <div className="w-4 h-4 rounded bg-[#facc15]/20 border border-[#facc15]/30" />
-            <span className="text-gray-400">Late (15+ min)</span>
+            <div className="w-4 h-4 rounded bg-[#facc15]/30 border border-[#facc15]/50" />
+            <span className="text-gray-400">Late</span>
           </div>
           <div className="flex items-center gap-2">
-            <div className="w-4 h-4 rounded bg-red-500/20 border border-red-500/30" />
+            <div className="w-4 h-4 rounded bg-red-500/30 border border-red-500/50" />
             <span className="text-gray-400">Absent</span>
           </div>
           <div className="flex items-center gap-2">
-            <div className="w-4 h-4 rounded bg-gray-500/10 border border-gray-500/20" />
+            <div className="w-4 h-4 rounded bg-gray-500/30 border border-gray-500/50" />
             <span className="text-gray-400">Rest Day</span>
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
