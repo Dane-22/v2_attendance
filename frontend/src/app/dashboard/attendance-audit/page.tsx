@@ -620,6 +620,151 @@ function BranchAttendanceModal({
   );
 }
 
+// Day Details Modal Component
+function DayDetailsModal({
+  isOpen,
+  onClose,
+  selectedDate,
+  calendarMonth,
+  calendarYear,
+  monthlyAttendanceData,
+  selectedBranchFilter
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  selectedDate: number;
+  calendarMonth: number;
+  calendarYear: number;
+  monthlyAttendanceData: Attendance[];
+  selectedBranchFilter: string;
+}) {
+  if (!isOpen) return null;
+
+  // Filter records for the selected date
+  const dayRecords = monthlyAttendanceData.filter((record: Attendance) => {
+    const recordDate = new Date(record.date);
+    const day = recordDate.getDate();
+    const month = recordDate.getMonth();
+    const year = recordDate.getFullYear();
+
+    if (day !== selectedDate || month !== calendarMonth || year !== calendarYear) {
+      return false;
+    }
+
+    if (selectedBranchFilter !== 'ALL' && record.branch_code !== selectedBranchFilter) {
+      return false;
+    }
+
+    return true;
+  });
+
+  const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+  const displayDate = `${monthNames[calendarMonth]} ${selectedDate}, ${calendarYear}`;
+
+  const getStatusColor = (status: string | null) => {
+    switch (status) {
+      case 'present': return 'text-green-400';
+      case 'late': return 'text-[#facc15]';
+      case 'absent': return 'text-red-400';
+      default: return 'text-gray-400';
+    }
+  };
+
+  const getStatusBg = (status: string | null) => {
+    switch (status) {
+      case 'present': return 'bg-green-500/20 border-green-500/30';
+      case 'late': return 'bg-[#facc15]/20 border-[#facc15]/30';
+      case 'absent': return 'bg-red-500/20 border-red-500/30';
+      default: return 'bg-[#1a1a1a] border-[#262626]';
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+      <div className="w-full max-w-4xl bg-[#141414] rounded-2xl border border-[#262626] shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
+        {/* Modal Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-[#262626]">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-[#facc15]/20 flex items-center justify-center">
+              <FileText className="w-5 h-5 text-[#facc15]" />
+            </div>
+            <div>
+              <h2 className="text-xl font-bold text-white">{displayDate}</h2>
+              <span className="text-sm text-gray-400">{dayRecords.length} records</span>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-2 hover:bg-red-500/20 text-gray-400 hover:text-red-400 rounded-lg transition-colors"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* Modal Content */}
+        <div className="p-6 overflow-y-auto flex-1">
+          {dayRecords.length === 0 ? (
+            <div className="text-center py-12">
+              <p className="text-gray-500">No records found for this date</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {dayRecords.map((record: Attendance) => (
+                <div key={record.id} className="bg-[#1a1a1a] rounded-lg border border-[#262626] p-4">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="text-white font-medium">Employee ID: {record.employeeId}</span>
+                        <span className={`px-2 py-0.5 rounded text-xs font-medium border ${getStatusBg(record.status)} ${getStatusColor(record.status)}`}>
+                          {record.status || 'No Record'}
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-3 gap-4 text-sm">
+                        <div>
+                          <span className="text-gray-500">Branch:</span>
+                          <span className="text-gray-300 ml-2">{record.branch_code || '-'}</span>
+                        </div>
+                        <div>
+                          <span className="text-gray-500">Check In:</span>
+                          <span className="text-gray-300 ml-2">
+                            {record.check_in ? new Date(record.check_in).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : '-'}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-gray-500">Check Out:</span>
+                          <span className="text-gray-300 ml-2">
+                            {record.check_out ? new Date(record.check_out).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : '-'}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Legend */}
+        <div className="flex items-center justify-center gap-6 px-6 py-4 border-t border-[#262626] text-xs">
+          <div className="flex items-center gap-2">
+            <div className="w-4 h-4 rounded bg-green-500/20 border border-green-500/30" />
+            <span className="text-gray-400">Present</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-4 h-4 rounded bg-[#facc15]/20 border border-[#facc15]/30" />
+            <span className="text-gray-400">Late</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-4 h-4 rounded bg-red-500/20 border border-red-500/30" />
+            <span className="text-gray-400">Absent</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // Schedule Modal Component
 function ScheduleModal({
   employee,
@@ -863,6 +1008,7 @@ export default function AttendanceAuditPage() {
   const [scheduleEmployee, setScheduleEmployee] = useState<AuditRecord | null>(null);
   const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
   const [selectedBranchFilter, setSelectedBranchFilter] = useState('ALL');
+  const [isDayDetailsModalOpen, setIsDayDetailsModalOpen] = useState(false);
 
   // Format date for API (YYYY-MM-DD) using calendar month/year
   const formattedDate = useMemo(() => {
@@ -1160,6 +1306,17 @@ export default function AttendanceAuditPage() {
             ))}
           </div>
 
+          {/* View Details Button */}
+          {dailyRecordCounts[selectedDate] > 0 && (
+            <button
+              onClick={() => setIsDayDetailsModalOpen(true)}
+              className="w-full mt-4 flex items-center justify-center gap-2 px-4 py-2 bg-[#1a1a1a] border border-[#262626] text-gray-300 rounded-lg hover:border-[#facc15] transition-colors"
+            >
+              <FileText className="w-4 h-4" />
+              View Details for {displayDate.split(',')[0]}
+            </button>
+          )}
+
           {/* Legend */}
           <div className="flex items-center gap-4 mt-4 pt-4 border-t border-[#262626] text-xs">
             <div className="flex items-center gap-1.5">
@@ -1366,6 +1523,17 @@ export default function AttendanceAuditPage() {
           setIsScheduleModalOpen(false);
           setScheduleEmployee(null);
         }}
+      />
+
+      {/* Day Details Modal */}
+      <DayDetailsModal
+        isOpen={isDayDetailsModalOpen}
+        onClose={() => setIsDayDetailsModalOpen(false)}
+        selectedDate={selectedDate}
+        calendarMonth={calendarMonth}
+        calendarYear={calendarYear}
+        monthlyAttendanceData={monthlyAttendanceData || []}
+        selectedBranchFilter={selectedBranchFilter}
       />
     </div>
   );
