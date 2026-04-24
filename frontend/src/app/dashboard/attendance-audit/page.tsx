@@ -399,6 +399,7 @@ function BranchAttendanceModal({
 }) {
   const [modalMonth, setModalMonth] = useState(initialMonth);
   const [modalYear, setModalYear] = useState(initialYear);
+  const [selectedDay, setSelectedDay] = useState<number | null>(null);
 
   if (!isOpen || !branch) return null;
 
@@ -562,11 +563,14 @@ function BranchAttendanceModal({
               return (
                 <div
                   key={index}
-                  className={`min-h-[140px] p-2 rounded-lg border transition-all ${
+                  className={`min-h-[140px] p-2 rounded-lg border transition-all cursor-pointer ${
                     item.prevMonth || item.nextMonth
                       ? 'bg-transparent border-transparent'
+                      : selectedDay === item.day
+                      ? 'bg-[#facc15]/10 border-[#facc15]'
                       : 'bg-[#1a1a1a] border-[#262626] hover:border-[#404040]'
                   }`}
+                  onClick={() => item.isCurrentMonth && setSelectedDay(item.day)}
                 >
                   {item.isCurrentMonth && (
                     <div className="flex flex-col h-full">
@@ -579,7 +583,13 @@ function BranchAttendanceModal({
                             </div>
                           ))}
                           {dayData.records.length > 4 && (
-                            <div className="text-[10px] text-gray-500">
+                            <div 
+                              className="text-[10px] text-[#facc15] hover:text-yellow-400 cursor-pointer"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedDay(item.day);
+                              }}
+                            >
                               +{dayData.records.length - 4} more
                             </div>
                           )}
@@ -598,6 +608,45 @@ function BranchAttendanceModal({
               );
             })}
           </div>
+
+          {/* Selected Day Details */}
+          {selectedDay && (
+            <div className="mt-4 p-4 bg-[#1a1a1a] rounded-lg border border-[#262626]">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-white font-medium">
+                  {monthNames[modalMonth]} {selectedDay}, {modalYear} - All Records
+                </h3>
+                <button 
+                  onClick={() => setSelectedDay(null)}
+                  className="p-1 hover:bg-red-500/20 text-gray-400 hover:text-red-400 rounded transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              {(() => {
+                const dayData = generateDailyRecords(selectedDay);
+                return dayData.records.length > 0 ? (
+                  <div className="space-y-2 max-h-[300px] overflow-y-auto">
+                    {dayData.records.map((record, ridx) => (
+                      <div key={ridx} className="flex items-center justify-between py-2 px-3 bg-[#141414] rounded border border-[#262626]">
+                        <div className="flex items-center gap-3">
+                          <span className={getStatusColor(record.status)}>{record.name}</span>
+                          <span className={`text-[10px] px-2 py-0.5 rounded border ${getStatusColor(record.status)}`}>
+                            {record.status}
+                          </span>
+                        </div>
+                        <div className="text-[10px] text-gray-400">
+                          {record.timeIn} - {record.timeOut}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-gray-500 text-sm">No records for this day</p>
+                );
+              })()}
+            </div>
+          )}
         </div>
 
         {/* Legend */}
