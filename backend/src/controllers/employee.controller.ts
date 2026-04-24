@@ -556,11 +556,18 @@ export const transferEmployee = async (
     }
 
     // Check if employee has active clock-in (timeIn but no timeOut)
-    const today = new Date().toISOString().split('T')[0];
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+
     const activeAttendance = await prisma.attendance.findFirst({
       where: {
         employeeId: id,
-        date: today,
+        date: {
+          gte: today,
+          lt: tomorrow
+        },
         check_in: { not: null },
         check_out: null
       }
