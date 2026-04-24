@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { attendanceApi, branchApi, Attendance } from '@/lib/api';
 import { 
@@ -116,10 +116,29 @@ const branches = [
 ] as const;
 
 // Generate mock employee attendance history for modal calendar (will be replaced with real data later)
-const generateEmployeeAttendanceHistory = (employeeCode: string) => {
+const generateEmployeeAttendanceHistory = (employeeCode: string, month: number, year: number) => {
   const history: Record<number, { status: 'present' | 'late' | 'absent' | null; timeIn?: string; timeOut?: string; location?: string }> = {};
   
-  for (let day = 1; day <= 30; day++) {
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const currentPhilippinesDay = getPhilippinesDay();
+  const now = new Date();
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Manila',
+    month: 'numeric',
+    year: 'numeric'
+  });
+  const parts = formatter.formatToParts(now);
+  const pMonth = parseInt(parts.find(p => p.type === 'month')?.value || '0', 10) - 1;
+  const pYear = parseInt(parts.find(p => p.type === 'year')?.value || '0', 10);
+  const isCurrentMonth = pMonth === month && pYear === year;
+  
+  for (let day = 1; day <= daysInMonth; day++) {
+    // Skip future dates for current month
+    if (isCurrentMonth && day > currentPhilippinesDay) {
+      history[day] = { status: null };
+      continue;
+    }
+    
     // Generate deterministic random-ish data based on employee code and day
     const seed = employeeCode.charCodeAt(1) + day;
     const rand = (seed * 9301 + 49297) % 233280 / 233280;
@@ -156,18 +175,28 @@ const generateEmployeeAttendanceHistory = (employeeCode: string) => {
 function EmployeeAttendanceModal({ 
   employee, 
   isOpen, 
-  onClose 
+  onClose,
+  initialMonth,
+  initialYear
 }: { 
   employee: AuditRecord | null; 
   isOpen: boolean; 
   onClose: () => void;
+  initialMonth: number;
+  initialYear: number;
 }) {
-  const [modalMonth, setModalMonth] = useState(3); // April = 3
-  const [modalYear, setModalYear] = useState(2026);
+  const [modalMonth, setModalMonth] = useState(initialMonth);
+  const [modalYear, setModalYear] = useState(initialYear);
+  const [attendanceHistory, setAttendanceHistory] = useState<Record<number, any>>({});
+  
+  // Regenerate attendance history when month/year changes
+  useEffect(() => {
+    if (employee) {
+      setAttendanceHistory(generateEmployeeAttendanceHistory(employee.code, modalMonth, modalYear));
+    }
+  }, [modalMonth, modalYear, employee]);
   
   if (!isOpen || !employee) return null;
-  
-  const attendanceHistory = generateEmployeeAttendanceHistory(employee.code);
   
   const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
   
@@ -357,15 +386,19 @@ function BranchAttendanceModal({
   branch,
   isOpen,
   onClose,
-  records
+  records,
+  initialMonth,
+  initialYear
 }: {
   branch: string | null;
   isOpen: boolean;
   onClose: () => void;
   records: AuditRecord[];
+  initialMonth: number;
+  initialYear: number;
 }) {
-  const [modalMonth, setModalMonth] = useState(3); // April = 3
-  const [modalYear, setModalYear] = useState(2026);
+  const [modalMonth, setModalMonth] = useState(initialMonth);
+  const [modalYear, setModalYear] = useState(initialYear);
 
   if (!isOpen || !branch) return null;
 
@@ -415,6 +448,28 @@ function BranchAttendanceModal({
   // Generate daily records for branch
   const generateDailyRecords = (day: number) => {
     const records: { name: string; timeIn: string; timeOut: string; location: string; status: 'present' | 'late' | 'absent' }[] = [];
+    
+    // Check if this is a future date
+    const currentPhilippinesDay = getPhilippinesDay();
+    const now = new Date();
+    const formatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'Asia/Manila',
+      month: 'numeric',
+      year: 'numeric'
+    });
+    const parts = formatter.formatToParts(now);
+    const pMonth = parseInt(parts.find(p => p.type === 'month')?.value || '0', 10) - 1;
+    const pYear = parseInt(parts.find(p => p.type === 'year')?.value || '0', 10);
+    const isCurrentMonth = pMonth === modalMonth && pYear === modalYear;
+    
+    // Skip future dates for current month
+    if (isCurrentMonth && day > currentPhilippinesDay) {
+      return {
+        records: [],
+        summary: { present: 0, late: 0, absent: 0, total: branchEmployees.length }
+      };
+    }
+    
     const presentCount = Math.floor(Math.random() * branchEmployees.length * 0.7) + Math.floor(branchEmployees.length * 0.2);
     const lateCount = Math.floor(Math.random() * 5);
     const absentCount = branchEmployees.length - presentCount - lateCount;
@@ -1286,6 +1341,8 @@ export default function AttendanceAuditPage() {
           setIsModalOpen(false);
           setSelectedEmployee(null);
         }}
+        initialMonth={calendarMonth}
+        initialYear={calendarYear}
       />
       
       {/* Branch Attendance Modal */}
@@ -1297,6 +1354,8 @@ export default function AttendanceAuditPage() {
           setSelectedBranch(null);
         }}
         records={filteredData}
+        initialMonth={calendarMonth}
+        initialYear={calendarYear}
       />
       
       {/* Schedule Modal */}
