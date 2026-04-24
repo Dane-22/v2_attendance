@@ -2,16 +2,21 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   distDir: '.next',
+  output: 'standalone',
   images: {
     unoptimized: true,
   },
   async rewrites() {
-    return [
-      {
-        source: '/api/:path*',
-        destination: 'http://localhost:5002/api/:path*',
-      },
-    ];
+    // Only use rewrites in development
+    if (process.env.NODE_ENV === 'development') {
+      return [
+        {
+          source: '/api/:path*',
+          destination: 'http://localhost:5002/api/:path*',
+        },
+      ];
+    }
+    return [];
   },
 };
 
