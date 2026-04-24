@@ -87,7 +87,7 @@ function EditEmployeeModal({ employee, isOpen, onClose }: { employee: Employee |
   useEffect(() => {
     if (employee) {
       setFormData(employee);
-      setImagePreview(employee.profileImage ? `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5002'}${employee.profileImage}` : null);
+      setImagePreview(employee.profileImage ? `${process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || 'http://localhost:5002'}${employee.profileImage}` : null);
     }
   }, [employee]);
 
@@ -363,7 +363,7 @@ function EditEmployeeModal({ employee, isOpen, onClose }: { employee: Employee |
                     <button
                       onClick={() => {
                         setSelectedImage(null);
-                        setImagePreview(employee.profileImage ? `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5002'}${employee.profileImage}` : null);
+                       setImagePreview(employee.profileImage ? `${process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || 'http://localhost:5002'}${employee.profileImage}` : null);
                       }}
                       className="text-xs text-red-400 hover:text-red-300"
                     >
@@ -615,7 +615,7 @@ export default function EmployeesPage() {
                         <div className="w-10 h-10 rounded-full bg-[#facc15] flex items-center justify-center text-black text-sm font-bold overflow-hidden">
                           {employee.profileImage ? (
                             <img
-                              src={`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5002'}${employee.profileImage}`}
+                              src={`${process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || 'http://localhost:5002'}${employee.profileImage}`}
                               alt={`${employee.firstName} ${employee.lastName}`}
                               className="w-full h-full object-cover"
                             />
