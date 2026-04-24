@@ -508,6 +508,7 @@ function AddEmployeeModal({ isOpen, onClose }: { isOpen: boolean; onClose: () =>
 export default function EmployeesPage() {
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
+  const [employeesPerPage, setEmployeesPerPage] = useState(10);
   const [qrModalOpen, setQrModalOpen] = useState(false);
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [addModalOpen, setAddModalOpen] = useState(false);
@@ -517,13 +518,21 @@ export default function EmployeesPage() {
   const [totalEmployees, setTotalEmployees] = useState(0);
   const { showToast } = useToast();
 
-  const employeesPerPage = 10;
   const totalPages = Math.ceil(totalEmployees / employeesPerPage);
 
   // Fetch employees from API
   useEffect(() => {
     fetchEmployees();
-  }, [page]);
+  }, [page, employeesPerPage]);
+
+  // Debounced search effect
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setPage(1);
+      fetchEmployees();
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [search]);
 
   const fetchEmployees = async () => {
     try {
@@ -540,13 +549,6 @@ export default function EmployeesPage() {
       setIsLoading(false);
     }
   };
-
-  // Filter employees based on search
-  const filteredEmployees = employees.filter(emp =>
-    (emp.firstName?.toLowerCase() || '').includes(search.toLowerCase()) ||
-    (emp.lastName?.toLowerCase() || '').includes(search.toLowerCase()) ||
-    (emp.employeeCode?.toLowerCase() || '').includes(search.toLowerCase())
-  );
 
   const handleQRClick = (employee: Employee) => {
     setSelectedEmployee(employee);
@@ -608,7 +610,7 @@ export default function EmployeesPage() {
                 </tr>
               </thead>
               <tbody>
-                {filteredEmployees.map((employee) => (
+                {employees.map((employee) => (
                   <tr key={employee.id} className="border-b border-[#262626] last:border-0 hover:bg-[#1a1a1a]">
                     <td className="px-4 py-4">
                       <div className="flex items-center gap-3">
@@ -672,14 +674,21 @@ export default function EmployeesPage() {
           {/* Pagination */}
           <div className="flex items-center justify-between px-4 py-4 border-t border-[#262626]">
             <span className="text-sm text-gray-400">
-              Showing <span className="text-white">1</span> to <span className="text-white">10</span> of <span className="text-white">{totalEmployees}</span> employees
+              Showing <span className="text-white">{Math.min((page - 1) * employeesPerPage + 1, totalEmployees)}</span> to <span className="text-white">{Math.min(page * employeesPerPage, totalEmployees)}</span> of <span className="text-white">{totalEmployees}</span> employees
             </span>
             <div className="flex items-center gap-2">
               <span className="text-sm text-gray-400 mr-2">Show:</span>
-              <select className="px-3 py-1.5 bg-[#1a1a1a] border border-[#262626] rounded text-white text-sm focus:outline-none focus:border-[#facc15]">
-                <option>10</option>
-                <option>20</option>
-                <option>50</option>
+              <select 
+                value={employeesPerPage}
+                onChange={(e) => {
+                  setEmployeesPerPage(Number(e.target.value));
+                  setPage(1);
+                }}
+                className="px-3 py-1.5 bg-[#1a1a1a] border border-[#262626] rounded text-white text-sm focus:outline-none focus:border-[#facc15]"
+              >
+                <option value={10}>10</option>
+                <option value={20}>20</option>
+                <option value={50}>50</option>
               </select>
               <button
                 onClick={() => setPage(p => Math.max(1, p - 1))}
@@ -689,16 +698,64 @@ export default function EmployeesPage() {
                 <ChevronLeft className="w-4 h-4" />
               </button>
               <div className="flex items-center gap-1">
-                <button className="w-8 h-8 flex items-center justify-center bg-[#facc15] text-black text-sm font-medium rounded-lg">
-                  1
-                </button>
-                <button className="w-8 h-8 flex items-center justify-center bg-[#1a1a1a] text-gray-400 text-sm rounded-lg hover:bg-[#262626] transition-colors">
-                  2
-                </button>
-                <span className="text-gray-500 px-1">...</span>
-                <button className="w-8 h-8 flex items-center justify-center bg-[#1a1a1a] text-gray-400 text-sm rounded-lg hover:bg-[#262626] transition-colors">
-                  {totalPages}
-                </button>
+                {(() => {
+                  const pages = [];
+                  const showPages = 5;
+                  let startPage = Math.max(1, page - Math.floor(showPages / 2));
+                  let endPage = Math.min(totalPages, startPage + showPages - 1);
+                  
+                  if (endPage - startPage + 1 < showPages) {
+                    startPage = Math.max(1, endPage - showPages + 1);
+                  }
+                  
+                  if (startPage > 1) {
+                    pages.push(
+                      <button
+                        key={1}
+                        onClick={() => setPage(1)}
+                        className="w-8 h-8 flex items-center justify-center bg-[#1a1a1a] text-gray-400 text-sm rounded-lg hover:bg-[#262626] transition-colors"
+                      >
+                        1
+                      </button>
+                    );
+                    if (startPage > 2) {
+                      pages.push(<span key="start-ellipsis" className="text-gray-500 px-1">...</span>);
+                    }
+                  }
+                  
+                  for (let i = startPage; i <= endPage; i++) {
+                    pages.push(
+                      <button
+                        key={i}
+                        onClick={() => setPage(i)}
+                        className={`w-8 h-8 flex items-center justify-center text-sm font-medium rounded-lg transition-colors ${
+                          page === i 
+                            ? 'bg-[#facc15] text-black' 
+                            : 'bg-[#1a1a1a] text-gray-400 hover:bg-[#262626]'
+                        }`}
+                      >
+                        {i}
+                      </button>
+                    );
+                  }
+                  
+                  if (endPage < totalPages) {
+                    if (endPage < totalPages - 1) {
+                      pages.push(<span key="end-ellipsis" className="text-gray-500 px-1">...</span>);
+                    }
+                    pages.push(
+                      <button
+                        key={totalPages}
+                        onClick={() => setPage(totalPages)}
+                        className="w-8 h-8 flex items-center justify-center bg-[#1a1a1a] text-gray-400 text-sm rounded-lg hover:bg-[#262626] transition-colors"
+                      >
+                        {totalPages}
+                      </button>
+                    );
+                  }
+                  
+                  return pages;
+                })()}
               </div>
               <button
                 onClick={() => setPage(p => Math.min(totalPages, p + 1))}
