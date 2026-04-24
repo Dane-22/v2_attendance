@@ -404,7 +404,38 @@ function EditEmployeeModal({ employee, isOpen, onClose }: { employee: Employee |
 }
 
 // Add Employee Modal Component
-function AddEmployeeModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
+function AddEmployeeModal({ isOpen, onClose, onEmployeeAdded }: { isOpen: boolean; onClose: () => void; onEmployeeAdded: () => void }) {
+  const [formData, setFormData] = useState<Partial<Employee>>({
+    status: 'Active',
+    hasDeductions: true,
+    dailyRate: 0
+  });
+  const [isLoading, setIsLoading] = useState(false);
+  const { showToast } = useToast();
+
+  const handleAdd = async () => {
+    // Validation
+    if (!formData.employeeCode || !formData.firstName || !formData.lastName || !formData.email || !formData.position) {
+      showToast('error', 'Please fill in all required fields');
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const response = await employeeApi.create(formData);
+      if (response.data?.success) {
+        showToast('success', 'Employee added successfully');
+        onClose();
+        onEmployeeAdded();
+      }
+    } catch (error) {
+      showToast('error', 'Failed to add employee');
+      console.error('Error adding employee:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   if (!isOpen) return null;
 
   return (
@@ -426,19 +457,39 @@ function AddEmployeeModal({ isOpen, onClose }: { isOpen: boolean; onClose: () =>
             <div className="grid grid-cols-4 gap-4">
               <div>
                 <label className="block text-gray-400 text-sm mb-1">Employee Code <span className="text-red-400">*</span></label>
-                <input type="text" className="w-full px-4 py-2 bg-[#141414] border border-[#facc15]/30 rounded-lg text-white focus:outline-none focus:border-[#facc15]" />
+                <input
+                  type="text"
+                  value={formData.employeeCode || ''}
+                  onChange={(e) => setFormData({ ...formData, employeeCode: e.target.value })}
+                  className="w-full px-4 py-2 bg-[#141414] border border-[#facc15]/30 rounded-lg text-white focus:outline-none focus:border-[#facc15]"
+                />
               </div>
               <div>
                 <label className="block text-gray-400 text-sm mb-1">First Name <span className="text-red-400">*</span></label>
-                <input type="text" className="w-full px-4 py-2 bg-[#141414] border border-[#facc15]/30 rounded-lg text-white focus:outline-none focus:border-[#facc15]" />
+                <input
+                  type="text"
+                  value={formData.firstName || ''}
+                  onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
+                  className="w-full px-4 py-2 bg-[#141414] border border-[#facc15]/30 rounded-lg text-white focus:outline-none focus:border-[#facc15]"
+                />
               </div>
               <div>
                 <label className="block text-gray-400 text-sm mb-1">Middle Name</label>
-                <input type="text" className="w-full px-4 py-2 bg-[#141414] border border-[#262626] rounded-lg text-white focus:outline-none focus:border-[#facc15]" />
+                <input
+                  type="text"
+                  value={formData.middleName || ''}
+                  onChange={(e) => setFormData({ ...formData, middleName: e.target.value })}
+                  className="w-full px-4 py-2 bg-[#141414] border border-[#262626] rounded-lg text-white focus:outline-none focus:border-[#facc15]"
+                />
               </div>
               <div>
                 <label className="block text-gray-400 text-sm mb-1">Last Name <span className="text-red-400">*</span></label>
-                <input type="text" className="w-full px-4 py-2 bg-[#141414] border border-[#facc15]/30 rounded-lg text-white focus:outline-none focus:border-[#facc15]" />
+                <input
+                  type="text"
+                  value={formData.lastName || ''}
+                  onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
+                  className="w-full px-4 py-2 bg-[#141414] border border-[#facc15]/30 rounded-lg text-white focus:outline-none focus:border-[#facc15]"
+                />
               </div>
             </div>
           </div>
@@ -449,7 +500,12 @@ function AddEmployeeModal({ isOpen, onClose }: { isOpen: boolean; onClose: () =>
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-gray-400 text-sm mb-1">Email Address <span className="text-red-400">*</span></label>
-                <input type="email" className="w-full px-4 py-2 bg-[#141414] border border-[#facc15]/30 rounded-lg text-white focus:outline-none focus:border-[#facc15]" />
+                <input
+                  type="email"
+                  value={formData.email || ''}
+                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  className="w-full px-4 py-2 bg-[#141414] border border-[#facc15]/30 rounded-lg text-white focus:outline-none focus:border-[#facc15]"
+                />
               </div>
             </div>
           </div>
@@ -460,7 +516,11 @@ function AddEmployeeModal({ isOpen, onClose }: { isOpen: boolean; onClose: () =>
             <div className="grid grid-cols-4 gap-4">
               <div>
                 <label className="block text-gray-400 text-sm mb-1">Position <span className="text-red-400">*</span></label>
-                <select className="w-full px-4 py-2 bg-[#141414] border border-[#facc15]/30 rounded-lg text-white focus:outline-none focus:border-[#facc15]">
+                <select
+                  value={formData.position || ''}
+                  onChange={(e) => setFormData({ ...formData, position: e.target.value })}
+                  className="w-full px-4 py-2 bg-[#141414] border border-[#facc15]/30 rounded-lg text-white focus:outline-none focus:border-[#facc15]"
+                >
                   <option value="">Select Position</option>
                   <option>Worker</option>
                   <option>Admin</option>
@@ -469,19 +529,32 @@ function AddEmployeeModal({ isOpen, onClose }: { isOpen: boolean; onClose: () =>
               </div>
               <div>
                 <label className="block text-gray-400 text-sm mb-1">Status</label>
-                <select className="w-full px-4 py-2 bg-[#141414] border border-[#262626] rounded-lg text-white focus:outline-none focus:border-[#facc15]">
+                <select
+                  value={formData.status || ''}
+                  onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+                  className="w-full px-4 py-2 bg-[#141414] border border-[#262626] rounded-lg text-white focus:outline-none focus:border-[#facc15]"
+                >
+                  <option value="">Select Status</option>
                   <option>Active</option>
                   <option>Inactive</option>
                 </select>
               </div>
               <div>
                 <label className="block text-gray-400 text-sm mb-1">Daily Rate (₱)</label>
-                <input type="number" className="w-full px-4 py-2 bg-[#141414] border border-[#262626] rounded-lg text-white focus:outline-none focus:border-[#facc15]" />
+                <input
+                  type="number"
+                  value={formData.dailyRate || ''}
+                  onChange={(e) => setFormData({ ...formData, dailyRate: parseFloat(e.target.value) || 0 })}
+                  className="w-full px-4 py-2 bg-[#141414] border border-[#262626] rounded-lg text-white focus:outline-none focus:border-[#facc15]"
+                />
               </div>
               <div className="flex items-end">
                 <label className="flex items-center gap-3 cursor-pointer">
-                  <div className="w-12 h-6 rounded-full bg-green-500">
-                    <div className="w-5 h-5 bg-white rounded-full transition-transform mt-0.5 translate-x-6" />
+                  <div
+                    className={`w-12 h-6 rounded-full transition-colors ${formData.hasDeductions ? 'bg-green-500' : 'bg-gray-600'}`}
+                    onClick={() => setFormData({ ...formData, hasDeductions: !formData.hasDeductions })}
+                  >
+                    <div className={`w-5 h-5 bg-white rounded-full transition-transform mt-0.5 ${formData.hasDeductions ? 'translate-x-6' : 'translate-x-0.5'}`} />
                   </div>
                   <span className="text-white text-sm">With SSS/PhilHealth/PagIBIG</span>
                 </label>
@@ -495,9 +568,13 @@ function AddEmployeeModal({ isOpen, onClose }: { isOpen: boolean; onClose: () =>
           <button onClick={onClose} className="px-6 py-2 bg-[#262626] text-white rounded-lg hover:bg-[#333] transition-colors">
             Cancel
           </button>
-          <button className="flex items-center gap-2 px-6 py-2 bg-[#facc15] text-black font-medium rounded-lg hover:bg-yellow-400 transition-colors">
-            <UserPlus className="w-4 h-4" />
-            Add Employee
+          <button
+            onClick={handleAdd}
+            disabled={isLoading}
+            className="flex items-center gap-2 px-6 py-2 bg-[#facc15] text-black font-medium rounded-lg hover:bg-yellow-400 transition-colors disabled:opacity-50"
+          >
+            {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <UserPlus className="w-4 h-4" />}
+            {isLoading ? 'Adding...' : 'Add Employee'}
           </button>
         </div>
       </div>
@@ -783,6 +860,7 @@ export default function EmployeesPage() {
       <AddEmployeeModal 
         isOpen={addModalOpen} 
         onClose={() => setAddModalOpen(false)} 
+        onEmployeeAdded={fetchEmployees}
       />
     </div>
   );
