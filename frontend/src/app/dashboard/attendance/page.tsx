@@ -2,9 +2,9 @@
 
 import { useState, useMemo, useEffect } from 'react';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
-import { branchApi, attendanceApi, employeeApi, Branch, BranchEmployee, Attendance } from '@/lib/api';
+import { branchApi, attendanceApi, employeeApi, Branch, BranchEmployee, Attendance, logsApi } from '@/lib/api';
 import { AxiosError } from 'axios';
-import { Search, Plus, X, RotateCcw, Lightbulb, Clock, UserX, UserCheck, ChevronLeft, ChevronRight, CheckCircle, Loader2, LogIn, LogOut } from 'lucide-react';
+import { Search, Plus, X, RotateCcw, Lightbulb, Clock, UserX, UserCheck, ChevronLeft, ChevronRight, CheckCircle, Loader2, LogIn, LogOut, MoreVertical } from 'lucide-react';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import RecentActivity from '@/components/RecentActivity';
 
@@ -63,12 +63,31 @@ export default function AttendancePage() {
   // Mobile detail modal state
   const [selectedEmployeeForModal, setSelectedEmployeeForModal] = useState<BranchEmployee | null>(null);
   
+  // Transfer modal state
+  const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
+  const [selectedEmployeeForTransfer, setSelectedEmployeeForTransfer] = useState<BranchEmployee | null>(null);
+  const [kebabMenuOpen, setKebabMenuOpen] = useState<Record<number, boolean>>({});
+  const [previousBranchForUndo, setPreviousBranchForUndo] = useState<string | null>(null);
+  
   // Mobile detection effect
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth < 640);
     checkMobile();
     window.addEventListener('resize', checkMobile);
     return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
+  // Close kebab menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (!target.closest('.kebab-menu-container')) {
+        setKebabMenuOpen({});
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
   
   // Pagination for branches
@@ -185,6 +204,74 @@ export default function AttendancePage() {
     onError: (error: AxiosError<{ message?: string }>) => {
       console.error('Mark absent error:', error);
       alert(error.response?.data?.message || error.message || 'Failed to mark as absent');
+    }
+  });
+
+  // Transfer employee mutation
+  const transferMutation = useMutation({
+    mutationFn: ({ employeeId, branchCode, reason }: { employeeId: number; branchCode: string; reason?: string }) =>
+      employeeApi.transfer(employeeId, { branchCode, reason }),
+    onSuccess: async (data) => {
+      // Store previous branch for undo
+      setPreviousBranchForUndo(data.data?.data?.previousBranch || null);
+      // Log transfer action
+      try {
+        await logsApi.create({
+          actionType: 'UPDATE',
+          entityType: 'EMPLOYEE',
+          entityId: selectedEmployeeForTransfer?.id.toString() || '',
+          entityName: selectedEmployeeForTransfer?.name || '',
+          description: `Transferred employee ${selectedEmployeeForTransfer?.name} from ${data.data?.data?.previousBranch} to ${data.data?.data?.employee.branchCode}`,
+          status: 'SUCCESS'
+        });
+      } catch (logError) {
+        console.error('Failed to log transfer:', logError);
+      }
+      // Show success notification
+      alert(`Employee ${selectedEmployeeForTransfer?.name} transferred successfully`);
+      // Refresh employees and attendance data
+      await queryClient.refetchQueries({ queryKey: ['branch-employees', selectedBranch], exact: true });
+      await queryClient.refetchQueries({ queryKey: ['today-attendance-all'], exact: true });
+      // Close modal
+      setIsTransferModalOpen(false);
+      setSelectedEmployeeForTransfer(null);
+      // Close kebab menu
+      setKebabMenuOpen({});
+    },
+    onError: (error: AxiosError<{ message?: string }>) => {
+      console.error('Transfer error:', error);
+      alert(error.response?.data?.message || error.message || 'Failed to transfer employee');
+    }
+  });
+
+  // Undo transfer mutation
+  const undoTransferMutation = useMutation({
+    mutationFn: ({ employeeId, previousBranchCode }: { employeeId: number; previousBranchCode: string }) =>
+      employeeApi.transfer(employeeId, { branchCode: previousBranchCode, reason: 'Undo previous transfer' }),
+    onSuccess: async () => {
+      // Log undo action
+      try {
+        await logsApi.create({
+          actionType: 'UPDATE',
+          entityType: 'EMPLOYEE',
+          entityId: selectedEmployeeForTransfer?.id.toString() || '',
+          entityName: selectedEmployeeForTransfer?.name || '',
+          description: `Undid transfer for employee ${selectedEmployeeForTransfer?.name}`,
+          status: 'SUCCESS'
+        });
+      } catch (logError) {
+        console.error('Failed to log undo:', logError);
+      }
+      // Refresh employees and attendance data
+      await queryClient.refetchQueries({ queryKey: ['branch-employees', selectedBranch], exact: true });
+      await queryClient.refetchQueries({ queryKey: ['today-attendance-all'], exact: true });
+      // Clear undo state
+      setPreviousBranchForUndo(null);
+      alert('Transfer undone successfully');
+    },
+    onError: (error: AxiosError<{ message?: string }>) => {
+      console.error('Undo transfer error:', error);
+      alert(error.response?.data?.message || error.message || 'Failed to undo transfer');
     }
   });
 
@@ -376,7 +463,16 @@ export default function AttendancePage() {
   const selectedBranchName = selectedBranchData?.shortName || '';
 
   const handleUndo = () => {
-    refetchEmployees();
+    if (previousBranchForUndo) {
+      // Undo transfer
+      undoTransferMutation.mutate({
+        employeeId: selectedEmployeeForTransfer?.id || 0,
+        previousBranchCode: previousBranchForUndo
+      });
+    } else {
+      // Regular undo - refetch employees
+      refetchEmployees();
+    }
   };
 
   return (
@@ -637,6 +733,29 @@ export default function AttendancePage() {
                           )}
                           Absent
                         </button>
+                        {/* Kebab menu for Available tab */}
+                        <div className="relative kebab-menu-container">
+                          <button
+                            onClick={() => setKebabMenuOpen(prev => ({ ...prev, [employee.id]: !prev[employee.id] }))}
+                            className="p-1.5 hover:bg-[#262626] rounded-lg transition-colors self-start"
+                          >
+                            <MoreVertical className="w-4 h-4 text-gray-400" />
+                          </button>
+                          {kebabMenuOpen[employee.id] && (
+                            <div className="absolute right-0 top-full mt-2 w-48 bg-[#1a1a1a] border border-[#262626] rounded-lg shadow-xl z-50">
+                              <button
+                                onClick={() => {
+                                  setKebabMenuOpen(prev => ({ ...prev, [employee.id]: false }));
+                                  setSelectedEmployeeForTransfer(employee);
+                                  setIsTransferModalOpen(true);
+                                }}
+                                className="w-full px-4 py-2 text-left text-sm text-gray-300 hover:bg-[#262626] hover:text-white transition-colors"
+                              >
+                                Transfer to another branch
+                              </button>
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </div>
                   ) : activeTab === 'Present' ? (
@@ -666,6 +785,29 @@ export default function AttendancePage() {
                           )}
                           Time Out
                         </button>
+                        {/* Kebab menu for Present tab */}
+                        <div className="relative kebab-menu-container">
+                          <button
+                            onClick={() => setKebabMenuOpen(prev => ({ ...prev, [employee.id]: !prev[employee.id] }))}
+                            className="ml-2 p-1.5 hover:bg-[#262626] rounded-lg transition-colors"
+                          >
+                            <MoreVertical className="w-4 h-4 text-gray-400" />
+                          </button>
+                          {kebabMenuOpen[employee.id] && (
+                            <div className="absolute right-0 top-full mt-2 w-48 bg-[#1a1a1a] border border-[#262626] rounded-lg shadow-xl z-50">
+                              <button
+                                onClick={() => {
+                                  setKebabMenuOpen(prev => ({ ...prev, [employee.id]: false }));
+                                  setSelectedEmployeeForTransfer(employee);
+                                  setIsTransferModalOpen(true);
+                                }}
+                                className="w-full px-4 py-2 text-left text-sm text-gray-300 hover:bg-[#262626] hover:text-white transition-colors"
+                              >
+                                Transfer to another branch
+                              </button>
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </div>
                   ) : activeTab === 'Absent' ? (
@@ -902,35 +1044,40 @@ export default function AttendancePage() {
                               }}
                               disabled={clockInMutation.isPending}
                               className="inline-flex items-center gap-1 px-3 py-1.5 bg-green-500/20 text-green-400 text-xs font-medium rounded-full hover:bg-green-500/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                          >
-                            {clockInMutation.isPending ? (
-                              <Loader2 className="w-3 h-3 animate-spin" />
-                            ) : (
-                              <LogIn className="w-3 h-3" />
-                            )}
-                            Time In
-                          </button>
-                            <button
-                              onClick={() => {
-                                console.log('Absent button clicked for employee:', employee.id, employee.name);
-                                if (window.confirm(`Mark ${employee.name} as absent for today?`)) {
-                                  console.log('Confirmed, marking absent');
-                                  markIndividualAbsentMutation.mutate(employee.id);
-                                } else {
-                                  console.log('Cancelled');
-                                }
-                              }}
-                              disabled={markIndividualAbsentMutation.isPending}
-                              className="inline-flex items-center gap-1 px-3 py-1.5 bg-red-500/20 text-red-400 text-xs font-medium rounded-full hover:bg-red-500/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                             >
-                              {markIndividualAbsentMutation.isPending ? (
+                              {clockInMutation.isPending ? (
                                 <Loader2 className="w-3 h-3 animate-spin" />
                               ) : (
-                                <UserX className="w-3 h-3" />
+                                <LogIn className="w-3 h-3" />
                               )}
-                              Absent
+                              Time In
                             </button>
                           </>
+                        )}
+                        {/* Kebab menu - only in Available and Present tabs */}
+                        {(activeTab === 'Available' || activeTab === 'Present') && (
+                          <div className="relative kebab-menu-container">
+                            <button
+                              onClick={() => setKebabMenuOpen(prev => ({ ...prev, [employee.id]: !prev[employee.id] }))}
+                              className="p-1.5 hover:bg-[#262626] rounded-lg transition-colors"
+                            >
+                              <MoreVertical className="w-4 h-4 text-gray-400" />
+                            </button>
+                            {kebabMenuOpen[employee.id] && (
+                              <div className="absolute right-0 top-full mt-2 w-48 bg-[#1a1a1a] border border-[#262626] rounded-lg shadow-xl z-50">
+                                <button
+                                  onClick={() => {
+                                    setKebabMenuOpen(prev => ({ ...prev, [employee.id]: false }));
+                                    setSelectedEmployeeForTransfer(employee);
+                                    setIsTransferModalOpen(true);
+                                  }}
+                                  className="w-full px-4 py-2 text-left text-sm text-gray-300 hover:bg-[#262626] hover:text-white transition-colors"
+                                >
+                                  Transfer to another branch
+                                </button>
+                              </div>
+                            )}
+                          </div>
                         )}
                       </div>
                       )}
@@ -1174,6 +1321,113 @@ export default function AttendancePage() {
           </div>
         </div>
       </div>
+
+      {/* Transfer Modal */}
+      {isTransferModalOpen && selectedEmployeeForTransfer && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <div className="w-full max-w-md bg-[#141414] rounded-2xl border border-[#262626] shadow-2xl overflow-hidden">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-[#262626]">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-[#facc15]/20 flex items-center justify-center">
+                  <UserCheck className="w-5 h-5 text-[#facc15]" />
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold text-white">Transfer Employee</h2>
+                  <p className="text-sm text-gray-400">{selectedEmployeeForTransfer.name}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  setIsTransferModalOpen(false);
+                  setSelectedEmployeeForTransfer(null);
+                }}
+                className="p-2 hover:bg-red-500/20 text-gray-400 hover:text-red-400 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-400 mb-2">Current Branch</label>
+                <div className="px-4 py-3 bg-[#1a1a1a] border border-[#262626] rounded-lg text-white">
+                  {selectedEmployeeForTransfer.branchName || 'Not assigned'}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-400 mb-2">Destination Branch</label>
+                <select
+                  id="destinationBranch"
+                  className="w-full px-4 py-3 bg-[#1a1a1a] border border-[#262626] rounded-lg text-white focus:outline-none focus:border-[#facc15]"
+                  defaultValue=""
+                >
+                  <option value="">Select a branch...</option>
+                  {branches
+                    .filter(b => b.code !== selectedEmployeeForTransfer.branchCode)
+                    .map(branch => (
+                      <option key={branch.id} value={branch.code}>
+                        {branch.shortName} ({branch.code})
+                      </option>
+                    ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-400 mb-2">Transfer Reason (Optional)</label>
+                <textarea
+                  id="transferReason"
+                  rows={3}
+                  placeholder="Why is this employee being transferred?"
+                  className="w-full px-4 py-3 bg-[#1a1a1a] border border-[#262626] rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-[#facc15] resize-none"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3 px-6 py-4 border-t border-[#262626]">
+              <button
+                onClick={() => {
+                  setIsTransferModalOpen(false);
+                  setSelectedEmployeeForTransfer(null);
+                }}
+                className="flex-1 px-4 py-3 bg-[#1a1a1a] border border-[#262626] text-gray-400 rounded-lg hover:border-[#404040] transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  const destinationBranch = (document.getElementById('destinationBranch') as HTMLSelectElement)?.value;
+                  const reason = (document.getElementById('transferReason') as HTMLTextAreaElement)?.value;
+                  
+                  if (!destinationBranch) {
+                    alert('Please select a destination branch');
+                    return;
+                  }
+
+                  if (selectedEmployeeForTransfer.timeIn !== null && selectedEmployeeForTransfer.timeOut === null) {
+                    alert('Cannot transfer employee with active clock-in. Please clock out first.');
+                    return;
+                  }
+
+                  transferMutation.mutate({
+                    employeeId: selectedEmployeeForTransfer.id,
+                    branchCode: destinationBranch,
+                    reason: reason || undefined
+                  });
+                }}
+                disabled={transferMutation.isPending}
+                className="flex-1 px-4 py-3 bg-[#facc15] text-black font-medium rounded-lg hover:bg-yellow-400 transition-colors disabled:opacity-50"
+              >
+                {transferMutation.isPending ? (
+                  <Loader2 className="w-4 h-4 animate-spin mx-auto" />
+                ) : (
+                  'Transfer'
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -520,5 +520,121 @@ export const uploadProfileImage = async (
   }
 };
 
+export const transferEmployee = async (
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const id = parseInt(req.params.id);
+    const { branchCode, reason } = req.body;
+
+    if (!branchCode) {
+      throw new AppError('Branch code is required', 400);
+    }
+
+    const employee = await prisma.employee.findUnique({
+      where: { id }
+    });
+
+    if (!employee) {
+      throw new AppError('Employee not found', 404);
+    }
+
+    // Check if employee is already in the destination branch
+    if (employee.branchCode === branchCode) {
+      throw new AppError('Employee is already in this branch', 400);
+    }
+
+    // Check if destination branch exists
+    const destinationBranch = await prisma.branches.findUnique({
+      where: { branch_code: branchCode }
+    });
+
+    if (!destinationBranch) {
+      throw new AppError('Destination branch not found', 404);
+    }
+
+    // Check if employee has active clock-in (timeIn but no timeOut)
+    const today = new Date().toISOString().split('T')[0];
+    const activeAttendance = await prisma.attendance.findFirst({
+      where: {
+        employeeId: id,
+        date: today,
+        check_in: { not: null },
+        check_out: null
+      }
+    });
+
+    if (activeAttendance) {
+      throw new AppError('Cannot transfer employee with active clock-in. Please clock out first.', 400);
+    }
+
+    const previousBranch = employee.branchCode;
+
+    // Update employee branch
+    const updatedEmployee = await prisma.employee.update({
+      where: { id },
+      data: {
+        branchCode,
+        branchName: destinationBranch.branch_name,
+        branchId: destinationBranch.id
+      },
+      select: {
+        id: true,
+        employeeCode: true,
+        firstName: true,
+        middleName: true,
+        lastName: true,
+        email: true,
+        department: true,
+        position: true,
+        branchName: true,
+        branchCode: true,
+        status: true,
+        dailyRate: true,
+        hasDeductions: true,
+        performanceAllowance: true,
+        hasDeduction: true,
+        branchId: true,
+        profileImage: true,
+        createdAt: true,
+        updatedAt: true
+      }
+    });
+
+    // Log employee transfer
+    await logUpdate({
+      userId: req.admin?.id || 0,
+      userName: req.admin?.name || 'unknown',
+      userRole: req.admin?.role || 'admin',
+      entityType: 'EMPLOYEE',
+      entityId: employee.id.toString(),
+      entityName: `${employee.firstName} ${employee.lastName}`,
+      description: `Transferred employee ${employee.employeeCode} - ${employee.firstName} ${employee.lastName} from ${previousBranch} to ${branchCode}${reason ? ` (Reason: ${reason})` : ''}`,
+      detailsBefore: { branchCode: previousBranch, branchName: employee.branchName },
+      detailsAfter: { branchCode, branchName: destinationBranch.branch_name },
+      changes: ['branchCode', 'branchName'],
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+      branchId: employee.branchId || undefined,
+      metadata: { previousBranch, newBranch: branchCode, reason }
+    });
+
+    const response: ApiResponse<{ employee: typeof updatedEmployee; previousBranch: string | null }> = {
+      success: true,
+      message: 'Employee transferred successfully',
+      data: {
+        employee: updatedEmployee,
+        previousBranch
+      }
+    };
+
+    res.json(response);
+  } catch (error) {
+    next(error);
+  }
+};
+
 // Export upload middleware for use in routes
 export const uploadMiddleware = upload.single('profileImage');

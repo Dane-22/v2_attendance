@@ -151,6 +151,8 @@ export const employeeApi = {
       },
     });
   },
+  transfer: (id: number, data: { branchCode: string; reason?: string }) =>
+    api.patch<ApiResponse<{ employee: Employee; previousBranch: string | null }>>(`/employees/${id}/transfer`, data),
 };
 
 export const attendanceApi = {
