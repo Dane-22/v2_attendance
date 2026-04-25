@@ -25,6 +25,7 @@ import {
   NotificationFilter
 } from '@/lib/api';
 import { useWebSocket } from '@/hooks/useWebSocket';
+import { useTheme } from '@/hooks/useTheme';
 import { formatRelativeTime } from './data';
 
 const iconMap: Record<string, React.ElementType> = {
@@ -51,6 +52,7 @@ export default function NotificationsPage() {
   const [activeFilter, setActiveFilter] = useState<NotificationFilter>('ALL');
   const [page, setPage] = useState(1);
   const { on } = useWebSocket();
+  const { classes } = useTheme();
 
   // Fetch notifications
   const { data: notificationsData, isLoading, error } = useQuery({
@@ -154,10 +156,10 @@ export default function NotificationsPage() {
       {/* Header */}
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
         <div>
-          <h1 className="text-2xl lg:text-3xl font-bold text-white">
+          <h1 className={`text-2xl lg:text-3xl font-bold ${classes.text}`}>
             Notifications <span className="text-[#facc15]">& Alerts</span>
           </h1>
-          <p className="text-gray-400 mt-1">
+          <p className={`${classes.textMuted} mt-1`}>
             You have {stats.unread} unread and {stats.urgent} urgent notifications
           </p>
         </div>
@@ -166,7 +168,7 @@ export default function NotificationsPage() {
           <button
             onClick={handleMarkAllAsRead}
             disabled={markAllAsReadMutation.isPending || stats.unread === 0}
-            className="flex items-center gap-2 px-4 py-2 bg-[#141414] border border-[#262626] rounded-lg text-white hover:border-[#404040] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className={`flex items-center gap-2 px-4 py-2 ${classes.bgCard} ${classes.border} rounded-lg ${classes.text} ${classes.borderHover} transition-colors disabled:opacity-50 disabled:cursor-not-allowed`}
           >
             {markAllAsReadMutation.isPending ? (
               <Loader2 className="w-4 h-4 animate-spin" />
@@ -202,14 +204,14 @@ export default function NotificationsPage() {
         ].map((stat, index) => {
           const Icon = stat.icon;
           return (
-            <div key={index} className="bg-[#141414] rounded-xl border border-[#262626] p-4">
+            <div key={index} className={`${classes.bgCard} rounded-xl ${classes.border} p-4`}>
               <div className="flex items-center gap-3">
                 <div className={`w-10 h-10 rounded-lg ${stat.bg} border border-current border-opacity-30 flex items-center justify-center ${stat.color}`}>
                   <Icon className="w-5 h-5" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold text-white">{stat.value}</p>
-                  <p className="text-xs text-gray-400">{stat.label}</p>
+                  <p className={`text-2xl font-bold ${classes.text}`}>{stat.value}</p>
+                  <p className={`text-xs ${classes.textMuted}`}>{stat.label}</p>
                 </div>
               </div>
             </div>
@@ -220,8 +222,8 @@ export default function NotificationsPage() {
       {/* Filter Tabs */}
       <div className="flex flex-wrap items-center gap-2">
         <div className="flex items-center gap-2 mr-4">
-          <Filter className="w-4 h-4 text-gray-400" />
-          <span className="text-sm text-gray-400">Filter by:</span>
+          <Filter className={`w-4 h-4 ${classes.textMuted}`} />
+          <span className={`text-sm ${classes.textMuted}`}>Filter by:</span>
         </div>
         {filters.map((filter) => (
           <button
@@ -230,7 +232,7 @@ export default function NotificationsPage() {
             className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
               activeFilter === filter.value
                 ? 'bg-[#facc15] text-black'
-                : 'bg-[#141414] border border-[#262626] text-gray-400 hover:text-white'
+                : `${classes.bgCard} ${classes.border} ${classes.textMuted} hover:${classes.text}`
             }`}
           >
             {filter.label}
@@ -246,31 +248,31 @@ export default function NotificationsPage() {
       </div>
 
       {/* Notifications List */}
-      <div className="bg-[#141414] rounded-xl border border-[#262626] overflow-hidden">
+      <div className={`${classes.bgCard} rounded-xl ${classes.border} overflow-hidden`}>
         {isLoading ? (
           <div className="p-12 text-center">
             <Loader2 className="w-8 h-8 mx-auto mb-4 text-[#facc15] animate-spin" />
-            <p className="text-gray-400">Loading notifications...</p>
+            <p className={`${classes.textMuted}`}>Loading notifications...</p>
           </div>
         ) : error ? (
           <div className="p-12 text-center">
             <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-red-500/10 flex items-center justify-center">
               <AlertTriangle className="w-8 h-8 text-red-400" />
             </div>
-            <h3 className="text-lg font-medium text-white mb-2">Error loading notifications</h3>
-            <p className="text-gray-400 text-sm">Please try again later</p>
+            <h3 className={`text-lg font-medium ${classes.text} mb-2`}>Error loading notifications</h3>
+            <p className={`${classes.textMuted} text-sm`}>Please try again later</p>
           </div>
         ) : notifications.length === 0 ? (
           <div className="p-12 text-center">
             <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-[#262626] flex items-center justify-center">
               <Bell className="w-8 h-8 text-gray-500" />
             </div>
-            <h3 className="text-lg font-medium text-white mb-2">No notifications</h3>
-            <p className="text-gray-400 text-sm">You&apos;re all caught up!</p>
+            <h3 className={`text-lg font-medium ${classes.text} mb-2`}>No notifications</h3>
+            <p className={`${classes.textMuted} text-sm`}>You&apos;re all caught up!</p>
           </div>
         ) : (
           <>
-            <div className="divide-y divide-[#262626]">
+            <div className={`divide-y ${classes.border}`}>
               {notifications.map((notification: Notification) => {
                 const typeInfo = typeConfig[notification.type] || typeConfig.SYSTEM;
                 const Icon = iconMap[typeInfo.icon] || Bell;
@@ -278,7 +280,7 @@ export default function NotificationsPage() {
                 return (
                   <div
                     key={notification.id}
-                    className={`p-4 hover:bg-[#1a1a1a] transition-colors ${
+                    className={`p-4 ${classes.bgCardHover} transition-colors ${
                       notification.is_read 
                         ? 'opacity-60' 
                         : 'bg-[#facc15]/5'
@@ -295,7 +297,7 @@ export default function NotificationsPage() {
                         <div className="flex items-start justify-between gap-4">
                           <div>
                             <div className="flex items-center gap-2 mb-1">
-                              <h4 className={`text-white font-medium ${!notification.is_read ? 'font-semibold' : ''}`}>
+                              <h4 className={`${classes.text} font-medium ${!notification.is_read ? 'font-semibold' : ''}`}>
                                 {notification.title}
                               </h4>
                               {notification.is_urgent && (
@@ -308,9 +310,9 @@ export default function NotificationsPage() {
                                 <span className="w-2 h-2 rounded-full bg-[#facc15]" />
                               )}
                             </div>
-                            <p className="text-sm text-gray-400 mb-2">{notification.message}</p>
+                            <p className={`text-sm ${classes.textMuted} mb-2`}>{notification.message}</p>
                             <div className="flex items-center gap-4">
-                              <span className="text-xs text-gray-500">
+                              <span className={`text-xs ${classes.textMuted}`}>
                                 {formatRelativeTime(notification.created_at)}
                               </span>
                               <span className={`text-xs px-2 py-0.5 rounded ${typeInfo.bg} ${typeInfo.color}`}>
@@ -334,7 +336,7 @@ export default function NotificationsPage() {
                               <button
                                 onClick={() => handleMarkAsRead(notification.id)}
                                 disabled={markAsReadMutation.isPending}
-                                className="p-2 hover:bg-[#262626] rounded-lg transition-colors text-gray-400 hover:text-white disabled:opacity-50"
+                                className={`p-2 hover:bg-[#262626] rounded-lg transition-colors ${classes.textMuted} hover:${classes.text} disabled:opacity-50`}
                                 title="Mark as read"
                               >
                                 <Check className="w-4 h-4" />
@@ -359,11 +361,11 @@ export default function NotificationsPage() {
             
             {/* Load More Button */}
             {pagination && page < pagination.totalPages && (
-              <div className="p-4 border-t border-[#262626] text-center">
+              <div className={`p-4 border-t ${classes.border} text-center`}>
                 <button
                   onClick={handleLoadMore}
                   disabled={isLoading}
-                  className="px-4 py-2 bg-[#1a1a1a] border border-[#262626] rounded-lg text-gray-400 hover:text-white hover:border-[#404040] transition-colors"
+                  className={`px-4 py-2 ${classes.bgCardHover} ${classes.border} rounded-lg ${classes.textMuted} hover:${classes.text} ${classes.borderHover} transition-colors`}
                 >
                   Load More ({pagination.total - notifications.length} remaining)
                 </button>
@@ -374,7 +376,7 @@ export default function NotificationsPage() {
       </div>
 
       {/* Footer */}
-      <div className="text-center text-sm text-gray-500">
+      <div className={`text-center text-sm ${classes.textMuted}`}>
         <p>Notifications persist until manually deleted. <button className="text-[#facc15] hover:text-yellow-400">View Notification Settings</button></p>
       </div>
     </div>

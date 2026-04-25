@@ -18,18 +18,21 @@ import {
 } from 'lucide-react';
 import { employeeApi, Employee } from '@/lib/api';
 import { useToast } from '@/components/Toast';
+import { useTheme } from '@/hooks/useTheme';
 
 // QR Code Modal Component
 function QRCodeModal({ employee, isOpen, onClose }: { employee: Employee | null; isOpen: boolean; onClose: () => void }) {
+  const { classes } = useTheme();
+  
   if (!isOpen || !employee) return null;
 
   const qrData = `https://jajr.xandree.com/employee/select_employee.php?auto_timeIn=1&select_branch=1&emp_id=12&emp_code=${employee.employeeCode}`;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-      <div className="w-full max-w-md bg-[#1a1a1a] rounded-2xl border border-[#facc15]/30 shadow-2xl shadow-[#facc15]/10 overflow-hidden">
+      <div className={`w-full max-w-md ${classes.bgCardHover} rounded-2xl border border-[#facc15]/30 shadow-2xl shadow-[#facc15]/10 overflow-hidden`}>
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[#262626]">
+        <div className={`flex items-center justify-between px-6 py-4 border-b ${classes.border}`}>
           <div className="flex items-center gap-2">
             <QrCode className="w-5 h-5 text-[#facc15]" />
             <h2 className="text-lg font-bold text-[#facc15]">Employee QR Code</h2>
@@ -41,27 +44,27 @@ function QRCodeModal({ employee, isOpen, onClose }: { employee: Employee | null;
 
         {/* Content */}
         <div className="p-6 text-center">
-          <h3 className="text-xl font-bold text-white mb-1">{employee.firstName} {employee.lastName}</h3>
+          <h3 className={`text-xl font-bold ${classes.text} mb-1`}>{employee.firstName} {employee.lastName}</h3>
           <p className="text-[#facc15] font-medium mb-6">{employee.employeeCode}</p>
 
           {/* QR Code Placeholder */}
           <div className="w-64 h-64 mx-auto bg-white rounded-xl p-4 mb-4 flex items-center justify-center">
-            <div className="w-56 h-56 bg-[#1a1a1a] rounded-lg flex items-center justify-center">
+            <div className={`w-56 h-56 ${classes.bgCardHover} rounded-lg flex items-center justify-center`}>
               <QrCode className="w-40 h-40 text-black" />
             </div>
           </div>
 
-          <p className="text-gray-500 text-sm mb-4">Scan this QR code for quick employee identification</p>
+          <p className={`${classes.textMuted} text-sm mb-4`}>Scan this QR code for quick employee identification</p>
 
           {/* QR Data */}
-          <div className="bg-[#141414] rounded-lg p-3 mb-6 text-left">
+          <div className={`${classes.bgCard} rounded-lg p-3 mb-6 text-left`}>
             <p className="text-[#facc15] text-xs font-semibold mb-1">QR DATA:</p>
-            <p className="text-gray-400 text-xs break-all font-mono">{qrData}</p>
+            <p className={`${classes.textMuted} text-xs break-all font-mono`}>{qrData}</p>
           </div>
 
           {/* Actions */}
           <div className="flex gap-3">
-            <button onClick={onClose} className="flex-1 px-4 py-2 bg-[#262626] text-white rounded-lg hover:bg-[#333] transition-colors">
+            <button onClick={onClose} className={`flex-1 px-4 py-2 bg-[#262626] ${classes.text} rounded-lg hover:bg-[#333] transition-colors`}>
               Close
             </button>
             <button className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-[#facc15] text-black font-medium rounded-lg hover:bg-yellow-400 transition-colors">
@@ -83,6 +86,7 @@ function EditEmployeeModal({ employee, isOpen, onClose }: { employee: Employee |
   const [isLoading, setIsLoading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { showToast } = useToast();
+  const { classes } = useTheme();
 
   useEffect(() => {
     if (employee) {
@@ -594,6 +598,7 @@ export default function EmployeesPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [totalEmployees, setTotalEmployees] = useState(0);
   const { showToast } = useToast();
+  const { classes } = useTheme();
 
   const totalPages = Math.ceil(totalEmployees / employeesPerPage);
 
@@ -642,11 +647,11 @@ export default function EmployeesPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-xl font-bold text-white">Employees</h1>
-          <p className="text-gray-500 text-sm mt-0.5">Total Employees: {totalEmployees}</p>
+          <h1 className={`text-xl font-bold ${classes.text}`}>Employees</h1>
+          <p className={`${classes.textMuted} text-sm mt-0.5`}>Total Employees: {totalEmployees}</p>
         </div>
         <div className="flex items-center gap-4">
-          <p className="text-gray-500 text-sm hidden sm:block">Manage employee records</p>
+          <p className={`${classes.textMuted} text-sm hidden sm:block`}>Manage employee records</p>
           <button 
             onClick={() => setAddModalOpen(true)}
             className="flex items-center gap-2 px-4 py-2 bg-[#facc15] text-black font-medium rounded-lg hover:bg-yellow-400 transition-colors text-sm"
@@ -659,13 +664,13 @@ export default function EmployeesPage() {
 
       {/* Search */}
       <div className="relative">
-        <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+        <Search className={`absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 ${classes.textMuted}`} />
         <input
           type="text"
           placeholder="Search employees by name, code,"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="w-full pl-11 pr-4 py-3 bg-[#141414] border border-[#262626] rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-[#facc15]"
+          className={`w-full pl-11 pr-4 py-3 ${classes.bgCard} ${classes.border} rounded-lg ${classes.text} placeholder-gray-500 focus:outline-none focus:border-[#facc15]`}
         />
       </div>
 
@@ -674,21 +679,21 @@ export default function EmployeesPage() {
         <h2 className="text-[#facc15] font-bold text-lg mb-4">Existing Employees</h2>
 
         {/* Employees Table */}
-        <div className="bg-[#141414] rounded-xl border border-[#262626] overflow-hidden">
+        <div className={`${classes.bgCard} rounded-xl ${classes.border} overflow-hidden`}>
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
-                <tr className="border-b border-[#262626]">
-                  <th className="px-4 py-4 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Employee</th>
-                  <th className="px-4 py-4 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Code</th>
-                  <th className="px-4 py-4 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Position</th>
-                  <th className="px-4 py-4 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Status</th>
-                  <th className="px-4 py-4 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">Actions</th>
+                <tr className={`border-b ${classes.border}`}>
+                  <th className={`px-4 py-4 text-left text-xs font-medium ${classes.textMuted} uppercase tracking-wider`}>Employee</th>
+                  <th className={`px-4 py-4 text-left text-xs font-medium ${classes.textMuted} uppercase tracking-wider`}>Code</th>
+                  <th className={`px-4 py-4 text-left text-xs font-medium ${classes.textMuted} uppercase tracking-wider`}>Position</th>
+                  <th className={`px-4 py-4 text-left text-xs font-medium ${classes.textMuted} uppercase tracking-wider`}>Status</th>
+                  <th className={`px-4 py-4 text-right text-xs font-medium ${classes.textMuted} uppercase tracking-wider`}>Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {employees.map((employee) => (
-                  <tr key={employee.id} className="border-b border-[#262626] last:border-0 hover:bg-[#1a1a1a]">
+                  <tr key={employee.id} className={`border-b ${classes.border} last:border-0 ${classes.bgCardHover}`}>
                     <td className="px-4 py-4">
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-full bg-[#facc15] flex items-center justify-center text-black text-sm font-bold overflow-hidden">
@@ -703,13 +708,13 @@ export default function EmployeesPage() {
                           )}
                         </div>
                         <div>
-                          <p className="text-white font-medium text-sm">{employee.firstName} {employee.lastName}</p>
-                          <p className="text-gray-500 text-xs">{employee.email}</p>
+                          <p className={`${classes.text} font-medium text-sm`}>{employee.firstName} {employee.lastName}</p>
+                          <p className={`${classes.textMuted} text-xs`}>{employee.email}</p>
                         </div>
                       </div>
                     </td>
-                    <td className="px-4 py-4 text-gray-400 font-mono text-sm">{employee.employeeCode}</td>
-                    <td className="px-4 py-4 text-gray-400 text-sm">{employee.position}</td>
+                    <td className={`px-4 py-4 ${classes.textMuted} font-mono text-sm`}>{employee.employeeCode}</td>
+                    <td className={`px-4 py-4 ${classes.textMuted} text-sm`}>{employee.position}</td>
                     <td className="px-4 py-4">
                       <span className="inline-flex items-center px-2.5 py-1 bg-green-500/20 text-green-400 text-xs font-medium rounded-full">
                         {employee.status}
@@ -730,13 +735,13 @@ export default function EmployeesPage() {
                         </button>
                         <button 
                           onClick={() => handleQRClick(employee)}
-                          className="p-1.5 text-gray-400 hover:text-[#facc15] transition-colors"
+                          className={`p-1.5 ${classes.textMuted} hover:text-[#facc15] transition-colors`}
                         >
                           <QrCode className="w-4 h-4" />
                         </button>
                         <button 
                           onClick={() => handleEditClick(employee)}
-                          className="p-1.5 text-gray-400 hover:text-[#facc15] transition-colors"
+                          className={`p-1.5 ${classes.textMuted} hover:text-[#facc15] transition-colors`}
                         >
                           <Edit2 className="w-4 h-4" />
                         </button>

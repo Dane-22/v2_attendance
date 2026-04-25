@@ -25,6 +25,7 @@ import {
   LogOut
 } from 'lucide-react';
 import { useAppStore, useIsBranchUser, useBranchCode } from '@/store/appStore';
+import { useTheme } from '@/hooks/useTheme';
 import { notificationStats } from '@/app/dashboard/notifications/data';
 
 // Navigation item type
@@ -71,6 +72,7 @@ const financeSubItems: SubNavItem[] = [
 
 export default function Sidebar() {
   const { sidebarOpen, setSidebarOpen, mobileSidebarOpen, setMobileSidebarOpen, theme, user } = useAppStore();
+  const { classes } = useTheme();
   const isDark = theme === 'dark';
   const isBranchUser = useIsBranchUser();
   const branchCode = useBranchCode();
@@ -134,7 +136,7 @@ export default function Sidebar() {
       {/* Desktop Sidebar */}
       <aside
         ref={sidebarRef}
-        className={`hidden lg:block fixed left-0 top-16 bottom-0 z-40 backdrop-blur-xl border-r transition-all duration-300 ${sidebarOpen ? 'w-[280px]' : 'w-20'} ${isDark ? 'bg-[#0f0f0f] border-[#262626]' : 'bg-white border-gray-200'}`}
+        className={`hidden lg:block fixed left-0 top-16 bottom-0 z-40 backdrop-blur-xl border-r transition-all duration-300 ${sidebarOpen ? 'w-[280px]' : 'w-20'} ${classes.sidebar}`}
       >
         {/* Toggle Button - Desktop Only */}
         <button
@@ -154,13 +156,14 @@ export default function Sidebar() {
           branchCode={branchCode} 
           sidebarOpen={sidebarOpen}
           navItemsRef={navItemsRef}
+          classes={classes}
           isDark={isDark}
         />
       </aside>
       
       {/* Mobile Sidebar */}
       <aside
-        className={`lg:hidden fixed left-0 top-16 bottom-0 z-40 backdrop-blur-xl border-r transition-transform duration-300 ease-in-out ${mobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'} w-[280px] ${isDark ? 'bg-[#0f0f0f] border-[#262626]' : 'bg-white border-gray-200'}`}
+        className={`lg:hidden fixed left-0 top-16 bottom-0 z-40 backdrop-blur-xl border-r transition-transform duration-300 ease-in-out ${mobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'} w-[280px] ${classes.sidebar}`}
       >
         <SidebarContent 
           navItems={navItems} 
@@ -168,6 +171,7 @@ export default function Sidebar() {
           branchCode={branchCode} 
           sidebarOpen={true}
           navItemsRef={navItemsRef}
+          classes={classes}
           isDark={isDark}
         />
       </aside>
@@ -182,6 +186,7 @@ function SidebarContent({
   branchCode, 
   sidebarOpen,
   navItemsRef,
+  classes,
   isDark
 }: { 
   navItems: NavItem[]; 
@@ -189,6 +194,7 @@ function SidebarContent({
   branchCode: string; 
   sidebarOpen: boolean;
   navItemsRef: React.RefObject<HTMLDivElement | null>;
+  classes: ReturnType<typeof import('@/lib/theme').getThemeClasses>;
   isDark: boolean;
 }) {
   const pathname = usePathname();
@@ -243,7 +249,7 @@ function SidebarContent({
             {sidebarOpen && (
               <div>
                 <p className="text-xs text-[#facc15] font-medium uppercase tracking-wider">Branch</p>
-                <p className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>{branchCode}</p>
+                <p className={`text-sm font-semibold ${classes.text}`}>{branchCode}</p>
               </div>
             )}
           </div>
@@ -273,10 +279,8 @@ function SidebarContent({
                   onClick={() => setFinanceOpen((v) => !v)}
                   className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl transition-all duration-200 group relative ${
                     isFinanceActive
-                      ? 'bg-[#facc15]/10 text-[#facc15] border-l-2 border-[#facc15]'
-                      : isDark
-                        ? 'hover:bg-[#1a1a1a] text-gray-300'
-                        : 'hover:bg-gray-100 text-gray-600'
+                      ? classes.active
+                      : classes.hover
                   }`}
                   aria-expanded={financeOpen}
                 >
@@ -287,7 +291,7 @@ function SidebarContent({
                         ? 'text-gray-400 group-hover:text-[#facc15]'
                         : 'text-gray-500 group-hover:text-[#facc15]'
                   }`} />
-                  <span className={`font-medium text-sm whitespace-nowrap flex-1 ${isDark ? 'text-white' : 'text-gray-900'}`}>{item.name}</span>
+                  <span className={`font-medium text-sm whitespace-nowrap flex-1 ${classes.text}`}>{item.name}</span>
                   {financeOpen ? (
                     <ChevronUp className="w-4 h-4 text-gray-500" />
                   ) : (
@@ -306,9 +310,7 @@ function SidebarContent({
                           className={`flex items-center px-3 py-2 rounded-lg text-sm transition-colors ${
                             subActive
                               ? 'text-[#facc15] bg-[#facc15]/10'
-                              : isDark
-                                ? 'text-gray-300 hover:bg-[#1a1a1a]'
-                                : 'text-gray-600 hover:bg-gray-100'
+                              : classes.hover
                           }`}
                         >
                           <span className="whitespace-nowrap">{subItem.name}</span>
@@ -329,15 +331,13 @@ function SidebarContent({
                 isActive
                   ? isPrimary
                     ? 'bg-[#facc15] text-black shadow-lg shadow-yellow-500/30'
-                    : 'bg-[#facc15]/10 text-[#facc15] border-l-2 border-[#facc15]'
-                  : isDark 
-                    ? 'hover:bg-[#1a1a1a] text-gray-300'
-                    : 'hover:bg-gray-100 text-gray-600'
+                    : classes.active
+                  : classes.hover
               } ${sidebarOpen ? '' : 'justify-center'}`}
             >
               <Icon className={`w-5 h-5 transition-transform group-hover:scale-110 ${isActive ? (isPrimary ? 'text-black' : 'text-[#facc15]') : isDark ? 'text-gray-400 group-hover:text-[#facc15]' : 'text-gray-500 group-hover:text-[#facc15]'}`} />
               {sidebarOpen && (
-                <span className={`font-medium text-sm whitespace-nowrap flex-1 ${isDark ? 'text-white' : 'text-gray-900'}`}>{item.name}</span>
+                <span className={`font-medium text-sm whitespace-nowrap flex-1 ${classes.text}`}>{item.name}</span>
               )}
               {/* Badge for notifications */}
               {sidebarOpen && item.badge && (
@@ -356,10 +356,10 @@ function SidebarContent({
       
       {/* Log Out */}
       {sidebarOpen && (
-        <div className={`px-4 pt-4 mt-4 border-t ${isDark ? 'border-[#262626]' : 'border-gray-200'}`}>
+        <div className={`px-4 pt-4 mt-4 border-t ${classes.border}`}>
           <button 
             onClick={handleLogout}
-            className={`flex items-center gap-3 px-3 py-3 rounded-xl w-full transition-colors ${isDark ? 'hover:bg-[#1a1a1a] text-gray-400' : 'hover:bg-gray-100 text-gray-500'}`}
+            className={`flex items-center gap-3 px-3 py-3 rounded-xl w-full transition-colors ${classes.hover} ${classes.textMuted}`}
           >
             <LogOut className="w-5 h-5" />
             <span className="font-medium text-sm">Log Out</span>

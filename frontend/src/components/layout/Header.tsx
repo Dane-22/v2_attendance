@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { useAppStore } from '@/store/appStore';
 import { useUnreadCount } from '@/hooks/useUnreadCount';
+import { useTheme } from '@/hooks/useTheme';
 import NotificationDropdown from '@/components/NotificationDropdown';
 
 export default function Header() {
@@ -25,6 +26,8 @@ export default function Header() {
     toggleMobileSidebar,
     setUser 
   } = useAppStore();
+  
+  const { classes } = useTheme();
   
   const headerRef = useRef<HTMLElement>(null);
   const themeBtnRef = useRef<HTMLButtonElement>(null);
@@ -90,14 +93,14 @@ export default function Header() {
   return (
     <header
       ref={headerRef}
-      className={`fixed top-0 left-0 right-0 z-50 h-16 ${isDark ? 'bg-[#0a0a0a] border-[#262626]' : 'bg-white border-gray-200'} backdrop-blur-md border-b transition-colors duration-300`}
+      className={`fixed top-0 left-0 right-0 z-50 h-16 ${classes.header} backdrop-blur-md border-b transition-colors duration-300`}
     >
       <div className="h-full px-4 flex items-center justify-between">
         {/* Left - Logo & Menu Toggle */}
         <div className="flex items-center gap-4">
           <button
             onClick={toggleMobileSidebar}
-            className={`p-2 rounded-lg transition-colors lg:hidden ${isDark ? 'hover:bg-[#1a1a1a] text-white' : 'hover:bg-gray-100 text-gray-900'}`}
+            className={`p-2 rounded-lg transition-colors lg:hidden ${classes.hover} ${classes.text}`}
             aria-label="Open menu"
           >
             <Menu className="w-5 h-5" />
@@ -108,7 +111,7 @@ export default function Header() {
             <div className="w-8 h-8 rounded-lg bg-[#facc15] flex items-center justify-center font-bold text-black text-sm shadow-lg shadow-yellow-500/20">
               J
             </div>
-            <span className={`font-semibold text-lg hidden sm:block ${isDark ? 'text-white' : 'text-gray-900'}`}>
+            <span className={`font-semibold text-lg hidden sm:block ${classes.text}`}>
               JAJR <span className="text-[#facc15]">Attendance</span>
             </span>
           </div>
@@ -120,7 +123,7 @@ export default function Header() {
           <button
             ref={themeBtnRef}
             onClick={handleThemeToggle}
-            className={`p-2.5 rounded-lg transition-all duration-300 ${isDark ? 'hover:bg-[#1a1a1a]' : 'hover:bg-gray-100'}`}
+            className={`p-2.5 rounded-lg transition-all duration-300 ${classes.hover}`}
             aria-label="Toggle theme"
           >
             {isDark ? (
@@ -134,9 +137,9 @@ export default function Header() {
           <div className="relative" ref={notificationsRef}>
             <button 
               onClick={() => setNotificationsOpen(!notificationsOpen)}
-              className={`relative p-2.5 rounded-lg transition-colors ${isDark ? 'hover:bg-[#1a1a1a]' : 'hover:bg-gray-100'}`}
+              className={`relative p-2.5 rounded-lg transition-colors ${classes.hover}`}
             >
-              <Bell className={`w-5 h-5 ${isDark ? 'text-gray-400' : 'text-gray-600'}`} />
+              <Bell className={`w-5 h-5 ${classes.textMuted}`} />
               {unreadCount > 0 && (
                 <span className="absolute top-1.5 right-1.5 w-4 h-4 bg-red-500 rounded-full text-[10px] font-bold text-white flex items-center justify-center animate-pulse">
                   {unreadCount > 9 ? '9+' : unreadCount}
@@ -153,27 +156,27 @@ export default function Header() {
           <div className="relative" ref={profileRef}>
             <button 
               onClick={() => setProfileOpen(!profileOpen)}
-              className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-colors ${isDark ? 'hover:bg-[#1a1a1a]' : 'hover:bg-gray-100'}`}
+              className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-colors ${classes.hover}`}
             >
               <div className="w-8 h-8 rounded-full bg-[#facc15] flex items-center justify-center">
                 <User className="w-4 h-4 text-black" />
               </div>
               <div className="hidden md:block text-left">
-                <p className={`text-sm font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                <p className={`text-sm font-medium ${classes.text}`}>
                   {user?.name || 'Admin User'}
                 </p>
                 <p className="text-xs text-[#facc15] capitalize">
                   {user?.role || 'Admin'}
                 </p>
               </div>
-              <ChevronDown className={`w-4 h-4 ${isDark ? 'text-gray-400' : 'text-gray-600'}`} />
+              <ChevronDown className={`w-4 h-4 ${classes.textMuted}`} />
             </button>
             
             {/* Dropdown Menu */}
-            <div className={`absolute right-0 top-full mt-2 w-48 py-2 rounded-xl shadow-2xl transition-all duration-200 z-50 ${profileOpen ? 'opacity-100 visible' : 'opacity-0 invisible'} ${isDark ? 'bg-[#141414] border border-[#262626]' : 'bg-white border border-gray-200'}`}>
-              <div className={`px-4 py-2 border-b ${isDark ? 'border-[#262626]' : 'border-gray-200'}`}>
-                <p className={`text-sm font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>{user?.name}</p>
-                <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{user?.email}</p>
+            <div className={`absolute right-0 top-full mt-2 w-48 py-2 rounded-xl shadow-2xl transition-all duration-200 z-50 ${profileOpen ? 'opacity-100 visible' : 'opacity-0 invisible'} ${classes.bgCard} ${classes.border}`}>
+              <div className={`px-4 py-2 border-b ${classes.border}`}>
+                <p className={`text-sm font-medium ${classes.text}`}>{user?.name}</p>
+                <p className={`text-xs ${classes.textMuted}`}>{user?.email}</p>
               </div>
               
               <button
