@@ -155,7 +155,7 @@ export default function AttendanceSummaryPage() {
   const [lastFetchTime, setLastFetchTime] = useState(0);
   const RATE_LIMIT_MS = 1000; // 1 second
 
-  // Validate date range
+  // Validate date range (pure function, no state updates)
   const validateDateRange = useCallback((start: string, end: string): boolean => {
     const startObj = new Date(start);
     const endObj = new Date(end);
@@ -163,18 +163,31 @@ export default function AttendanceSummaryPage() {
     maxDate.setDate(maxDate.getDate() + 90); // 90 days max
     
     if (endObj < startObj) {
-      setDateRangeError('End date must be after start date');
       return false;
     }
     
     if (endObj > maxDate) {
-      setDateRangeError('Date range cannot exceed 90 days');
       return false;
     }
     
-    setDateRangeError('');
     return true;
   }, []);
+
+  // Update date range error based on validation
+  useEffect(() => {
+    const startObj = new Date(startDate);
+    const endObj = new Date(endDate);
+    const maxDate = new Date(startObj);
+    maxDate.setDate(maxDate.getDate() + 90);
+    
+    if (endObj < startObj) {
+      setDateRangeError('End date must be after start date');
+    } else if (endObj > maxDate) {
+      setDateRangeError('Date range cannot exceed 90 days');
+    } else {
+      setDateRangeError('');
+    }
+  }, [startDate, endDate]);
 
   // Fetch attendance data
   const { data: attendanceData, isLoading: isAttendanceLoading, error: attendanceError, refetch } = useQuery({
