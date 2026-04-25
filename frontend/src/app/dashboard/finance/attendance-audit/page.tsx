@@ -85,11 +85,19 @@ const formatDate = (date: Date): string => {
 };
 
 // Calculate hours worked from check_in and check_out
-const calculateHoursWorked = (checkIn: Date | null, checkOut: Date | null): { decimal: number; hoursMinutes: string } => {
+const calculateHoursWorked = (checkIn: Date | string | null, checkOut: Date | string | null): { decimal: number; hoursMinutes: string } => {
   if (!checkIn || !checkOut) {
     return { decimal: 0, hoursMinutes: '0:00' };
   }
-  const diffMs = checkOut.getTime() - checkIn.getTime();
+  
+  const checkInDate = typeof checkIn === 'string' ? new Date(checkIn) : checkIn;
+  const checkOutDate = typeof checkOut === 'string' ? new Date(checkOut) : checkOut;
+  
+  if (isNaN(checkInDate.getTime()) || isNaN(checkOutDate.getTime())) {
+    return { decimal: 0, hoursMinutes: '0:00' };
+  }
+  
+  const diffMs = checkOutDate.getTime() - checkInDate.getTime();
   const diffHours = diffMs / (1000 * 60 * 60);
   const hours = Math.floor(diffHours);
   const minutes = Math.round((diffHours - hours) * 60);
