@@ -200,17 +200,22 @@ export default function AttendanceSummaryPage() {
       setLastFetchTime(Date.now());
       
       try {
+        console.log('[Attendance Summary] Fetching attendance with params:', { startDate, endDate, page, limit: pageSize });
         const response = await attendanceApi.getAll({
           startDate,
           endDate,
           page,
           limit: pageSize
         });
+        console.log('[Attendance Summary] API response:', response);
         
         // Fetch employees to get names
         const attendanceRecords = response.data?.data || [];
+        console.log('[Attendance Summary] Attendance records:', attendanceRecords.length);
         const employeeIds = [...new Set(attendanceRecords.map((a: Attendance) => a.employeeId))];
+        console.log('[Attendance Summary] Fetching employees for IDs:', employeeIds);
         const employeesResponse = await employeeApi.getAll({ limit: 1000 });
+        console.log('[Attendance Summary] Employees response:', employeesResponse);
         const employees = employeesResponse.data?.data || [];
         const employeeMap = new Map(employees.map((e: Employee) => [e.id, `${e.firstName} ${e.lastName}`]));
         
@@ -278,12 +283,25 @@ export default function AttendanceSummaryPage() {
           totalPages: Math.ceil(filteredRecords.length / pageSize)
         };
       } catch (err: any) {
+        console.error('[Attendance Summary] Error fetching data:', err);
+        console.error('[Attendance Summary] Error details:', {
+          code: err.code,
+          message: err.message,
+          response: err.response?.data,
+          status: err.response?.status
+        });
         if (err.code === 'ERR_NETWORK' || !err.response) {
           setIsNetworkError(true);
           setError('Network error. Please check your connection.');
+        } else if (err.response?.status === 401) {
+          setIsNetworkError(false);
+          setError('Authentication failed. Please log in again.');
+        } else if (err.response?.status === 404) {
+          setIsNetworkError(false);
+          setError('API endpoint not found. Please contact support.');
         } else {
           setIsNetworkError(false);
-          setError(err.response?.data?.message || 'Failed to fetch attendance data');
+          setError(err.response?.data?.message || `Error: ${err.message}`);
         }
         throw err;
       }
