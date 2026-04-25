@@ -66,6 +66,7 @@ const financeSubItems: SubNavItem[] = [
   { name: 'Overtime', href: '/dashboard/finance/overtime' },
   { name: 'Billing', href: '/dashboard/finance/billing' },
   { name: 'Cash Advance', href: '/dashboard/finance/cash-advance' },
+  { name: 'Attendance Summary', href: '/dashboard/finance/attendance-audit' },
 ];
 
 export default function Sidebar() {
@@ -202,13 +203,15 @@ function SidebarContent({
   const [financeOpen, setFinanceOpen] = useState(() => {
     const isFinanceRoute = pathname === '/dashboard/finance' || pathname?.startsWith('/dashboard/finance/');
     const isPayrollRoute = pathname === '/dashboard/payroll' || pathname?.startsWith('/dashboard/payroll/');
-    return isFinanceRoute || isPayrollRoute;
+    const isAttendanceAuditRoute = pathname === '/dashboard/finance/attendance-audit' || pathname?.startsWith('/dashboard/finance/attendance-audit/');
+    return isFinanceRoute || isPayrollRoute || isAttendanceAuditRoute;
   });
 
   useEffect(() => {
     const isFinanceRoute = pathname === '/dashboard/finance' || pathname?.startsWith('/dashboard/finance/');
     const isPayrollRoute = pathname === '/dashboard/payroll' || pathname?.startsWith('/dashboard/payroll/');
-    if (isFinanceRoute || isPayrollRoute) {
+    const isAttendanceAuditRoute = pathname === '/dashboard/finance/attendance-audit' || pathname?.startsWith('/dashboard/finance/attendance-audit/');
+    if (isFinanceRoute || isPayrollRoute || isAttendanceAuditRoute) {
       setFinanceOpen(true);
     }
   }, [pathname]);
@@ -258,7 +261,9 @@ function SidebarContent({
             pathname === '/dashboard/finance' ||
             pathname?.startsWith('/dashboard/finance/') ||
             pathname === '/dashboard/payroll' ||
-            pathname?.startsWith('/dashboard/payroll/');
+            pathname?.startsWith('/dashboard/payroll/') ||
+            pathname === '/dashboard/finance/attendance-audit' ||
+            pathname?.startsWith('/dashboard/finance/attendance-audit/');
           
           if (isFinance && sidebarOpen) {
             return (
