@@ -431,7 +431,6 @@ export const createTestNotification = async (
         type: type || 'SYSTEM',
         title: config.title,
         message: config.message,
-        is_urgent: isUrgent,
         link: '/dashboard/notifications',
       },
     });
@@ -472,10 +471,9 @@ async function getNotificationStats(userId: number, userRole?: string) {
 
   const baseWhere = { OR: recipientConditions };
 
-  const [total, unread, urgent, byType] = await Promise.all([
+  const [total, unread, byType] = await Promise.all([
     prisma.notifications.count({ where: baseWhere }),
     prisma.notifications.count({ where: { ...baseWhere, is_read: false } }),
-    prisma.notifications.count({ where: { ...baseWhere, is_urgent: true } }),
     prisma.notifications.groupBy({
       by: ['type'],
       where: baseWhere,
@@ -491,7 +489,7 @@ async function getNotificationStats(userId: number, userRole?: string) {
   return {
     total,
     unread,
-    urgent,
+    urgent: 0,
     byType: {
       ATTENDANCE: byTypeMap.ATTENDANCE || 0,
       PAYROLL: byTypeMap.PAYROLL || 0,

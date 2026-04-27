@@ -532,7 +532,7 @@ export default function DocumentsPage() {
                       </span>
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-400">{formatFileSize(doc.fileSize)}</td>
-                    <td className="px-4 py-3 text-sm text-gray-400">{formatDate(doc.uploadedAt)}</td>
+                    <td className="px-4 py-3 text-sm text-gray-400">{formatDate(doc.uploadedAt?.toISOString() || '')}</td>
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-end gap-1">
                         <button
@@ -597,7 +597,7 @@ export default function DocumentsPage() {
                       </span>
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-400">{formatFileSize(doc.fileSize)}</td>
-                    <td className="px-4 py-3 text-sm text-gray-400">{formatDate(doc.uploadedAt)}</td>
+                    <td className="px-4 py-3 text-sm text-gray-400">{formatDate(doc.uploadedAt?.toISOString() || '')}</td>
                     <td className="px-4 py-3 text-xs text-gray-500 font-mono">{doc.fileHash || '-'}</td>
                     <td className="px-4 py-3">
                       <span className={`px-2 py-1 rounded text-xs ${doc.isCompressed ? 'bg-green-500/20 text-green-400' : 'bg-gray-500/20 text-gray-400'}`}>
@@ -698,7 +698,7 @@ export default function DocumentsPage() {
                       </span>
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-400">{formatFileSize(doc.fileSize)}</td>
-                    <td className="px-4 py-3 text-sm text-gray-400">{doc.archivedAt ? formatDate(doc.archivedAt) : '-'}</td>
+                    <td className="px-4 py-3 text-sm text-gray-400">{doc.archivedAt ? formatDate(doc.archivedAt.toISOString()) : '-'}</td>
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-end gap-1">
                         <button

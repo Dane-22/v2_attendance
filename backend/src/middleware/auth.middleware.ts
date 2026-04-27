@@ -55,9 +55,7 @@ export const authenticate = async (
         name: true,
         email: true,
         role: true,
-        branch_code: true,
-        permissions: true,
-        permissions_enabled: true
+        branch_code: true
       }
     });
 
@@ -65,7 +63,7 @@ export const authenticate = async (
       throw new AppError('Admin not found', 404);
     }
 
-    req.admin = admin;
+    req.admin = admin as any;
     next();
   } catch (error) {
     if (error instanceof AppError) {
@@ -104,14 +102,12 @@ export const optionalAuth = async (
         name: true,
         email: true,
         role: true,
-        branch_code: true,
-        permissions: true,
-        permissions_enabled: true
+        branch_code: true
       }
     });
 
     if (admin) {
-      req.admin = admin;
+      req.admin = admin as any;
     }
 
     next();
