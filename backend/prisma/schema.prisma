@@ -28,6 +28,8 @@ model Employee {
   hasDeduction         Boolean?  @default(true) @map("has_deduction")
   branchId             Int?      @map("branch_id")
   branchCode           String?   @map("branch_code") @db.VarChar(10)
+  pinHash              String?   @map("pin_hash") @db.VarChar(255)
+  pinSalt              String?   @map("pin_salt") @db.VarChar(255)
 
   @@index([branchName], map: "idx_employee_branch")
   @@index([branchCode], map: "idx_employee_branch_code")
@@ -150,6 +152,42 @@ enum attendance_status {
 enum payroll_records_status {
   draft
   processed
+}
+
+enum document_type {
+  RESUME
+  SSS
+  TIN
+  PHILHEALTH
+  BIRTH_CERTIFICATE
+  PDS
+  COVER_LETTER
+  APPLICATION_LETTER
+  CLEARANCE
+}
+
+model Document {
+  id                Int           @id @default(autoincrement())
+  employeeId        Int?          @map("employee_id")
+  documentType      document_type @map("document_type")
+  fileName          String        @map("file_name") @db.VarChar(255)
+  originalFileName  String?       @map("original_file_name") @db.VarChar(255)
+  filePath          String        @map("file_path") @db.VarChar(500)
+  fileSize          Int           @map("file_size")
+  mimeType          String        @map("mime_type") @db.VarChar(100)
+  fileHash          String?       @map("file_hash") @db.VarChar(64)
+  isCompressed      Boolean       @default(false) @map("is_compressed")
+  uploadedBy        Int           @map("uploaded_by")
+  uploadedAt        DateTime      @default(now()) @map("uploaded_at") @db.Timestamp(0)
+  isArchived        Boolean       @default(false) @map("is_archived")
+  archivedAt        DateTime?     @map("archived_at") @db.Timestamp(0)
+  archivedBy        Int?          @map("archived_by")
+
+  @@index([employeeId], map: "idx_document_employee")
+  @@index([documentType], map: "idx_document_type")
+  @@index([uploadedAt], map: "idx_document_uploaded_at")
+  @@index([isArchived], map: "idx_document_is_archived")
+  @@map("documents")
 }
 
 model ActivityLog {
