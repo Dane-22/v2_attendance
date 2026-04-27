@@ -1,6 +1,9 @@
 import axios from 'axios';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5002/api';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+
+console.log('[API] NEXT_PUBLIC_API_URL:', process.env.NEXT_PUBLIC_API_URL);
+console.log('[API] Using API_URL:', API_URL);
 
 export const api = axios.create({
   baseURL: API_URL,
@@ -172,6 +175,8 @@ export const attendanceApi = {
     api.post<ApiResponse<Attendance>>('/attendance/clock-out', data),
   manualClockIn: (data: { employeeId: number; notes?: string; branch_code?: string }) =>
     api.post<ApiResponse<Attendance>>('/attendance/manual-clock-in', data),
+  manualClockInWithTransfer: (data: { employeeId: number; notes?: string; branch_code?: string }) =>
+    api.post<ApiResponse<{ attendance: Attendance; employee: any; previousBranch: string | null }>>('/attendance/manual-clock-in-with-transfer', data).then(res => res.data),
   manualClockOut: (data: { employeeId: number; notes?: string }) =>
     api.post<ApiResponse<Attendance>>('/attendance/manual-clock-out', data),
   getAudit: (params: { date?: string; branch_code?: string; status?: string }) =>
@@ -342,6 +347,85 @@ export const notificationApi = {
 
   createTestNotification: (data: { type: string; isUrgent?: boolean }) =>
     api.post<ApiResponse<Notification>>('/notifications/test', data),
+};
+
+export interface Document {
+  id: number;
+  employeeId: number | null;
+  documentType: 'RESUME' | 'SSS' | 'TIN' | 'PHILHEALTH' | 'BIRTH_CERTIFICATE' | 'PDS' | 'COVER_LETTER' | 'APPLICATION_LETTER' | 'CLEARANCE';
+  fileName: string;
+  originalFileName: string | null;
+  filePath: string;
+  fileSize: number;
+  mimeType: string;
+  fileHash: string | null;
+  isCompressed: boolean;
+  uploadedBy: number;
+  uploadedAt: Date;
+  isArchived: boolean;
+  archivedAt: Date | null;
+  archivedBy: number | null;
+}
+
+export interface EmployeeSummary {
+  id: number;
+  employeeCode: string | null;
+  firstName: string | null;
+  middleName: string | null;
+  lastName: string | null;
+  department: string | null;
+  position: string | null;
+  branchName: string | null;
+  branchCode: string | null;
+  status: string | null;
+  documentCount: number;
+}
+
+export const documentApi = {
+  getEmployees: (params?: { page?: number; limit?: number; search?: string; branch_code?: string }) =>
+    api.get<PaginatedResponse<EmployeeSummary[]>>('/documents/employees', { params }),
+
+  getEmployeeDocuments: (employeeId: number) =>
+    api.get<ApiResponse<{ employee: Employee; documents: Document[] }>>(`/documents/employees/${employeeId}`),
+
+  uploadDocument: (employeeId: number, file: File, documentType: string) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('documentType', documentType);
+    return api.post<ApiResponse<Document>>(`/documents/employees/${employeeId}/documents`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  },
+
+  bulkUploadDocuments: (employeeId: number, files: File[], typeMapping: Array<{ index: number; documentType: string }>) => {
+    const formData = new FormData();
+    files.forEach((file) => formData.append('files', file));
+    formData.append('typeMapping', JSON.stringify(typeMapping));
+    return api.post<ApiResponse<Document[]>>(`/documents/employees/${employeeId}/documents/bulk`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  },
+
+  downloadDocument: (documentId: number) =>
+    api.get(`/documents/${documentId}`, { responseType: 'blob' }),
+
+  deleteDocument: (documentId: number) =>
+    api.delete<ApiResponse<null>>(`/documents/${documentId}`),
+
+  archiveDocument: (documentId: number) =>
+    api.post<ApiResponse<Document>>(`/documents/${documentId}/archive`),
+
+  unarchiveDocument: (documentId: number) =>
+    api.post<ApiResponse<Document>>(`/documents/${documentId}/unarchive`),
+
+  getArchivedDocuments: (params?: { page?: number; limit?: number; employee_id?: number; document_type?: string }) =>
+    api.get<PaginatedResponse<Document[]>>(`/documents/archived`, { params }),
+
+  archiveAllEmployeeDocuments: (employeeId: number) =>
+    api.post<ApiResponse<{ archivedCount: number }>>(`/documents/employees/${employeeId}/archive-all`),
+
+  getDocumentStats: () =>
+    api.get<ApiResponse<{ totalDocuments: number; archivedDocuments: number; documentsByType: any[]; employeesWithDocumentsCount: number }>>('/documents/stats'),
 };
 
 export default api;

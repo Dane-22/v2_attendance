@@ -557,6 +557,218 @@ export const manualClockIn = async (
   }
 };
 
+export const manualClockInWithTransfer = async (
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const { employeeId, notes, branch_code } = req.body;
+
+    if (!employeeId) {
+      throw new AppError('Employee ID is required', 400);
+    }
+
+    if (!branch_code) {
+      throw new AppError('Branch code is required', 400);
+    }
+
+    const employee = await prisma.employee.findUnique({
+      where: { id: employeeId }
+    });
+
+    if (!employee) {
+      throw new AppError('Employee not found', 404);
+    }
+
+    if (employee.status !== 'Active') {
+      throw new AppError('Employee account is not active', 403);
+    }
+
+    // Validate destination branch exists
+    const destinationBranch = await prisma.branches.findUnique({
+      where: { branch_code: branch_code }
+    });
+
+    if (!destinationBranch) {
+      throw new AppError('Destination branch not found', 404);
+    }
+
+    // Check if employee has active clock-in (enforce restriction)
+    const { start: todayStart, end: todayEnd } = getPhilippinesDateRange();
+    const activeAttendance = await prisma.attendance.findFirst({
+      where: {
+        employeeId: employeeId,
+        date: {
+          gte: todayStart,
+          lt: todayEnd
+        },
+        check_in: { not: null },
+        check_out: null
+      }
+    });
+
+    if (activeAttendance) {
+      throw new AppError('Cannot transfer employee with active clock-in. Please clock out first.', 400);
+    }
+
+    // Check if employee's branchCode differs from requested branch_code
+    if (employee.branchCode === branch_code) {
+      // Same branch - perform normal clock-in only
+      const { attendance, message } = await performClockIn(employee, notes, true, branch_code);
+
+      // Log manual clock in
+      await logCreate({
+        userId: req.admin?.id || 0,
+        userName: req.admin?.name || 'unknown',
+        userRole: req.admin?.role || 'admin',
+        entityType: 'ATTENDANCE',
+        entityId: attendance.id.toString(),
+        entityName: `Attendance for ${employee.firstName} ${employee.lastName}`,
+        description: `Manual Clock IN: ${employee.firstName} ${employee.lastName} by ${req.admin?.name}`,
+        detailsAfter: attendance,
+        ipAddress: req.ip,
+        userAgent: req.headers['user-agent'],
+        branchId: employee.branchId || undefined,
+        metadata: { method: 'manual', employeeId: employee.id, branch_code },
+      });
+
+      // Emit WebSocket event
+      const branchCode = branch_code || employee.branchCode || employee.branchName || 'A';
+      if (global.io) {
+        emitAttendanceUpdate(global.io, branchCode, {
+          type: 'clock_in',
+          employeeId: employee.id,
+          employeeName: `${employee.firstName} ${employee.lastName}`,
+          employeeCode: employee.employeeCode || '',
+          branchCode: branchCode,
+          branchName: branchCode,
+          timestamp: new Date().toISOString(),
+          previousStatus: 'available',
+          newStatus: attendance.status || 'present'
+        });
+      }
+
+      const response: ApiResponse<AttendanceResponse> = {
+        success: true,
+        message,
+        data: attendance as AttendanceResponse
+      };
+
+      res.status(201).json(response);
+      return;
+    }
+
+    // Different branch - perform atomic transaction (clock-in + transfer)
+    const previousBranch = employee.branchCode;
+    const previousBranchName = employee.branchName;
+
+    const result = await prisma.$transaction(async (tx) => {
+      // Create attendance record
+      const { attendance } = await performClockIn(employee, notes, true, branch_code);
+
+      // Update employee branch
+      const updatedEmployee = await tx.employee.update({
+        where: { id: employeeId },
+        data: {
+          branchCode: branch_code,
+          branchName: destinationBranch.branch_name,
+          branchId: destinationBranch.id
+        },
+        select: {
+          id: true,
+          employeeCode: true,
+          firstName: true,
+          lastName: true,
+          branchName: true,
+          branchCode: true,
+          branchId: true,
+          status: true
+        }
+      });
+
+      return { attendance, updatedEmployee };
+    });
+
+    // Log auto-transfer action
+    await logUpdate({
+      userId: req.admin?.id || 0,
+      userName: req.admin?.name || 'unknown',
+      userRole: req.admin?.role || 'admin',
+      entityType: 'EMPLOYEE',
+      entityId: employee.id.toString(),
+      entityName: `${employee.firstName} ${employee.lastName}`,
+      description: `transfer on clock in at ${branch_code} from ${previousBranch}`,
+      detailsBefore: { branchCode: previousBranch, branchName: previousBranchName },
+      detailsAfter: { branchCode: branch_code, branchName: destinationBranch.branch_name },
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+      metadata: { method: 'auto_transfer_on_clock_in', employeeId: employee.id, previousBranch, newBranch: branch_code }
+    });
+
+    // Log attendance
+    await logCreate({
+      userId: req.admin?.id || 0,
+      userName: req.admin?.name || 'unknown',
+      userRole: req.admin?.role || 'admin',
+      entityType: 'ATTENDANCE',
+      entityId: result.attendance.id.toString(),
+      entityName: `Attendance for ${employee.firstName} ${employee.lastName}`,
+      description: `Manual Clock IN with transfer: ${employee.firstName} ${employee.lastName} by ${req.admin?.name}`,
+      detailsAfter: result.attendance,
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+      branchId: destinationBranch.id,
+      metadata: { method: 'manual_with_transfer', employeeId: employee.id, branch_code, previousBranch }
+    });
+
+    // Emit WebSocket event to both old and new branches
+    if (global.io) {
+      // Emit to new branch
+      emitAttendanceUpdate(global.io, branch_code, {
+        type: 'clock_in',
+        employeeId: employee.id,
+        employeeName: `${employee.firstName} ${employee.lastName}`,
+        employeeCode: employee.employeeCode || '',
+        branchCode: branch_code,
+        branchName: branch_code,
+        timestamp: new Date().toISOString(),
+        previousStatus: 'available',
+        newStatus: result.attendance.status || 'present'
+      });
+
+      // Emit to old branch if different
+      if (previousBranch && previousBranch !== branch_code) {
+        emitAttendanceUpdate(global.io, previousBranch, {
+          type: 'clock_in',
+          employeeId: employee.id,
+          employeeName: `${employee.firstName} ${employee.lastName}`,
+          employeeCode: employee.employeeCode || '',
+          branchCode: branch_code,
+          branchName: branch_code,
+          timestamp: new Date().toISOString(),
+          previousStatus: 'available',
+          newStatus: result.attendance.status || 'present'
+        });
+      }
+    }
+
+    const response: ApiResponse<{ attendance: AttendanceResponse; employee: any; previousBranch: string | null }> = {
+      success: true,
+      message: 'Clock-in and transfer successful',
+      data: {
+        attendance: result.attendance as AttendanceResponse,
+        employee: result.updatedEmployee,
+        previousBranch: previousBranch
+      }
+    };
+
+    res.status(201).json(response);
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const clockOut = async (
   req: Request,
   res: Response,

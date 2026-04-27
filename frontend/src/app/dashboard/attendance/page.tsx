@@ -68,6 +68,10 @@ export default function AttendancePage() {
   const [selectedEmployeeForTransfer, setSelectedEmployeeForTransfer] = useState<BranchEmployee | null>(null);
   const [kebabMenuOpen, setKebabMenuOpen] = useState<Record<number, boolean>>({});
   const [previousBranchForUndo, setPreviousBranchForUndo] = useState<string | null>(null);
+
+  // Auto-transfer confirmation modal state
+  const [isAutoTransferModalOpen, setIsAutoTransferModalOpen] = useState(false);
+  const [selectedEmployeeForAutoTransfer, setSelectedEmployeeForAutoTransfer] = useState<BranchEmployee | null>(null);
   
   // Mobile detection effect
   useEffect(() => {
@@ -160,6 +164,34 @@ export default function AttendancePage() {
       console.error('Clock-in error:', error);
       console.log('Error response data:', error.response?.data);
       const message = error.response?.data?.message || error.response?.data?.error || error.message || 'Failed to clock in';
+      console.log('Alert message:', message);
+      window.alert(message);
+    }
+  });
+
+  // Manual clock-in with transfer mutation
+  const clockInWithTransferMutation = useMutation({
+    mutationFn: ({ employeeId, branchCode }: { employeeId: number; branchCode: string }) =>
+      attendanceApi.manualClockInWithTransfer({ employeeId, branch_code: branchCode }),
+    onSuccess: async (data) => {
+      console.log('Clock-in with transfer success response:', data);
+      // Store previous branch for undo
+      if (data.data?.previousBranch) {
+        setPreviousBranchForUndo(data.data.previousBranch);
+      }
+      // Clear search and force immediate refetch to update UI
+      setSearchQuery('');
+      // Refetch queries immediately to get fresh data
+      await queryClient.refetchQueries({ queryKey: ['branch-employees', selectedBranch], exact: true });
+      await queryClient.refetchQueries({ queryKey: ['today-attendance-all'], exact: true });
+      // Close modal
+      setIsAutoTransferModalOpen(false);
+      setSelectedEmployeeForAutoTransfer(null);
+    },
+    onError: (error: AxiosError<{ message?: string; error?: string }>) => {
+      console.error('Clock-in with transfer error:', error);
+      console.log('Error response data:', error.response?.data);
+      const message = error.response?.data?.message || error.response?.data?.error || error.message || 'Failed to clock in with transfer';
       console.log('Alert message:', message);
       window.alert(message);
     }
@@ -692,12 +724,20 @@ export default function AttendancePage() {
                       <div className="flex flex-col gap-2 flex-shrink-0">
                         <button
                           onClick={() => {
-                            clockInMutation.mutate({ employeeId: employee.id, branchCode: selectedBranch });
+                            // Check if employee's branch differs from selected branch
+                            if (employee.branchCode && employee.branchCode !== selectedBranch) {
+                              // Show auto-transfer confirmation modal
+                              setSelectedEmployeeForAutoTransfer(employee);
+                              setIsAutoTransferModalOpen(true);
+                            } else {
+                              // Same branch - normal clock-in
+                              clockInMutation.mutate({ employeeId: employee.id, branchCode: selectedBranch });
+                            }
                           }}
-                          disabled={clockInMutation.isPending}
+                          disabled={clockInMutation.isPending || clockInWithTransferMutation.isPending}
                           className="inline-flex items-center gap-1 px-3 py-1.5 bg-green-500/20 text-green-400 text-xs font-medium rounded-full hover:bg-green-500/30 transition-colors disabled:opacity-50"
                         >
-                          {clockInMutation.isPending ? (
+                          {(clockInMutation.isPending || clockInWithTransferMutation.isPending) ? (
                             <Loader2 className="w-3 h-3 animate-spin" />
                           ) : (
                             <LogIn className="w-3 h-3" />
@@ -1409,6 +1449,84 @@ export default function AttendancePage() {
                   <Loader2 className="w-4 h-4 animate-spin mx-auto" />
                 ) : (
                   'Transfer'
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Auto-Transfer Confirmation Modal */}
+      {isAutoTransferModalOpen && selectedEmployeeForAutoTransfer && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <div className="w-full max-w-md bg-[#141414] rounded-2xl border border-[#262626] shadow-2xl overflow-hidden">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-[#262626]">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-[#facc15]/20 flex items-center justify-center">
+                  <UserCheck className="w-5 h-5 text-[#facc15]" />
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold text-white">Transfer Employee</h2>
+                  <p className="text-sm text-gray-400">{selectedEmployeeForAutoTransfer.name}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  setIsAutoTransferModalOpen(false);
+                  setSelectedEmployeeForAutoTransfer(null);
+                }}
+                className="p-2 hover:bg-red-500/20 text-gray-400 hover:text-red-400 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-400 mb-2">Current Branch</label>
+                <div className="px-4 py-3 bg-[#1a1a1a] border border-[#262626] rounded-lg text-white">
+                  {selectedEmployeeForAutoTransfer.branchName || 'Not assigned'}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-400 mb-2">Target Branch</label>
+                <div className="px-4 py-3 bg-[#1a1a1a] border border-[#262626] rounded-lg text-white">
+                  {branches.find(b => b.code === selectedBranch)?.shortName || selectedBranch}
+                </div>
+              </div>
+
+              <p className="text-sm text-gray-400">
+                This employee will be clocked in and transferred to the target branch.
+              </p>
+            </div>
+
+            <div className="flex items-center gap-3 px-6 py-4 border-t border-[#262626]">
+              <button
+                onClick={() => {
+                  setIsAutoTransferModalOpen(false);
+                  setSelectedEmployeeForAutoTransfer(null);
+                  // Show error message directing to clock in at assigned branch
+                  alert(`please click ${selectedEmployeeForAutoTransfer.branchName || 'assigned branch'} to clock in ${selectedEmployeeForAutoTransfer.name}`);
+                }}
+                className="flex-1 px-4 py-3 bg-[#1a1a1a] border border-[#262626] text-gray-400 rounded-lg hover:border-[#404040] transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  clockInWithTransferMutation.mutate({
+                    employeeId: selectedEmployeeForAutoTransfer.id,
+                    branchCode: selectedBranch
+                  });
+                }}
+                disabled={clockInWithTransferMutation.isPending}
+                className="flex-1 px-4 py-3 bg-[#facc15] text-black font-medium rounded-lg hover:bg-yellow-400 transition-colors disabled:opacity-50"
+              >
+                {clockInWithTransferMutation.isPending ? (
+                  <Loader2 className="w-4 h-4 animate-spin mx-auto" />
+                ) : (
+                  'Confirm'
                 )}
               </button>
             </div>

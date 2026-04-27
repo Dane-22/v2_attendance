@@ -5,6 +5,7 @@ import {
   clockIn,
   clockOut,
   manualClockIn,
+  manualClockInWithTransfer,
   manualClockOut,
   getAttendanceRecords,
   getMyAttendance,
@@ -21,6 +22,7 @@ router.post('/clock', optionalAuth, clock);
 router.post('/clock-in', optionalAuth, clockIn);
 router.post('/clock-out', optionalAuth, clockOut);
 router.post('/manual-clock-in', authenticate, manualClockIn);
+router.post('/manual-clock-in-with-transfer', authenticate, manualClockInWithTransfer);
 router.post('/manual-clock-out', authenticate, manualClockOut);
 router.post('/mark-absent', authenticate, markAbsent);
 router.post('/mark-absent/:employeeId', authenticate, markIndividualAbsent);
