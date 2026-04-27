@@ -33,7 +33,7 @@ export const useWebSocket = (): WebSocketHookReturn => {
       const protocol = window.location.protocol === 'https:' ? 'https:' : 'http:';
       wsUrl = `${protocol}//${window.location.host}`;
     } else {
-      wsUrl = 'http://localhost:5002';
+      wsUrl = 'http://localhost:5000';
     }
 
     const token = typeof window !== 'undefined' ? localStorage.getItem('token') : '';

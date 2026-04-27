@@ -3,6 +3,7 @@ import { AuthenticatedRequest } from '../middleware/auth.middleware';
 export declare const clock: (req: AuthenticatedRequest, res: Response, next: NextFunction) => Promise<void>;
 export declare const clockIn: (req: Request, res: Response, next: NextFunction) => Promise<void>;
 export declare const manualClockIn: (req: AuthenticatedRequest, res: Response, next: NextFunction) => Promise<void>;
+export declare const manualClockInWithTransfer: (req: AuthenticatedRequest, res: Response, next: NextFunction) => Promise<void>;
 export declare const clockOut: (req: Request, res: Response, next: NextFunction) => Promise<void>;
 export declare const manualClockOut: (req: AuthenticatedRequest, res: Response, next: NextFunction) => Promise<void>;
 export declare const getAttendanceRecords: (req: AuthenticatedRequest, res: Response, next: NextFunction) => Promise<void>;

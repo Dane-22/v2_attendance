@@ -1,0 +1,54 @@
+import { PrismaClient } from '@prisma/client';
+const prisma = new PrismaClient();
+
+async function checkEmployeeSchema() {
+  try {
+    console.log('--- Fetching all employees to find valid IDs ---');
+    const employees = await prisma.employee.findMany({
+      take: 5,
+      select: { id: true, firstName: true, lastName: true, branchCode: true }
+    });
+    console.log('Employees found:', JSON.stringify(employees, null, 2));
+
+    if (employees.length > 0) {
+      const testEmployee = employees[0];
+      const employeeId = testEmployee.id;
+      console.log(`\n--- Testing update on Employee ID: ${employeeId} ---`);
+      
+      try {
+        const updateData: any = {
+          branchCode: testEmployee.branchCode,
+          branchName: testEmployee.branchName
+        };
+        
+        const branch = await prisma.branches.findFirst();
+        if (branch) {
+          updateData.branchId = branch.id;
+          updateData.branchCode = branch.branch_code;
+          updateData.branchName = branch.branch_name;
+        }
+
+        console.log('Update data:', JSON.stringify(updateData, null, 2));
+        
+        const updated = await prisma.employee.update({
+          where: { id: employeeId },
+          data: updateData
+        });
+        console.log('Update successful');
+      } catch (updateError: any) {
+        console.error('Update failed:', updateError.message);
+        if (updateError.code) console.error('Error code:', updateError.code);
+        if (updateError.meta) console.error('Error meta:', updateError.meta);
+      }
+    } else {
+      console.log('No employees found in database');
+    }
+
+  } catch (error: any) {
+    console.error('Error:', error.message);
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+checkEmployeeSchema();

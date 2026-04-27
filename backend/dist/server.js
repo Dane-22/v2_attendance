@@ -10,6 +10,8 @@ const client_1 = require("@prisma/client");
 const http_1 = require("http");
 const socket_io_1 = require("socket.io");
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
+const path_1 = __importDefault(require("path"));
+const fs_1 = __importDefault(require("fs"));
 const auth_routes_1 = __importDefault(require("./routes/auth.routes"));
 const employee_routes_1 = __importDefault(require("./routes/employee.routes"));
 const attendance_routes_1 = __importDefault(require("./routes/attendance.routes"));
@@ -19,6 +21,9 @@ const report_routes_1 = __importDefault(require("./routes/report.routes"));
 const logs_routes_1 = __importDefault(require("./routes/logs.routes"));
 const branch_routes_1 = __importDefault(require("./routes/branch.routes"));
 const notification_routes_1 = __importDefault(require("./routes/notification.routes"));
+const document_routes_1 = __importDefault(require("./routes/document.routes"));
+const admin_routes_1 = __importDefault(require("./routes/admin.routes"));
+const branch_user_routes_1 = __importDefault(require("./routes/branch-user.routes"));
 const error_middleware_1 = require("./middleware/error.middleware");
 const logMonitoring_service_1 = require("./services/logMonitoring.service");
 const logCleanup_job_1 = require("./jobs/logCleanup.job");
@@ -92,12 +97,18 @@ io.on('connection', (socket) => {
 });
 app.use((0, cors_1.default)({
     origin: process.env.NODE_ENV === 'production'
-        ? ['https://yourdomain.com']
+        ? process.env.FRONTEND_URL || 'https://attendacev2.xandree.com'
         : ['http://localhost:3000', 'http://localhost:3001'],
     credentials: true
 }));
 app.use(express_1.default.json({ limit: '10mb' }));
 app.use(express_1.default.urlencoded({ extended: true }));
+// Serve static files from public directory
+const publicDir = path_1.default.join(process.cwd(), 'public');
+if (!fs_1.default.existsSync(publicDir)) {
+    fs_1.default.mkdirSync(publicDir, { recursive: true });
+}
+app.use('/uploads', express_1.default.static(path_1.default.join(publicDir, 'uploads')));
 app.get('/health', (req, res) => {
     res.json({
         status: 'ok',
@@ -114,6 +125,9 @@ app.use('/api/reports', report_routes_1.default);
 app.use('/api/logs', logs_routes_1.default);
 app.use('/api/branches', branch_routes_1.default);
 app.use('/api/notifications', notification_routes_1.default);
+app.use('/api/documents', document_routes_1.default);
+app.use('/api/admins', admin_routes_1.default);
+app.use('/api/branch-users', branch_user_routes_1.default);
 app.use(error_middleware_1.errorHandler);
 app.use((req, res) => {
     res.status(404).json({

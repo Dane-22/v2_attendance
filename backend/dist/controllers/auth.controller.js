@@ -84,7 +84,8 @@ const login = async (req, res, next) => {
             message: 'Login successful',
             data: {
                 token,
-                user: adminWithoutPassword
+                user: adminWithoutPassword,
+                userType: 'admin'
             }
         };
         res.json(response);

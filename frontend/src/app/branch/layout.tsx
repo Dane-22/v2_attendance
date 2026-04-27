@@ -22,7 +22,7 @@ export default function BranchLayout({
     // Verify this is a branch user
     try {
       const user = JSON.parse(userStr);
-      const isBranchUser = /^branch-[a-h]$/i.test(user.username);
+      const isBranchUser = /^branch-[a-z]+$/i.test(user.username) || (user.branch_code && user.branch_code !== '');
       if (!isBranchUser) {
         router.push('/dashboard');
       }

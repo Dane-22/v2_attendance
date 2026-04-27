@@ -124,6 +124,7 @@ export interface AuthResponse {
     name: string;
     email: string;
     role: string;
+    branch_code?: string;
   };
 }
 
@@ -436,6 +437,8 @@ export interface Admin {
   email: string;
   role: 'admin' | 'super_admin';
   branch_code: string | null;
+  permissions: any;
+  permissions_enabled: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -447,6 +450,8 @@ export interface CreateAdminRequest {
   email: string;
   role: 'admin' | 'super_admin';
   branch_code?: string;
+  permissions?: any;
+  permissions_enabled?: boolean;
 }
 
 export interface UpdateAdminRequest {
@@ -456,6 +461,8 @@ export interface UpdateAdminRequest {
   email?: string;
   role?: 'admin' | 'super_admin';
   branch_code?: string;
+  permissions?: any;
+  permissions_enabled?: boolean;
 }
 
 export const adminApi = {
@@ -472,33 +479,35 @@ export const adminApi = {
 // Branch User types
 export interface BranchUser {
   id: number;
-  branch_code: string;
   username: string;
-  status: string;
+  name: string;
+  branch_code: string;
+  branch_name: string;
+  role: string;
   created_at: string;
 }
 
 export interface CreateBranchUserRequest {
-  branch_code: string;
-  username: string;
   password: string;
-  status?: string;
+  branch_name: string;
+  address?: string;
+  contact_number?: string;
 }
 
 export interface UpdateBranchUserRequest {
-  branch_code?: string;
-  username?: string;
   password?: string;
-  status?: string;
+  branch_name?: string;
+  address?: string;
+  contact_number?: string;
 }
 
 export const branchUserApi = {
   getAll: (params?: { page?: number; limit?: number; search?: string; branch_code?: string }) =>
     api.get<PaginatedResponse<BranchUser[]>>('/branch-users', { params }),
   create: (data: CreateBranchUserRequest) =>
-    api.post<ApiResponse<BranchUser>>('/branch-users', data),
+    api.post<ApiResponse<{ admin: any; branch: any }>>('/branch-users', data),
   update: (id: number, data: UpdateBranchUserRequest) =>
-    api.put<ApiResponse<BranchUser>>(`/branch-users/${id}`, data),
+    api.put<ApiResponse<{ admin: any; branch: any }>>(`/branch-users/${id}`, data),
   delete: (id: number) =>
     api.delete<ApiResponse<null>>(`/branch-users/${id}`),
 };

@@ -28,8 +28,8 @@ model Employee {
   hasDeduction         Boolean?  @default(true) @map("has_deduction")
   branchId             Int?      @map("branch_id")
   branchCode           String?   @map("branch_code") @db.VarChar(10)
-  pinHash              String?   @map("pin_hash") @db.VarChar(255)
-  pinSalt              String?   @map("pin_salt") @db.VarChar(255)
+  // pinHash              String?   @map("pin_hash") @db.VarChar(255)
+  // pinSalt              String?   @map("pin_salt") @db.VarChar(255)
 
   @@index([branchName], map: "idx_employee_branch")
   @@index([branchCode], map: "idx_employee_branch_code")
@@ -79,15 +79,17 @@ model PayrollRecord {
 }
 
 model admins {
-  id          Int          @id @default(autoincrement())
-  username    String       @unique(map: "username") @db.VarChar(50)
-  password    String       @db.VarChar(255)
-  name        String       @db.VarChar(100)
-  email       String       @unique(map: "email") @db.VarChar(100)
-  role        admins_role? @default(admin)
-  created_at  DateTime?    @default(now()) @db.Timestamp(0)
-  updated_at  DateTime?    @default(now()) @db.Timestamp(0)
-  branch_code String?      @db.VarChar(10)
+  id                  Int          @id @default(autoincrement())
+  username            String       @unique(map: "username") @db.VarChar(50)
+  password            String       @db.VarChar(255)
+  name                String       @db.VarChar(100)
+  email               String       @unique(map: "email") @db.VarChar(100)
+  role                admins_role? @default(admin)
+  created_at          DateTime?    @default(now()) @db.Timestamp(0)
+  updated_at          DateTime?    @default(now()) @db.Timestamp(0)
+  branch_code         String?      @db.VarChar(10)
+  permissions         Json?        @default("[]")
+  permissions_enabled Boolean?     @default(false)
 }
 
 model branch_users {
@@ -119,21 +121,68 @@ model notifications {
   message        String                       @db.Text
   link           String?                      @db.VarChar(255)
   is_read        Boolean?                     @default(false)
-  is_urgent      Boolean?                     @default(false)
   created_at     DateTime?                    @default(now()) @db.Timestamp(0)
   read_at        DateTime?                    @db.Timestamp(0)
 
   @@index([created_at(sort: Desc)], map: "idx_created")
   @@index([recipient_type, recipient_id], map: "idx_recipient")
   @@index([recipient_type, recipient_id, is_read], map: "idx_unread")
-  @@index([is_urgent], map: "idx_urgent")
 }
 
-enum notifications_recipient_type {
-  admin
-  employee
-  role_admin
-  role_branch
+model Document {
+  id               Int           @id @default(autoincrement())
+  employeeId       Int?          @map("employee_id")
+  documentType     document_type @map("document_type")
+  fileName         String        @map("file_name") @db.VarChar(255)
+  originalFileName String?       @map("original_file_name") @db.VarChar(255)
+  filePath         String        @map("file_path") @db.VarChar(500)
+  fileSize         Int           @map("file_size")
+  mimeType         String        @map("mime_type") @db.VarChar(100)
+  fileHash         String?       @map("file_hash") @db.VarChar(64)
+  isCompressed     Boolean?      @default(false) @map("is_compressed")
+  uploadedBy       Int           @map("uploaded_by")
+  uploadedAt       DateTime?     @default(now()) @map("uploaded_at") @db.Timestamp(0)
+  isArchived       Boolean?      @default(false) @map("is_archived")
+  archivedAt       DateTime?     @map("archived_at") @db.Timestamp(0)
+  archivedBy       Int?          @map("archived_by")
+
+  @@index([employeeId], map: "idx_document_employee")
+  @@index([documentType], map: "idx_document_type")
+  @@index([uploadedAt], map: "idx_document_uploaded_at")
+  @@index([isArchived], map: "idx_document_is_archived")
+  @@map("documents")
+}
+
+model ActivityLog {
+  id            String                    @id @db.VarChar(50)
+  timestamp     DateTime                  @default(now()) @db.DateTime(0)
+  userId        Int                       @map("user_id")
+  userName      String                    @map("user_name") @db.VarChar(100)
+  userRole      String                    @map("user_role") @db.VarChar(50)
+  actionType    activity_logs_action_type @map("action_type")
+  entityType    activity_logs_entity_type @map("entity_type")
+  entityId      String?                   @map("entity_id") @db.VarChar(50)
+  entityName    String?                   @map("entity_name") @db.VarChar(200)
+  description   String                    @db.Text
+  detailsBefore Json?                     @map("details_before")
+  detailsAfter  Json?                     @map("details_after")
+  changes       Json?
+  ipAddress     String?                   @map("ip_address") @db.VarChar(45)
+  userAgent     String?                   @map("user_agent") @db.Text
+  status        activity_logs_status      @default(SUCCESS)
+  metadata      Json?
+  branchId      Int?                      @map("branch_id")
+  createdAt     DateTime                  @default(now()) @map("created_at") @db.DateTime(0)
+
+  @@index([timestamp], map: "idx_logs_timestamp")
+  @@index([userId], map: "idx_logs_user_id")
+  @@index([actionType], map: "idx_logs_action_type")
+  @@index([entityType], map: "idx_logs_entity_type")
+  @@index([status], map: "idx_logs_status")
+  @@index([entityId], map: "idx_logs_entity_id")
+  @@index([branchId], map: "idx_logs_branch_id")
+  @@index([timestamp, actionType], map: "idx_logs_timestamp_action")
+  @@map("activity_logs")
 }
 
 enum admins_role {
@@ -166,58 +215,36 @@ enum document_type {
   CLEARANCE
 }
 
-model Document {
-  id                Int           @id @default(autoincrement())
-  employeeId        Int?          @map("employee_id")
-  documentType      document_type @map("document_type")
-  fileName          String        @map("file_name") @db.VarChar(255)
-  originalFileName  String?       @map("original_file_name") @db.VarChar(255)
-  filePath          String        @map("file_path") @db.VarChar(500)
-  fileSize          Int           @map("file_size")
-  mimeType          String        @map("mime_type") @db.VarChar(100)
-  fileHash          String?       @map("file_hash") @db.VarChar(64)
-  isCompressed      Boolean       @default(false) @map("is_compressed")
-  uploadedBy        Int           @map("uploaded_by")
-  uploadedAt        DateTime      @default(now()) @map("uploaded_at") @db.Timestamp(0)
-  isArchived        Boolean       @default(false) @map("is_archived")
-  archivedAt        DateTime?     @map("archived_at") @db.Timestamp(0)
-  archivedBy        Int?          @map("archived_by")
-
-  @@index([employeeId], map: "idx_document_employee")
-  @@index([documentType], map: "idx_document_type")
-  @@index([uploadedAt], map: "idx_document_uploaded_at")
-  @@index([isArchived], map: "idx_document_is_archived")
-  @@map("documents")
+enum notifications_recipient_type {
+  admin
+  employee
 }
 
-model ActivityLog {
-  id            String    @id @db.VarChar(50)
-  timestamp     DateTime  @default(now()) @db.Timestamp(0)
-  userId        Int       @map("user_id")
-  userName      String    @map("user_name") @db.VarChar(100)
-  userRole      String    @map("user_role") @db.VarChar(50)
-  actionType    String    @map("action_type") @db.VarChar(20)
-  entityType    String    @map("entity_type") @db.VarChar(20)
-  entityId      String?   @map("entity_id") @db.VarChar(50)
-  entityName    String?   @map("entity_name") @db.VarChar(200)
-  description   String    @db.Text
-  detailsBefore Json?     @map("details_before")
-  detailsAfter  Json?     @map("details_after")
-  changes       Json?
-  ipAddress     String?   @map("ip_address") @db.VarChar(45)
-  userAgent     String?   @map("user_agent") @db.Text
-  status        String    @default("SUCCESS") @db.VarChar(20)
-  metadata      Json?
-  branchId      Int?      @map("branch_id")
-  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamp(0)
+enum activity_logs_action_type {
+  CREATE
+  UPDATE
+  DELETE
+  LOGIN
+  LOGOUT
+  EXPORT
+  SCAN
+  APPROVE
+  REJECT
+  VIEW
+}
 
-  @@index([timestamp], map: "idx_logs_timestamp")
-  @@index([userId], map: "idx_logs_user_id")
-  @@index([actionType], map: "idx_logs_action_type")
-  @@index([entityType], map: "idx_logs_entity_type")
-  @@index([status], map: "idx_logs_status")
-  @@index([entityId], map: "idx_logs_entity_id")
-  @@index([branchId], map: "idx_logs_branch_id")
-  @@index([timestamp, actionType], map: "idx_logs_timestamp_action")
-  @@map("activity_logs")
+enum activity_logs_entity_type {
+  EMPLOYEE
+  ATTENDANCE
+  PAYROLL
+  SETTINGS
+  USER
+  BRANCH
+  DOCUMENT
+}
+
+enum activity_logs_status {
+  SUCCESS
+  FAILED
+  PENDING
 }

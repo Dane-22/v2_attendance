@@ -19,15 +19,19 @@ async function main() {
     console.log(`  ${e.employeeCode || 'NULL'} - ${e.firstName || ''} ${e.lastName || ''} (Status: ${e.status})`);
   });
   
-  // Check specific codes
-  const codes = ['E0001', 'E0002', 'W0001', 'W0002'];
-  console.log('\nChecking specific codes:');
-  for (const code of codes) {
-    const emp = await prisma.employee.findUnique({
-      where: { employeeCode: code }
-    });
-    console.log(`  ${code}: ${emp ? 'FOUND' : 'NOT FOUND'}`);
-  }
+  // Check specific ID 126
+  console.log('\nChecking ID 126:');
+  const emp126 = await prisma.employee.findUnique({
+    where: { id: 126 }
+  });
+  console.log(`  ID 126: ${emp126 ? 'FOUND (' + emp126.employeeCode + ')' : 'NOT FOUND'}`);
+
+  // List branches
+  console.log('\nBranches:');
+  const branches = await prisma.branches.findMany();
+  branches.forEach(b => {
+    console.log(`  ${b.branch_code} - ${b.branch_name} (ID: ${b.id})`);
+  });
 }
 
 main().then(() => process.exit(0)).catch(e => { console.error(e); process.exit(1); });

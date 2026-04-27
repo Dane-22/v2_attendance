@@ -26,7 +26,8 @@ import {
   BranchUser,
   branchesApi,
   CreateAdminRequest,
-  CreateBranchUserRequest
+  CreateBranchUserRequest,
+  UpdateBranchUserRequest
 } from '@/lib/api';
 import { useToast } from '@/components/Toast';
 import { useTheme } from '@/hooks/useTheme';
@@ -624,10 +625,15 @@ function UserModal({ isOpen, onClose, onSuccess, userType, setUserType, mode, ed
     dailyRate: 0
   });
   const [adminForm, setAdminForm] = useState<Partial<CreateAdminRequest>>({
-    role: 'admin'
+    role: 'admin',
+    permissions_enabled: false,
+    permissions: []
   });
   const [branchUserForm, setBranchUserForm] = useState<Partial<CreateBranchUserRequest>>({
-    status: 'Active'
+    password: '',
+    branch_name: '',
+    address: '',
+    contact_number: ''
   });
 
   // Fetch branches for dropdowns
@@ -652,13 +658,19 @@ function UserModal({ isOpen, onClose, onSuccess, userType, setUserType, mode, ed
           name: (editData as Admin).name,
           email: (editData as Admin).email,
           role: (editData as Admin).role,
-          branch_code: (editData as Admin).branch_code || undefined
+          branch_code: (editData as Admin).branch_code || undefined,
+          permissions: (editData as Admin).permissions || [],
+          permissions_enabled: (editData as Admin).permissions_enabled || false
         });
       } else if (userType === 'branch_user' && 'branch_code' in editData) {
+        // For edit mode, load branch_name from the branch data
+        // Since the new API returns admin + branch, we need to handle this differently
+        // For now, just load what we can from the current structure
         setBranchUserForm({
-          branch_code: (editData as BranchUser).branch_code,
-          username: editData.username,
-          status: (editData as BranchUser).status
+          password: '',
+          branch_name: (editData as BranchUser).branch_name || '',
+          address: '',
+          contact_number: ''
         });
       }
     }
@@ -666,8 +678,8 @@ function UserModal({ isOpen, onClose, onSuccess, userType, setUserType, mode, ed
 
   const resetForms = () => {
     setEmployeeForm({ status: 'Active', hasDeductions: true, dailyRate: 0 });
-    setAdminForm({ role: 'admin' });
-    setBranchUserForm({ status: 'Active' });
+    setAdminForm({ role: 'admin', permissions_enabled: false, permissions: [] });
+    setBranchUserForm({ password: '', branch_name: '', address: '', contact_number: '' });
   };
 
   const handleClose = () => {
@@ -745,8 +757,8 @@ function UserModal({ isOpen, onClose, onSuccess, userType, setUserType, mode, ed
           }
         }
       } else if (userType === 'branch_user') {
-        if (!branchUserForm.branch_code || !branchUserForm.username || (!editData && !branchUserForm.password)) {
-          showToast('error', 'Please fill in all required fields');
+        if (!branchUserForm.password || !branchUserForm.branch_name) {
+          showToast('error', 'Password and branch name are required');
           setIsLoading(false);
           return;
         }
@@ -758,11 +770,11 @@ function UserModal({ isOpen, onClose, onSuccess, userType, setUserType, mode, ed
         }
 
         if (mode === 'edit' && editData && 'id' in editData) {
-          const updateData: Partial<CreateBranchUserRequest> = {};
-          if (branchUserForm.branch_code) updateData.branch_code = branchUserForm.branch_code;
-          if (branchUserForm.username) updateData.username = branchUserForm.username;
-          if (branchUserForm.status) updateData.status = branchUserForm.status;
+          const updateData: Partial<UpdateBranchUserRequest> = {};
           if (branchUserForm.password) updateData.password = branchUserForm.password;
+          if (branchUserForm.branch_name) updateData.branch_name = branchUserForm.branch_name;
+          if (branchUserForm.address !== undefined) updateData.address = branchUserForm.address;
+          if (branchUserForm.contact_number !== undefined) updateData.contact_number = branchUserForm.contact_number;
 
           const response = await branchUserApi.update(editData.id, updateData);
           if (response.data?.success) {
@@ -1046,38 +1058,158 @@ function UserModal({ isOpen, onClose, onSuccess, userType, setUserType, mode, ed
             </div>
           )}
 
+          {/* Sidebar Permissions Section */}
+          {userType === 'admin' && (
+            <div className="mb-6">
+              <h3 className="text-[#facc15] font-semibold mb-4 pb-2 border-b border-[#262626]">Sidebar Permissions</h3>
+
+              {/* Enable Permissions Toggle */}
+              <div className="mb-4">
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <div
+                    className={`w-12 h-6 rounded-full transition-colors ${adminForm.permissions_enabled ? 'bg-green-500' : 'bg-gray-600'}`}
+                    onClick={() => setAdminForm({ ...adminForm, permissions_enabled: !adminForm.permissions_enabled })}
+                  >
+                    <div className={`w-5 h-5 bg-white rounded-full transition-transform mt-0.5 ${adminForm.permissions_enabled ? 'translate-x-6' : 'translate-x-0.5'}`} />
+                  </div>
+                  <span className="text-white text-sm">Enable Permissions</span>
+                </label>
+              </div>
+
+              {adminForm.permissions_enabled && (
+                <>
+                  {/* Quick Templates */}
+                  <div className="mb-4">
+                    <label className="block text-gray-400 text-sm mb-2">Quick Templates</label>
+                    <div className="flex flex-wrap gap-2">
+                      {[
+                        { name: 'Full Access', permissions: ['dashboard', 'attendance', 'notifications', 'employees', 'documents', 'logs', 'attendance-audit', 'finance', 'finance/payroll', 'finance/overtime', 'finance/billing', 'finance/cash-advance', 'finance/attendance-audit', 'procurement', 'settings'] },
+                        { name: 'Finance Only', permissions: ['dashboard', 'finance', 'finance/payroll', 'finance/overtime', 'finance/billing', 'finance/cash-advance', 'finance/attendance-audit'] },
+                        { name: 'HR Only', permissions: ['dashboard', 'employees', 'documents', 'logs'] },
+                        { name: 'Basic Access', permissions: ['dashboard', 'attendance', 'notifications'] }
+                      ].map((template) => (
+                        <button
+                          key={template.name}
+                          type="button"
+                          onClick={() => setAdminForm({ ...adminForm, permissions: template.permissions })}
+                          className="px-3 py-1.5 bg-[#262626] text-gray-300 text-sm rounded-lg hover:bg-[#333] hover:text-white transition-colors border border-[#262626] hover:border-[#facc15]/30"
+                        >
+                          {template.name}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Navigation Items Checkboxes */}
+                  <div>
+                    <label className="block text-gray-400 text-sm mb-2">Navigation Items</label>
+                    <div className="grid grid-cols-2 gap-2 max-h-64 overflow-y-auto pr-2">
+                      {[
+                        { id: 'dashboard', label: 'Dashboard' },
+                        { id: 'attendance', label: 'Site Attendance' },
+                        { id: 'notifications', label: 'Notification' },
+                        { id: 'employees', label: 'Employee List' },
+                        { id: 'documents', label: 'Documents' },
+                        { id: 'logs', label: 'Activity Logs' },
+                        { id: 'attendance-audit', label: 'Attendance Audit' },
+                        { id: 'procurement', label: 'Procurement' },
+                        { id: 'settings', label: 'Settings' }
+                      ].map((item) => (
+                        <label key={item.id} className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={(adminForm.permissions || []).includes(item.id)}
+                            onChange={(e) => {
+                              const currentPermissions = adminForm.permissions || [];
+                              if (e.target.checked) {
+                                setAdminForm({ ...adminForm, permissions: [...currentPermissions, item.id] });
+                              } else {
+                                setAdminForm({ ...adminForm, permissions: currentPermissions.filter((p: string) => p !== item.id) });
+                              }
+                            }}
+                            className="w-4 h-4 rounded border-gray-600 bg-[#141414] text-[#facc15] focus:ring-[#facc15]"
+                          />
+                          <span className="text-gray-300 text-sm">{item.label}</span>
+                        </label>
+                      ))}
+
+                      {/* Finance with sub-items */}
+                      <div className="col-span-2 mt-2 pt-2 border-t border-[#262626]">
+                        <label className="flex items-center gap-2 cursor-pointer mb-2">
+                          <input
+                            type="checkbox"
+                            checked={(adminForm.permissions || []).includes('finance')}
+                            onChange={(e) => {
+                              const currentPermissions = adminForm.permissions || [];
+                              if (e.target.checked) {
+                                setAdminForm({ ...adminForm, permissions: [...currentPermissions, 'finance'] });
+                              } else {
+                                setAdminForm({ ...adminForm, permissions: currentPermissions.filter((p: string) => p !== 'finance' && !p.startsWith('finance/')) });
+                              }
+                            }}
+                            className="w-4 h-4 rounded border-gray-600 bg-[#141414] text-[#facc15] focus:ring-[#facc15]"
+                          />
+                          <span className="text-[#facc15] font-medium text-sm">Finance</span>
+                        </label>
+                        <div className="ml-6 grid grid-cols-2 gap-2">
+                          {[
+                            { id: 'finance/payroll', label: 'Payroll' },
+                            { id: 'finance/overtime', label: 'Overtime' },
+                            { id: 'finance/billing', label: 'Billing' },
+                            { id: 'finance/cash-advance', label: 'Cash Advance' },
+                            { id: 'finance/attendance-audit', label: 'Attendance Summary' }
+                          ].map((subItem) => (
+                            <label key={subItem.id} className="flex items-center gap-2 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={(adminForm.permissions || []).includes(subItem.id)}
+                                onChange={(e) => {
+                                  const currentPermissions = adminForm.permissions || [];
+                                  if (e.target.checked) {
+                                    // Auto-include parent finance if sub-item is selected
+                                    const newPermissions = currentPermissions.includes('finance') ? currentPermissions : [...currentPermissions, 'finance'];
+                                    setAdminForm({ ...adminForm, permissions: [...newPermissions, subItem.id] });
+                                  } else {
+                                    setAdminForm({ ...adminForm, permissions: currentPermissions.filter((p: string) => p !== subItem.id) });
+                                  }
+                                }}
+                                className="w-4 h-4 rounded border-gray-600 bg-[#141414] text-[#facc15] focus:ring-[#facc15]"
+                              />
+                              <span className="text-gray-400 text-sm">{subItem.label}</span>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </>
+              )}
+
+              <p className="text-gray-500 text-xs mt-3 flex items-center gap-1">
+                <span className="text-[#facc15]">ℹ</span> Branch-prefixed usernames (branch-a, etc.) bypass permissions
+              </p>
+              <p className="text-gray-500 text-xs mt-1 flex items-center gap-1">
+                <span className="text-[#facc15]">ℹ</span> Super admins always have full access
+              </p>
+            </div>
+          )}
+
           {/* Branch User-Specific Fields */}
           {userType === 'branch_user' && (
             <div className="mb-6">
               <h3 className="text-[#facc15] font-semibold mb-4 pb-2 border-b border-[#262626]">Branch User Details</h3>
-              <div className="grid grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-gray-400 text-sm mb-1">Branch Code <span className="text-red-400">*</span></label>
-                  <select
-                    value={branchUserForm.branch_code || ''}
-                    onChange={(e) => setBranchUserForm({ ...branchUserForm, branch_code: e.target.value })}
-                    className="w-full px-4 py-2 bg-[#141414] border border-[#facc15]/30 rounded-lg text-white focus:outline-none focus:border-[#facc15]"
-                  >
-                    <option value="">Select Branch</option>
-                    {branches.map((branch) => (
-                      <option key={branch.id} value={branch.code}>{branch.name} ({branch.code})</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-gray-400 text-sm mb-1">Username <span className="text-red-400">*</span></label>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="col-span-2">
+                  <label className="block text-gray-400 text-sm mb-1">Branch Name <span className="text-red-400">*</span></label>
                   <input
                     type="text"
-                    value={branchUserForm.username || ''}
-                    onChange={(e) => setBranchUserForm({ ...branchUserForm, username: e.target.value })}
+                    value={branchUserForm.branch_name || ''}
+                    onChange={(e) => setBranchUserForm({ ...branchUserForm, branch_name: e.target.value })}
                     className="w-full px-4 py-2 bg-[#141414] border border-[#facc15]/30 rounded-lg text-white focus:outline-none focus:border-[#facc15]"
                   />
                 </div>
                 <div>
-                  <label className="block text-gray-400 text-sm mb-1">
-                    Password {mode === 'create' && <span className="text-red-400">*</span>}
-                    {mode === 'edit' && <span className="text-gray-500 text-xs"> (leave blank to keep unchanged)</span>}
-                  </label>
+                  <label className="block text-gray-400 text-sm mb-1">Password {mode === 'create' && <span className="text-red-400">*</span>}</label>
                   <input
                     type="password"
                     value={branchUserForm.password || ''}
@@ -1087,19 +1219,28 @@ function UserModal({ isOpen, onClose, onSuccess, userType, setUserType, mode, ed
                   />
                 </div>
                 <div>
-                  <label className="block text-gray-400 text-sm mb-1">Status</label>
-                  <select
-                    value={branchUserForm.status || ''}
-                    onChange={(e) => setBranchUserForm({ ...branchUserForm, status: e.target.value })}
+                  <label className="block text-gray-400 text-sm mb-1">Address</label>
+                  <input
+                    type="text"
+                    value={branchUserForm.address || ''}
+                    onChange={(e) => setBranchUserForm({ ...branchUserForm, address: e.target.value })}
                     className="w-full px-4 py-2 bg-[#141414] border border-[#262626] rounded-lg text-white focus:outline-none focus:border-[#facc15]"
-                  >
-                    <option value="">Select Status</option>
-                    <option>Active</option>
-                    <option>Inactive</option>
-                  </select>
+                  />
+                </div>
+                <div>
+                  <label className="block text-gray-400 text-sm mb-1">Contact Number</label>
+                  <input
+                    type="text"
+                    value={branchUserForm.contact_number || ''}
+                    onChange={(e) => setBranchUserForm({ ...branchUserForm, contact_number: e.target.value })}
+                    className="w-full px-4 py-2 bg-[#141414] border border-[#262626] rounded-lg text-white focus:outline-none focus:border-[#facc15]"
+                  />
                 </div>
               </div>
               <p className="text-gray-500 text-xs mt-3">
+                <span className="text-[#facc15]">ℹ</span> Username and branch code will be auto-generated
+              </p>
+              <p className="text-gray-500 text-xs mt-1 flex items-center gap-1">
                 <span className="text-[#facc15]">ℹ</span> Password must be at least 8 characters with 1 uppercase, 1 lowercase, and 1 number
               </p>
             </div>
@@ -1344,7 +1485,7 @@ export default function EmployeesPage() {
                       <th className={`px-4 py-4 text-left text-xs font-medium ${classes.textMuted} uppercase tracking-wider`}>Branch User</th>
                       <th className={`px-4 py-4 text-left text-xs font-medium ${classes.textMuted} uppercase tracking-wider`}>Username</th>
                       <th className={`px-4 py-4 text-left text-xs font-medium ${classes.textMuted} uppercase tracking-wider`}>Branch</th>
-                      <th className={`px-4 py-4 text-left text-xs font-medium ${classes.textMuted} uppercase tracking-wider`}>Status</th>
+                      <th className={`px-4 py-4 text-left text-xs font-medium ${classes.textMuted} uppercase tracking-wider`}>Branch Name</th>
                     </>
                   )}
                   <th className={`px-4 py-4 text-right text-xs font-medium ${classes.textMuted} uppercase tracking-wider`}>Actions</th>
@@ -1472,13 +1613,7 @@ export default function EmployeesPage() {
                         </td>
                         <td className={`px-4 py-4 ${classes.textMuted} font-mono text-sm`}>{branchUser.username}</td>
                         <td className={`px-4 py-4 ${classes.textMuted} text-sm`}>{branchUser.branch_code}</td>
-                        <td className="px-4 py-4">
-                          <span className={`inline-flex items-center px-2.5 py-1 text-xs font-medium rounded-full ${
-                            branchUser.status === 'Active' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'
-                          }`}>
-                            {branchUser.status}
-                          </span>
-                        </td>
+                        <td className={`px-4 py-4 ${classes.textMuted} text-sm`}>{branchUser.branch_name}</td>
                         <td className="px-4 py-4">
                           <div className="flex items-center justify-end gap-2">
                             <button 

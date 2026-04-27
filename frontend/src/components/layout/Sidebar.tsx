@@ -79,10 +79,63 @@ export default function Sidebar() {
   const pathname = usePathname();
   const sidebarRef = useRef<HTMLElement>(null);
   const navItemsRef = useRef<HTMLDivElement>(null);
-  
+
   const [unreadCount, setUnreadCount] = useState(notificationStats.unread);
-  
-  const navItems = isBranchUser ? branchNavItems : getAdminNavItems(unreadCount);
+
+  // Permission filtering logic
+  const getFilteredNavItems = (items: NavItem[]): NavItem[] => {
+    // If it's a branch user, return branch nav items as-is
+    if (isBranchUser) {
+      return branchNavItems;
+    }
+
+    // If no user or user is super admin, return all items
+    if (!user || user.role === 'super_admin') {
+      return items;
+    }
+
+    // Check if username starts with "branch-" (case-insensitive) - bypass permissions
+    if (user.username && user.username.toLowerCase().startsWith('branch-')) {
+      return items;
+    }
+
+    // If permissions are not enabled, return all items
+    if (!user.permissions_enabled) {
+      return items;
+    }
+
+    // If permissions are enabled, filter based on permissions array
+    const permissions = user.permissions || [];
+    if (permissions.length === 0) {
+      return []; // No navigation items if permissions array is empty
+    }
+
+    // Filter nav items based on permissions
+    return items.filter(item => {
+      // Map nav item name to permission key
+      const permissionMap: { [key: string]: string } = {
+        'Dashboard': 'dashboard',
+        'Site Attendance': 'attendance',
+        'Notification': 'notifications',
+        'Employee List': 'employees',
+        'Documents': 'documents',
+        'Activity Logs': 'logs',
+        'Attendance Audit': 'attendance-audit',
+        'Finance': 'finance',
+        'Procurement': 'procurement',
+        'Settings': 'settings'
+      };
+
+      const permissionKey = permissionMap[item.name];
+      if (!permissionKey) return false;
+
+      // Check if the permission is in the allowed permissions
+      return permissions.includes(permissionKey);
+    });
+  };
+
+  const allAdminNavItems = getAdminNavItems(unreadCount);
+  const navItems = getFilteredNavItems(allAdminNavItems);
   
   // Close mobile sidebar when navigating
   useEffect(() => {

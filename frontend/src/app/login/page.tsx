@@ -6,6 +6,7 @@ import { useMutation } from '@tanstack/react-query';
 import { AxiosResponse } from 'axios';
 import { authApi, ApiResponse, AuthResponse } from '@/lib/api';
 import { AxiosError } from 'axios';
+import { useAppStore } from '@/store/appStore';
 
 const EyeIcon = () => (
   <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
@@ -17,6 +18,7 @@ const EyeOffIcon = () => (
 
 export default function LoginPage() {
   const router = useRouter();
+  const setUser = useAppStore((state) => state.setUser);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -29,9 +31,11 @@ export default function LoginPage() {
         const { token, user } = response.data.data;
         localStorage.setItem('token', token);
         localStorage.setItem('user', JSON.stringify(user));
+        setUser(user as any);
+
+        // Check if user is a branch device (branch-{letter}) OR admin with branch_code
+        const isBranchUser = /^branch-[a-z]+$/i.test(user.username) || (user.branch_code && user.branch_code !== '');
         
-        // Check if user is a branch device (branch-a to branch-h)
-        const isBranchUser = /^branch-[a-h]$/i.test(user.username);
         if (isBranchUser) {
           router.push('/branch/qr-scanner');
         } else {

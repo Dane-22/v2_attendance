@@ -8,6 +8,7 @@ router.post('/clock', auth_middleware_1.optionalAuth, attendance_controller_1.cl
 router.post('/clock-in', auth_middleware_1.optionalAuth, attendance_controller_1.clockIn);
 router.post('/clock-out', auth_middleware_1.optionalAuth, attendance_controller_1.clockOut);
 router.post('/manual-clock-in', auth_middleware_1.authenticate, attendance_controller_1.manualClockIn);
+router.post('/manual-clock-in-with-transfer', auth_middleware_1.authenticate, attendance_controller_1.manualClockInWithTransfer);
 router.post('/manual-clock-out', auth_middleware_1.authenticate, attendance_controller_1.manualClockOut);
 router.post('/mark-absent', auth_middleware_1.authenticate, attendance_controller_1.markAbsent);
 router.post('/mark-absent/:employeeId', auth_middleware_1.authenticate, attendance_controller_1.markIndividualAbsent);

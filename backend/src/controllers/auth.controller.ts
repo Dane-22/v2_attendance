@@ -97,12 +97,14 @@ export const login = async (
     const response: ApiResponse<{
       token: string;
       user: Omit<typeof admin, 'password'>;
+      userType: 'admin';
     }> = {
       success: true,
       message: 'Login successful',
       data: {
         token,
-        user: adminWithoutPassword
+        user: adminWithoutPassword,
+        userType: 'admin'
       }
     };
 

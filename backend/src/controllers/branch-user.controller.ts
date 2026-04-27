@@ -31,10 +31,11 @@ export const getAllBranchUsers = async (
     const branchCode = req.query.branch_code as string;
 
     const where: any = {};
-    
+
     if (search) {
       where.OR = [
-        { username: { contains: search } }
+        { username: { contains: search } },
+        { name: { contains: search } }
       ];
     }
 
@@ -42,22 +43,50 @@ export const getAllBranchUsers = async (
       where.branch_code = branchCode;
     }
 
-    const [branchUsers, total] = await Promise.all([
-      prisma.branch_users.findMany({
-        where,
+    const [admins, total] = await Promise.all([
+      prisma.admins.findMany({
+        where: {
+          ...where,
+          branch_code: { not: null }
+        },
         skip,
         take: limit,
         orderBy: { created_at: 'desc' },
         select: {
           id: true,
-          branch_code: true,
           username: true,
-          status: true,
+          name: true,
+          branch_code: true,
+          role: true,
           created_at: true
         }
       }),
-      prisma.branch_users.count({ where })
+      prisma.admins.count({
+        where: {
+          ...where,
+          branch_code: { not: null }
+        }
+      })
     ]);
+
+    // Get branch names from branches table
+    const branchCodes = admins.map(a => a.branch_code).filter(Boolean);
+    const branches = await prisma.branches.findMany({
+      where: { branch_code: { in: branchCodes as string[] } },
+      select: { branch_code: true, branch_name: true }
+    });
+
+    const branchMap = new Map(branches.map(b => [b.branch_code, b.branch_name]));
+
+    const branchUsers = admins.map(admin => ({
+      id: admin.id,
+      username: admin.username,
+      name: admin.name,
+      branch_code: admin.branch_code,
+      branch_name: branchMap.get(admin.branch_code || '') || '',
+      role: admin.role,
+      created_at: admin.created_at
+    }));
 
     const response = {
       success: true,
@@ -83,11 +112,11 @@ export const createBranchUser = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    const { branch_code, username, password, status } = req.body;
+    const { password, branch_name, address, contact_number } = req.body;
 
     // Validation
-    if (!branch_code || !username || !password) {
-      throw new AppError('Branch code, username, and password are required', 400);
+    if (!password || !branch_name) {
+      throw new AppError('Password and branch name are required', 400);
     }
 
     // Validate password complexity
@@ -95,67 +124,139 @@ export const createBranchUser = async (
       throw new AppError('Password must be at least 8 characters with 1 uppercase, 1 lowercase, and 1 number', 400);
     }
 
-    // Validate branch exists
-    const branch = await prisma.branches.findUnique({
-      where: { branch_code }
+    // Auto-generate branch code (sequential letter)
+    const existingAdmins = await prisma.admins.findMany({
+      where: { branch_code: { not: null } },
+      select: { branch_code: true },
+      orderBy: { branch_code: 'asc' }
     });
-    if (!branch) {
-      throw new AppError('Branch code does not exist', 404);
+
+    const usedCodes = new Set(existingAdmins.map(b => b.branch_code?.toUpperCase()));
+    const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+
+    let nextCode = 'A';
+    for (let i = 0; i < alphabet.length; i++) {
+      if (!usedCodes.has(alphabet[i])) {
+        nextCode = alphabet[i];
+        break;
+      }
     }
 
-    // Check username uniqueness in branch_users table
-    const existingBranchUser = await prisma.branch_users.findFirst({
-      where: { username }
-    });
-    if (existingBranchUser) {
-      throw new AppError('Username already exists in branch users', 409);
+    // If all single letters are used, try AA, AB, AC pattern
+    if (usedCodes.has(nextCode)) {
+      for (let i = 0; i < alphabet.length; i++) {
+        for (let j = 0; j < alphabet.length; j++) {
+          const doubleCode = alphabet[i] + alphabet[j];
+          if (!usedCodes.has(doubleCode)) {
+            nextCode = doubleCode;
+            break;
+          }
+        }
+        if (nextCode !== 'A') break;
+      }
     }
+
+    // Auto-generate username and name
+    const autoUsername = `branch-${nextCode.toLowerCase()}`;
+    const autoName = `Branch ${nextCode}`;
 
     // Check username uniqueness in admins table
     const existingAdmin = await prisma.admins.findUnique({
-      where: { username }
+      where: { username: autoUsername }
     });
     if (existingAdmin) {
-      throw new AppError('Username already exists in admin users', 409);
+      throw new AppError('Username already exists', 409);
+    }
+
+    // Check branch code uniqueness in branches table
+    const existingBranch = await prisma.branches.findUnique({
+      where: { branch_code: nextCode }
+    });
+    if (existingBranch) {
+      throw new AppError('Branch code already exists', 409);
     }
 
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    const branchUser = await prisma.branch_users.create({
+    // Create admin record
+    const admin = await prisma.admins.create({
       data: {
-        branch_code,
-        username,
+        username: autoUsername,
         password: hashedPassword,
-        status: status || 'Active'
+        name: autoName,
+        email: `${autoUsername}@branch.local`,
+        role: 'admin',
+        branch_code: nextCode,
+        permissions_enabled: false,
+        permissions: '[]'
+      },
+      select: {
+        id: true,
+        username: true,
+        name: true,
+        email: true,
+        role: true,
+        branch_code: true,
+        created_at: true
+      }
+    });
+
+    // Create branch record
+    const branch = await prisma.branches.create({
+      data: {
+        branch_code: nextCode,
+        branch_name: branch_name,
+        address: address || null,
+        contact_number: contact_number || null,
+        status: 'Active'
       },
       select: {
         id: true,
         branch_code: true,
-        username: true,
+        branch_name: true,
+        address: true,
+        contact_number: true,
         status: true,
         created_at: true
       }
     });
 
-    // Log branch user creation
+    // Log admin creation
     await logCreate({
       userId: req.admin?.id || 0,
       userName: req.admin?.name || 'unknown',
       userRole: req.admin?.role || 'admin',
-      entityType: 'BRANCH_USER',
-      entityId: branchUser.id.toString(),
-      entityName: branchUser.username,
-      description: `Created new branch user: ${branchUser.username} for branch ${branch_code}`,
-      detailsAfter: branchUser,
+      entityType: 'ADMIN',
+      entityId: admin.id.toString(),
+      entityName: admin.username,
+      description: `Created new branch admin: ${admin.username} for branch ${nextCode}`,
+      detailsAfter: admin,
       ipAddress: req.ip,
       userAgent: req.headers['user-agent']
     });
 
-    const response: ApiResponse<typeof branchUser> = {
+    // Log branch creation
+    await logCreate({
+      userId: req.admin?.id || 0,
+      userName: req.admin?.name || 'unknown',
+      userRole: req.admin?.role || 'admin',
+      entityType: 'BRANCH',
+      entityId: branch.id.toString(),
+      entityName: branch.branch_name,
+      description: `Created new branch: ${branch.branch_name} (${nextCode})`,
+      detailsAfter: branch,
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent']
+    });
+
+    const response: ApiResponse<{ admin: typeof admin; branch: typeof branch }> = {
       success: true,
       message: 'Branch user created successfully',
-      data: branchUser
+      data: {
+        admin,
+        branch
+      }
     };
 
     res.status(201).json(response);
@@ -171,90 +272,99 @@ export const updateBranchUser = async (
 ): Promise<void> => {
   try {
     const id = parseInt(req.params.id);
-    const { branch_code, username, password, status } = req.body;
+    const { password, branch_name, address, contact_number } = req.body;
 
-    const existingBranchUser = await prisma.branch_users.findUnique({
+    const existingAdmin = await prisma.admins.findUnique({
       where: { id }
     });
 
-    if (!existingBranchUser) {
+    if (!existingAdmin || !existingAdmin.branch_code) {
       throw new AppError('Branch user not found', 404);
     }
 
-    // Validate branch exists if changing
-    if (branch_code && branch_code !== existingBranchUser.branch_code) {
-      const branch = await prisma.branches.findUnique({
-        where: { branch_code }
-      });
-      if (!branch) {
-        throw new AppError('Branch code does not exist', 404);
-      }
-    }
-
-    // Check username uniqueness if changing
-    if (username && username !== existingBranchUser.username) {
-      const existingUser = await prisma.branch_users.findFirst({
-        where: { username }
-      });
-      if (existingUser) {
-        throw new AppError('Username already exists in branch users', 409);
-      }
-
-      // Check username uniqueness in admins table
-      const existingAdmin = await prisma.admins.findUnique({
-        where: { username }
-      });
-      if (existingAdmin) {
-        throw new AppError('Username already exists in admin users', 409);
-      }
-    }
-
-    // Prepare update data
-    const updateData: any = {};
-    if (branch_code) updateData.branch_code = branch_code;
-    if (username) updateData.username = username;
-    if (status) updateData.status = status;
-    
-    // Handle password update with validation
+    // Prepare admin update data
+    const adminUpdateData: any = {};
     if (password) {
       if (!validatePassword(password)) {
         throw new AppError('Password must be at least 8 characters with 1 uppercase, 1 lowercase, and 1 number', 400);
       }
-      updateData.password = await bcrypt.hash(password, 10);
+      adminUpdateData.password = await bcrypt.hash(password, 10);
     }
 
-    const branchUser = await prisma.branch_users.update({
+    // Prepare branch update data
+    const branchUpdateData: any = {};
+    if (branch_name) branchUpdateData.branch_name = branch_name;
+    if (address !== undefined) branchUpdateData.address = address || null;
+    if (contact_number !== undefined) branchUpdateData.contact_number = contact_number || null;
+
+    // Update admin record
+    const admin = await prisma.admins.update({
       where: { id },
-      data: updateData,
+      data: adminUpdateData,
+      select: {
+        id: true,
+        username: true,
+        name: true,
+        branch_code: true,
+        role: true,
+        created_at: true
+      }
+    });
+
+    // Update branch record
+    const branch = await prisma.branches.update({
+      where: { branch_code: existingAdmin.branch_code },
+      data: branchUpdateData,
       select: {
         id: true,
         branch_code: true,
-        username: true,
+        branch_name: true,
+        address: true,
+        contact_number: true,
         status: true,
         created_at: true
       }
     });
 
-    // Log branch user update
+    // Log admin update
     await logUpdate({
       userId: req.admin?.id || 0,
       userName: req.admin?.name || 'unknown',
       userRole: req.admin?.role || 'admin',
-      entityType: 'BRANCH_USER',
-      entityId: branchUser.id.toString(),
-      entityName: branchUser.username,
-      description: `Updated branch user: ${branchUser.username}`,
-      detailsBefore: existingBranchUser,
-      detailsAfter: branchUser,
-      changes: Object.keys(updateData),
+      entityType: 'ADMIN',
+      entityId: admin.id.toString(),
+      entityName: admin.username,
+      description: `Updated branch admin: ${admin.username}`,
+      detailsBefore: existingAdmin,
+      detailsAfter: admin,
+      changes: Object.keys(adminUpdateData),
       ipAddress: req.ip,
       userAgent: req.headers['user-agent']
     });
 
-    const response: ApiResponse<typeof branchUser> = {
+    // Log branch update
+    await logUpdate({
+      userId: req.admin?.id || 0,
+      userName: req.admin?.name || 'unknown',
+      userRole: req.admin?.role || 'admin',
+      entityType: 'BRANCH',
+      entityId: branch.id.toString(),
+      entityName: branch.branch_name,
+      description: `Updated branch: ${branch.branch_name}`,
+      detailsBefore: { branch_code: existingAdmin.branch_code },
+      detailsAfter: branch,
+      changes: Object.keys(branchUpdateData),
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent']
+    });
+
+    const response: ApiResponse<{ admin: typeof admin; branch: typeof branch }> = {
       success: true,
       message: 'Branch user updated successfully',
-      data: branchUser
+      data: {
+        admin,
+        branch
+      }
     };
 
     res.json(response);
@@ -271,26 +381,48 @@ export const deleteBranchUser = async (
   try {
     const id = parseInt(req.params.id);
 
-    const branchUser = await prisma.branch_users.findUnique({
+    const existingAdmin = await prisma.admins.findUnique({
       where: { id }
     });
 
-    if (!branchUser) {
+    if (!existingAdmin || !existingAdmin.branch_code) {
       throw new AppError('Branch user not found', 404);
     }
 
-    await prisma.branch_users.delete({ where: { id } });
+    const branchCode = existingAdmin.branch_code;
 
-    // Log branch user deletion
+    // Delete admin record
+    await prisma.admins.delete({ where: { id } });
+
+    // Delete branch record
+    await prisma.branches.delete({
+      where: { branch_code: branchCode }
+    });
+
+    // Log admin deletion
     await logDelete({
       userId: req.admin?.id || 0,
       userName: req.admin?.name || 'unknown',
       userRole: req.admin?.role || 'admin',
-      entityType: 'BRANCH_USER',
-      entityId: branchUser.id.toString(),
-      entityName: branchUser.username,
-      description: `Deleted branch user: ${branchUser.username} from branch ${branchUser.branch_code}`,
-      detailsBefore: branchUser,
+      entityType: 'ADMIN',
+      entityId: existingAdmin.id.toString(),
+      entityName: existingAdmin.username,
+      description: `Deleted branch admin: ${existingAdmin.username} from branch ${branchCode}`,
+      detailsBefore: existingAdmin,
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent']
+    });
+
+    // Log branch deletion
+    await logDelete({
+      userId: req.admin?.id || 0,
+      userName: req.admin?.name || 'unknown',
+      userRole: req.admin?.role || 'admin',
+      entityType: 'BRANCH',
+      entityId: branchCode,
+      entityName: `Branch ${branchCode}`,
+      description: `Deleted branch: ${branchCode}`,
+      detailsBefore: { branch_code: branchCode },
       ipAddress: req.ip,
       userAgent: req.headers['user-agent']
     });

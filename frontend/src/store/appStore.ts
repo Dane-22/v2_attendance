@@ -10,6 +10,8 @@ export interface User {
   email: string;
   role: UserRole;
   branch_code?: string;
+  permissions?: any;
+  permissions_enabled?: boolean;
 }
 
 interface AppState {
