@@ -109,7 +109,7 @@ export const getAllEmployees = async (
       prisma.employee.count({ where })
     ]);
 
-    const response: PaginatedResponse<Employee> = {
+    const response: any = {
       success: true,
       message: 'Employees retrieved successfully',
       data: employees,
