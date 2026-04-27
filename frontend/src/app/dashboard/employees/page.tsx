@@ -14,11 +14,25 @@ import {
   Key,
   UserPlus,
   Check,
-  Loader2
+  Loader2,
+  Trash2
 } from 'lucide-react';
-import { employeeApi, Employee } from '@/lib/api';
+import { 
+  employeeApi, 
+  Employee, 
+  adminApi, 
+  Admin, 
+  branchUserApi, 
+  BranchUser,
+  branchesApi,
+  CreateAdminRequest,
+  CreateBranchUserRequest
+} from '@/lib/api';
 import { useToast } from '@/components/Toast';
 import { useTheme } from '@/hooks/useTheme';
+
+type UserType = 'employee' | 'admin' | 'branch_user';
+type TabType = 'employees' | 'admins' | 'branch_users';
 
 // QR Code Modal Component
 function QRCodeModal({ employee, isOpen, onClose }: { employee: Employee | null; isOpen: boolean; onClose: () => void }) {
@@ -586,50 +600,606 @@ function AddEmployeeModal({ isOpen, onClose, onEmployeeAdded }: { isOpen: boolea
   );
 }
 
+// Unified User Modal Component (handles Employee, Admin, Branch User)
+interface UserModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onSuccess: () => void;
+  userType: UserType;
+  setUserType: (type: UserType) => void;
+  mode: 'create' | 'edit';
+  editData?: Employee | Admin | BranchUser | null;
+}
+
+function UserModal({ isOpen, onClose, onSuccess, userType, setUserType, mode, editData }: UserModalProps) {
+  const { showToast } = useToast();
+  const { classes } = useTheme();
+  const [isLoading, setIsLoading] = useState(false);
+  const [branches, setBranches] = useState<{ id: number; code: string; name: string }[]>([]);
+  
+  // Form states for different user types
+  const [employeeForm, setEmployeeForm] = useState<Partial<Employee>>({
+    status: 'Active',
+    hasDeductions: true,
+    dailyRate: 0
+  });
+  const [adminForm, setAdminForm] = useState<Partial<CreateAdminRequest>>({
+    role: 'admin'
+  });
+  const [branchUserForm, setBranchUserForm] = useState<Partial<CreateBranchUserRequest>>({
+    status: 'Active'
+  });
+
+  // Fetch branches for dropdowns
+  useEffect(() => {
+    if (isOpen) {
+      branchesApi.getAll().then(response => {
+        if (response.data?.success && response.data.data) {
+          setBranches(response.data.data);
+        }
+      }).catch(console.error);
+    }
+  }, [isOpen]);
+
+  // Load edit data
+  useEffect(() => {
+    if (editData && mode === 'edit') {
+      if (userType === 'employee' && 'employeeCode' in editData) {
+        setEmployeeForm(editData);
+      } else if (userType === 'admin' && 'role' in editData) {
+        setAdminForm({
+          username: editData.username,
+          name: (editData as Admin).name,
+          email: (editData as Admin).email,
+          role: (editData as Admin).role,
+          branch_code: (editData as Admin).branch_code || undefined
+        });
+      } else if (userType === 'branch_user' && 'branch_code' in editData) {
+        setBranchUserForm({
+          branch_code: (editData as BranchUser).branch_code,
+          username: editData.username,
+          status: (editData as BranchUser).status
+        });
+      }
+    }
+  }, [editData, mode, userType]);
+
+  const resetForms = () => {
+    setEmployeeForm({ status: 'Active', hasDeductions: true, dailyRate: 0 });
+    setAdminForm({ role: 'admin' });
+    setBranchUserForm({ status: 'Active' });
+  };
+
+  const handleClose = () => {
+    resetForms();
+    onClose();
+  };
+
+  const validatePassword = (password: string): boolean => {
+    const minLength = 8;
+    const hasUpperCase = /[A-Z]/.test(password);
+    const hasLowerCase = /[a-z]/.test(password);
+    const hasNumber = /\d/.test(password);
+    return password.length >= minLength && hasUpperCase && hasLowerCase && hasNumber;
+  };
+
+  const handleSubmit = async () => {
+    setIsLoading(true);
+    try {
+      if (userType === 'employee') {
+        if (!employeeForm.employeeCode || !employeeForm.firstName || !employeeForm.lastName || !employeeForm.email || !employeeForm.position) {
+          showToast('error', 'Please fill in all required fields');
+          setIsLoading(false);
+          return;
+        }
+        
+        if (mode === 'edit' && editData && 'id' in editData) {
+          const response = await employeeApi.update(editData.id, employeeForm);
+          if (response.data?.success) {
+            showToast('success', 'Employee updated successfully');
+            handleClose();
+            onSuccess();
+          }
+        } else {
+          const response = await employeeApi.create(employeeForm);
+          if (response.data?.success) {
+            showToast('success', 'Employee added successfully');
+            handleClose();
+            onSuccess();
+          }
+        }
+      } else if (userType === 'admin') {
+        if (!adminForm.username || (!editData && !adminForm.password) || !adminForm.name || !adminForm.email || !adminForm.role) {
+          showToast('error', 'Please fill in all required fields');
+          setIsLoading(false);
+          return;
+        }
+
+        if (adminForm.password && !validatePassword(adminForm.password)) {
+          showToast('error', 'Password must be at least 8 characters with 1 uppercase, 1 lowercase, and 1 number');
+          setIsLoading(false);
+          return;
+        }
+
+        if (mode === 'edit' && editData && 'id' in editData) {
+          const updateData: Partial<CreateAdminRequest> = {};
+          if (adminForm.username) updateData.username = adminForm.username;
+          if (adminForm.name) updateData.name = adminForm.name;
+          if (adminForm.email) updateData.email = adminForm.email;
+          if (adminForm.role) updateData.role = adminForm.role;
+          if (adminForm.branch_code) updateData.branch_code = adminForm.branch_code;
+          if (adminForm.password) updateData.password = adminForm.password;
+
+          const response = await adminApi.update(editData.id, updateData);
+          if (response.data?.success) {
+            showToast('success', 'Admin updated successfully');
+            handleClose();
+            onSuccess();
+          }
+        } else {
+          const response = await adminApi.create(adminForm as CreateAdminRequest);
+          if (response.data?.success) {
+            showToast('success', 'Admin added successfully');
+            handleClose();
+            onSuccess();
+          }
+        }
+      } else if (userType === 'branch_user') {
+        if (!branchUserForm.branch_code || !branchUserForm.username || (!editData && !branchUserForm.password)) {
+          showToast('error', 'Please fill in all required fields');
+          setIsLoading(false);
+          return;
+        }
+
+        if (branchUserForm.password && !validatePassword(branchUserForm.password)) {
+          showToast('error', 'Password must be at least 8 characters with 1 uppercase, 1 lowercase, and 1 number');
+          setIsLoading(false);
+          return;
+        }
+
+        if (mode === 'edit' && editData && 'id' in editData) {
+          const updateData: Partial<CreateBranchUserRequest> = {};
+          if (branchUserForm.branch_code) updateData.branch_code = branchUserForm.branch_code;
+          if (branchUserForm.username) updateData.username = branchUserForm.username;
+          if (branchUserForm.status) updateData.status = branchUserForm.status;
+          if (branchUserForm.password) updateData.password = branchUserForm.password;
+
+          const response = await branchUserApi.update(editData.id, updateData);
+          if (response.data?.success) {
+            showToast('success', 'Branch user updated successfully');
+            handleClose();
+            onSuccess();
+          }
+        } else {
+          const response = await branchUserApi.create(branchUserForm as CreateBranchUserRequest);
+          if (response.data?.success) {
+            showToast('success', 'Branch user added successfully');
+            handleClose();
+            onSuccess();
+          }
+        }
+      }
+    } catch (error: any) {
+      showToast('error', error.response?.data?.message || `Failed to ${mode} ${userType.replace('_', ' ')}`);
+      console.error('Error:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  if (!isOpen) return null;
+
+  const getTitle = () => {
+    const action = mode === 'edit' ? 'Edit' : 'Add New';
+    const type = userType === 'branch_user' ? 'Branch User' : userType.charAt(0).toUpperCase() + userType.slice(1);
+    return `${action} ${type}`;
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+      <div className="w-full max-w-5xl bg-[#1a1a1a] rounded-2xl border border-[#facc15]/30 shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-[#262626]">
+          <div>
+            <h2 className="text-xl font-bold text-[#facc15]">{getTitle()}</h2>
+            {mode === 'edit' && editData && (
+              <span className="inline-flex items-center px-2 py-0.5 bg-[#facc15]/20 text-[#facc15] text-xs font-medium rounded mt-1">
+                ID: {editData.id}
+              </span>
+            )}
+          </div>
+          <button onClick={handleClose} className="p-1 hover:bg-red-500/20 text-gray-400 hover:text-red-400 rounded-lg transition-colors">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* Scrollable Form Content */}
+        <div className="p-6 overflow-y-auto flex-1">
+          {/* User Type Selector (only for create mode) */}
+          {mode === 'create' && (
+            <div className="mb-6">
+              <h3 className="text-[#facc15] font-semibold mb-4 pb-2 border-b border-[#262626]">User Type</h3>
+              <div className="grid grid-cols-3 gap-4">
+                {(['employee', 'admin', 'branch_user'] as UserType[]).map((type) => (
+                  <button
+                    key={type}
+                    type="button"
+                    onClick={() => {
+                      setUserType(type);
+                      resetForms();
+                    }}
+                    className={`px-4 py-3 rounded-xl font-medium text-sm transition-all ${
+                      userType === type
+                        ? 'bg-[#facc15] text-black'
+                        : 'bg-[#262626] text-gray-400 hover:bg-[#333] hover:text-white'
+                    }`}
+                  >
+                    {type === 'branch_user' ? 'Branch User' : type.charAt(0).toUpperCase() + type.slice(1)}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Common Fields */}
+          <div className="mb-6">
+            <h3 className="text-[#facc15] font-semibold mb-4 pb-2 border-b border-[#262626]">Basic Information</h3>
+            <div className="grid grid-cols-3 gap-4">
+              <div>
+                <label className="block text-gray-400 text-sm mb-1">
+                  {userType === 'employee' ? 'First Name' : 'Name'} <span className="text-red-400">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={userType === 'employee' ? employeeForm.firstName || '' : adminForm.name || ''}
+                  onChange={(e) => {
+                    if (userType === 'employee') {
+                      setEmployeeForm({ ...employeeForm, firstName: e.target.value });
+                    } else {
+                      setAdminForm({ ...adminForm, name: e.target.value });
+                    }
+                  }}
+                  className="w-full px-4 py-2 bg-[#141414] border border-[#facc15]/30 rounded-lg text-white focus:outline-none focus:border-[#facc15]"
+                />
+              </div>
+              {userType === 'employee' && (
+                <div>
+                  <label className="block text-gray-400 text-sm mb-1">Middle Name</label>
+                  <input
+                    type="text"
+                    value={employeeForm.middleName || ''}
+                    onChange={(e) => setEmployeeForm({ ...employeeForm, middleName: e.target.value })}
+                    className="w-full px-4 py-2 bg-[#141414] border border-[#262626] rounded-lg text-white focus:outline-none focus:border-[#facc15]"
+                  />
+                </div>
+              )}
+              {userType === 'employee' && (
+                <div>
+                  <label className="block text-gray-400 text-sm mb-1">Last Name <span className="text-red-400">*</span></label>
+                  <input
+                    type="text"
+                    value={employeeForm.lastName || ''}
+                    onChange={(e) => setEmployeeForm({ ...employeeForm, lastName: e.target.value })}
+                    className="w-full px-4 py-2 bg-[#141414] border border-[#facc15]/30 rounded-lg text-white focus:outline-none focus:border-[#facc15]"
+                  />
+                </div>
+              )}
+              <div>
+                <label className="block text-gray-400 text-sm mb-1">Email Address <span className="text-red-400">*</span></label>
+                <input
+                  type="email"
+                  value={userType === 'employee' ? employeeForm.email || '' : adminForm.email || ''}
+                  onChange={(e) => {
+                    if (userType === 'employee') {
+                      setEmployeeForm({ ...employeeForm, email: e.target.value });
+                    } else {
+                      setAdminForm({ ...adminForm, email: e.target.value });
+                    }
+                  }}
+                  className="w-full px-4 py-2 bg-[#141414] border border-[#facc15]/30 rounded-lg text-white focus:outline-none focus:border-[#facc15]"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Employee-Specific Fields */}
+          {userType === 'employee' && (
+            <div className="mb-6">
+              <h3 className="text-[#facc15] font-semibold mb-4 pb-2 border-b border-[#262626]">Employment Details</h3>
+              <div className="grid grid-cols-4 gap-4">
+                <div>
+                  <label className="block text-gray-400 text-sm mb-1">Employee Code <span className="text-red-400">*</span></label>
+                  <input
+                    type="text"
+                    value={employeeForm.employeeCode || ''}
+                    onChange={(e) => setEmployeeForm({ ...employeeForm, employeeCode: e.target.value })}
+                    className="w-full px-4 py-2 bg-[#141414] border border-[#facc15]/30 rounded-lg text-white focus:outline-none focus:border-[#facc15]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-gray-400 text-sm mb-1">Position <span className="text-red-400">*</span></label>
+                  <select
+                    value={employeeForm.position || ''}
+                    onChange={(e) => setEmployeeForm({ ...employeeForm, position: e.target.value })}
+                    className="w-full px-4 py-2 bg-[#141414] border border-[#facc15]/30 rounded-lg text-white focus:outline-none focus:border-[#facc15]"
+                  >
+                    <option value="">Select Position</option>
+                    <option>Worker</option>
+                    <option>Admin</option>
+                    <option>Super Admin</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-gray-400 text-sm mb-1">Department</label>
+                  <input
+                    type="text"
+                    value={employeeForm.department || ''}
+                    onChange={(e) => setEmployeeForm({ ...employeeForm, department: e.target.value })}
+                    className="w-full px-4 py-2 bg-[#141414] border border-[#262626] rounded-lg text-white focus:outline-none focus:border-[#facc15]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-gray-400 text-sm mb-1">Branch</label>
+                  <select
+                    value={employeeForm.branchCode || ''}
+                    onChange={(e) => setEmployeeForm({ ...employeeForm, branchCode: e.target.value || null })}
+                    className="w-full px-4 py-2 bg-[#141414] border border-[#262626] rounded-lg text-white focus:outline-none focus:border-[#facc15]"
+                  >
+                    <option value="">Select Branch</option>
+                    {branches.map((branch) => (
+                      <option key={branch.id} value={branch.code}>{branch.name} ({branch.code})</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-gray-400 text-sm mb-1">Status</label>
+                  <select
+                    value={employeeForm.status || ''}
+                    onChange={(e) => setEmployeeForm({ ...employeeForm, status: e.target.value })}
+                    className="w-full px-4 py-2 bg-[#141414] border border-[#262626] rounded-lg text-white focus:outline-none focus:border-[#facc15]"
+                  >
+                    <option value="">Select Status</option>
+                    <option>Active</option>
+                    <option>Inactive</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-gray-400 text-sm mb-1">Daily Rate (₱)</label>
+                  <input
+                    type="number"
+                    value={employeeForm.dailyRate || ''}
+                    onChange={(e) => setEmployeeForm({ ...employeeForm, dailyRate: parseFloat(e.target.value) || 0 })}
+                    className="w-full px-4 py-2 bg-[#141414] border border-[#262626] rounded-lg text-white focus:outline-none focus:border-[#facc15]"
+                  />
+                </div>
+                <div className="flex items-end">
+                  <label className="flex items-center gap-3 cursor-pointer">
+                    <div
+                      className={`w-12 h-6 rounded-full transition-colors ${employeeForm.hasDeductions ? 'bg-green-500' : 'bg-gray-600'}`}
+                      onClick={() => setEmployeeForm({ ...employeeForm, hasDeductions: !employeeForm.hasDeductions })}
+                    >
+                      <div className={`w-5 h-5 bg-white rounded-full transition-transform mt-0.5 ${employeeForm.hasDeductions ? 'translate-x-6' : 'translate-x-0.5'}`} />
+                    </div>
+                    <span className="text-white text-sm">With SSS/PhilHealth/PagIBIG</span>
+                  </label>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Admin-Specific Fields */}
+          {userType === 'admin' && (
+            <div className="mb-6">
+              <h3 className="text-[#facc15] font-semibold mb-4 pb-2 border-b border-[#262626]">Admin Details</h3>
+              <div className="grid grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-gray-400 text-sm mb-1">Username <span className="text-red-400">*</span></label>
+                  <input
+                    type="text"
+                    value={adminForm.username || ''}
+                    onChange={(e) => setAdminForm({ ...adminForm, username: e.target.value })}
+                    className="w-full px-4 py-2 bg-[#141414] border border-[#facc15]/30 rounded-lg text-white focus:outline-none focus:border-[#facc15]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-gray-400 text-sm mb-1">
+                    Password {mode === 'create' && <span className="text-red-400">*</span>}
+                    {mode === 'edit' && <span className="text-gray-500 text-xs"> (leave blank to keep unchanged)</span>}
+                  </label>
+                  <input
+                    type="password"
+                    value={adminForm.password || ''}
+                    onChange={(e) => setAdminForm({ ...adminForm, password: e.target.value })}
+                    placeholder={mode === 'edit' ? 'Leave blank to keep unchanged' : ''}
+                    className="w-full px-4 py-2 bg-[#141414] border border-[#facc15]/30 rounded-lg text-white focus:outline-none focus:border-[#facc15]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-gray-400 text-sm mb-1">Role <span className="text-red-400">*</span></label>
+                  <select
+                    value={adminForm.role || ''}
+                    onChange={(e) => setAdminForm({ ...adminForm, role: e.target.value as 'admin' | 'super_admin' })}
+                    className="w-full px-4 py-2 bg-[#141414] border border-[#facc15]/30 rounded-lg text-white focus:outline-none focus:border-[#facc15]"
+                  >
+                    <option value="">Select Role</option>
+                    <option value="admin">Admin</option>
+                    <option value="super_admin">Super Admin</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-gray-400 text-sm mb-1">Branch Code</label>
+                  <select
+                    value={adminForm.branch_code || ''}
+                    onChange={(e) => setAdminForm({ ...adminForm, branch_code: e.target.value || undefined })}
+                    className="w-full px-4 py-2 bg-[#141414] border border-[#262626] rounded-lg text-white focus:outline-none focus:border-[#facc15]"
+                  >
+                    <option value="">No Branch</option>
+                    {branches.map((branch) => (
+                      <option key={branch.id} value={branch.code}>{branch.name} ({branch.code})</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <p className="text-gray-500 text-xs mt-3">
+                <span className="text-[#facc15]">ℹ</span> Password must be at least 8 characters with 1 uppercase, 1 lowercase, and 1 number
+              </p>
+            </div>
+          )}
+
+          {/* Branch User-Specific Fields */}
+          {userType === 'branch_user' && (
+            <div className="mb-6">
+              <h3 className="text-[#facc15] font-semibold mb-4 pb-2 border-b border-[#262626]">Branch User Details</h3>
+              <div className="grid grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-gray-400 text-sm mb-1">Branch Code <span className="text-red-400">*</span></label>
+                  <select
+                    value={branchUserForm.branch_code || ''}
+                    onChange={(e) => setBranchUserForm({ ...branchUserForm, branch_code: e.target.value })}
+                    className="w-full px-4 py-2 bg-[#141414] border border-[#facc15]/30 rounded-lg text-white focus:outline-none focus:border-[#facc15]"
+                  >
+                    <option value="">Select Branch</option>
+                    {branches.map((branch) => (
+                      <option key={branch.id} value={branch.code}>{branch.name} ({branch.code})</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-gray-400 text-sm mb-1">Username <span className="text-red-400">*</span></label>
+                  <input
+                    type="text"
+                    value={branchUserForm.username || ''}
+                    onChange={(e) => setBranchUserForm({ ...branchUserForm, username: e.target.value })}
+                    className="w-full px-4 py-2 bg-[#141414] border border-[#facc15]/30 rounded-lg text-white focus:outline-none focus:border-[#facc15]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-gray-400 text-sm mb-1">
+                    Password {mode === 'create' && <span className="text-red-400">*</span>}
+                    {mode === 'edit' && <span className="text-gray-500 text-xs"> (leave blank to keep unchanged)</span>}
+                  </label>
+                  <input
+                    type="password"
+                    value={branchUserForm.password || ''}
+                    onChange={(e) => setBranchUserForm({ ...branchUserForm, password: e.target.value })}
+                    placeholder={mode === 'edit' ? 'Leave blank to keep unchanged' : ''}
+                    className="w-full px-4 py-2 bg-[#141414] border border-[#facc15]/30 rounded-lg text-white focus:outline-none focus:border-[#facc15]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-gray-400 text-sm mb-1">Status</label>
+                  <select
+                    value={branchUserForm.status || ''}
+                    onChange={(e) => setBranchUserForm({ ...branchUserForm, status: e.target.value })}
+                    className="w-full px-4 py-2 bg-[#141414] border border-[#262626] rounded-lg text-white focus:outline-none focus:border-[#facc15]"
+                  >
+                    <option value="">Select Status</option>
+                    <option>Active</option>
+                    <option>Inactive</option>
+                  </select>
+                </div>
+              </div>
+              <p className="text-gray-500 text-xs mt-3">
+                <span className="text-[#facc15]">ℹ</span> Password must be at least 8 characters with 1 uppercase, 1 lowercase, and 1 number
+              </p>
+            </div>
+          )}
+        </div>
+
+        {/* Footer Actions */}
+        <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-[#262626] bg-[#141414]">
+          <button onClick={handleClose} className="px-6 py-2 bg-[#262626] text-white rounded-lg hover:bg-[#333] transition-colors">
+            Cancel
+          </button>
+          <button
+            onClick={handleSubmit}
+            disabled={isLoading}
+            className="flex items-center gap-2 px-6 py-2 bg-[#facc15] text-black font-medium rounded-lg hover:bg-yellow-400 transition-colors disabled:opacity-50"
+          >
+            {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : mode === 'edit' ? <Save className="w-4 h-4" /> : <UserPlus className="w-4 h-4" />}
+            {isLoading ? (mode === 'edit' ? 'Saving...' : 'Adding...') : (mode === 'edit' ? 'Save Changes' : `Add ${userType === 'branch_user' ? 'Branch User' : userType.charAt(0).toUpperCase() + userType.slice(1)}`)}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function EmployeesPage() {
+  const [activeTab, setActiveTab] = useState<TabType>('employees');
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
-  const [employeesPerPage, setEmployeesPerPage] = useState(10);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
   const [qrModalOpen, setQrModalOpen] = useState(false);
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [addModalOpen, setAddModalOpen] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
+  const [selectedAdmin, setSelectedAdmin] = useState<Admin | null>(null);
+  const [selectedBranchUser, setSelectedBranchUser] = useState<BranchUser | null>(null);
+  const [modalUserType, setModalUserType] = useState<UserType>('employee');
+  const [modalMode, setModalMode] = useState<'create' | 'edit'>('create');
+  
+  // Data states
   const [employees, setEmployees] = useState<Employee[]>([]);
+  const [admins, setAdmins] = useState<Admin[]>([]);
+  const [branchUsers, setBranchUsers] = useState<BranchUser[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [totalEmployees, setTotalEmployees] = useState(0);
+  const [totalItems, setTotalItems] = useState(0);
+  
   const { showToast } = useToast();
   const { classes } = useTheme();
 
-  const totalPages = Math.ceil(totalEmployees / employeesPerPage);
+  const totalPages = Math.ceil(totalItems / itemsPerPage);
 
-  // Fetch employees from API
+  // Fetch data based on active tab
   useEffect(() => {
-    fetchEmployees();
-  }, [page, employeesPerPage]);
+    fetchData();
+  }, [page, itemsPerPage, activeTab]);
 
   // Debounced search effect
   useEffect(() => {
     const timer = setTimeout(() => {
       setPage(1);
-      fetchEmployees();
+      fetchData();
     }, 500);
     return () => clearTimeout(timer);
-  }, [search]);
+  }, [search, activeTab]);
 
-  const fetchEmployees = async () => {
+  const fetchData = async () => {
     try {
       setIsLoading(true);
-      const response = await employeeApi.getAll({ page, limit: employeesPerPage, search });
-      if (response.data?.success && response.data?.data) {
-        setEmployees(response.data.data);
-        setTotalEmployees(response.data.meta?.total || 0);
+      
+      if (activeTab === 'employees') {
+        const response = await employeeApi.getAll({ page, limit: itemsPerPage, search });
+        if (response.data?.success && response.data?.data) {
+          setEmployees(response.data.data);
+          setTotalItems(response.data.meta?.total || 0);
+        }
+      } else if (activeTab === 'admins') {
+        const response = await adminApi.getAll({ page, limit: itemsPerPage, search });
+        if (response.data?.success && response.data?.data) {
+          setAdmins(response.data.data);
+          setTotalItems(response.data.meta?.total || 0);
+        }
+      } else if (activeTab === 'branch_users') {
+        const response = await branchUserApi.getAll({ page, limit: itemsPerPage, search });
+        if (response.data?.success && response.data?.data) {
+          setBranchUsers(response.data.data);
+          setTotalItems(response.data.meta?.total || 0);
+        }
       }
     } catch (error) {
-      showToast('error', 'Failed to load employees');
-      console.error('Error fetching employees:', error);
+      showToast('error', `Failed to load ${activeTab.replace('_', ' ')}`);
+      console.error('Error fetching data:', error);
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleTabChange = (tab: TabType) => {
+    setActiveTab(tab);
+    setPage(1);
+    setSearch('');
   };
 
   const handleQRClick = (employee: Employee) => {
@@ -637,9 +1207,56 @@ export default function EmployeesPage() {
     setQrModalOpen(true);
   };
 
-  const handleEditClick = (employee: Employee) => {
-    setSelectedEmployee(employee);
+  const handleEditClick = (item: Employee | Admin | BranchUser) => {
+    if (activeTab === 'employees' && 'employeeCode' in item) {
+      setSelectedEmployee(item);
+      setModalUserType('employee');
+      setSelectedAdmin(null);
+      setSelectedBranchUser(null);
+    } else if (activeTab === 'admins' && 'role' in item) {
+      setSelectedAdmin(item as Admin);
+      setModalUserType('admin');
+      setSelectedEmployee(null);
+      setSelectedBranchUser(null);
+    } else if (activeTab === 'branch_users' && 'branch_code' in item) {
+      setSelectedBranchUser(item as BranchUser);
+      setModalUserType('branch_user');
+      setSelectedEmployee(null);
+      setSelectedAdmin(null);
+    }
+    setModalMode('edit');
     setEditModalOpen(true);
+  };
+
+  const handleAddClick = () => {
+    setModalMode('create');
+    setModalUserType(activeTab === 'branch_users' ? 'branch_user' : activeTab === 'admins' ? 'admin' : 'employee');
+    setSelectedEmployee(null);
+    setSelectedAdmin(null);
+    setSelectedBranchUser(null);
+    setAddModalOpen(true);
+  };
+
+  const handleDeleteClick = async (item: Employee | Admin | BranchUser) => {
+    if (!confirm(`Are you sure you want to delete this ${activeTab.slice(0, -1)}?`)) return;
+    
+    try {
+      let response;
+      if (activeTab === 'employees' && 'employeeCode' in item) {
+        response = await employeeApi.delete(item.id);
+      } else if (activeTab === 'admins' && 'role' in item) {
+        response = await adminApi.delete(item.id);
+      } else if (activeTab === 'branch_users' && 'branch_code' in item) {
+        response = await branchUserApi.delete(item.id);
+      }
+      
+      if (response?.data?.success) {
+        showToast('success', 'Deleted successfully');
+        fetchData();
+      }
+    } catch (error) {
+      showToast('error', 'Failed to delete');
+    }
   };
 
   return (
@@ -647,19 +1264,39 @@ export default function EmployeesPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className={`text-xl font-bold ${classes.text}`}>Employees</h1>
-          <p className={`${classes.textMuted} text-sm mt-0.5`}>Total Employees: {totalEmployees}</p>
+          <h1 className={`text-xl font-bold ${classes.text}`}>User Management</h1>
+          <p className={`${classes.textMuted} text-sm mt-0.5`}>Total {activeTab === 'branch_users' ? 'Branch Users' : activeTab.charAt(0).toUpperCase() + activeTab.slice(1)}: {totalItems}</p>
         </div>
         <div className="flex items-center gap-4">
-          <p className={`${classes.textMuted} text-sm hidden sm:block`}>Manage employee records</p>
+          <p className={`${classes.textMuted} text-sm hidden sm:block`}>Manage users across all tables</p>
           <button 
-            onClick={() => setAddModalOpen(true)}
+            onClick={handleAddClick}
             className="flex items-center gap-2 px-4 py-2 bg-[#facc15] text-black font-medium rounded-lg hover:bg-yellow-400 transition-colors text-sm"
           >
             <Plus className="w-4 h-4" />
-            Add Employee
+            Add {activeTab === 'branch_users' ? 'Branch User' : activeTab === 'admins' ? 'Admin' : 'Employee'}
           </button>
         </div>
+      </div>
+
+      {/* Tabs */}
+      <div className="flex gap-2 border-b border-[#262626]">
+        {(['employees', 'admins', 'branch_users'] as TabType[]).map((tab) => (
+          <button
+            key={tab}
+            onClick={() => handleTabChange(tab)}
+            className={`px-4 py-3 font-medium text-sm transition-colors relative ${
+              activeTab === tab
+                ? 'text-[#facc15]'
+                : 'text-gray-400 hover:text-white'
+            }`}
+          >
+            {tab === 'branch_users' ? 'Branch Users' : tab.charAt(0).toUpperCase() + tab.slice(1)}
+            {activeTab === tab && (
+              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#facc15]" />
+            )}
+          </button>
+        ))}
       </div>
 
       {/* Search */}
@@ -667,88 +1304,201 @@ export default function EmployeesPage() {
         <Search className={`absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 ${classes.textMuted}`} />
         <input
           type="text"
-          placeholder="Search employees by name, code,"
+          placeholder={`Search ${activeTab.replace('_', ' ')} by name, code...`}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className={`w-full pl-11 pr-4 py-3 ${classes.bgCard} ${classes.border} rounded-lg ${classes.text} placeholder-gray-500 focus:outline-none focus:border-[#facc15]`}
         />
       </div>
 
-      {/* Existing Employees Section */}
+      {/* Existing Items Section */}
       <div>
-        <h2 className="text-[#facc15] font-bold text-lg mb-4">Existing Employees</h2>
+        <h2 className="text-[#facc15] font-bold text-lg mb-4">
+          Existing {activeTab === 'branch_users' ? 'Branch Users' : activeTab.charAt(0).toUpperCase() + activeTab.slice(1)}
+        </h2>
 
-        {/* Employees Table */}
+        {/* Dynamic Table */}
         <div className={`${classes.bgCard} rounded-xl ${classes.border} overflow-hidden`}>
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
                 <tr className={`border-b ${classes.border}`}>
-                  <th className={`px-4 py-4 text-left text-xs font-medium ${classes.textMuted} uppercase tracking-wider`}>Employee</th>
-                  <th className={`px-4 py-4 text-left text-xs font-medium ${classes.textMuted} uppercase tracking-wider`}>Code</th>
-                  <th className={`px-4 py-4 text-left text-xs font-medium ${classes.textMuted} uppercase tracking-wider`}>Position</th>
-                  <th className={`px-4 py-4 text-left text-xs font-medium ${classes.textMuted} uppercase tracking-wider`}>Status</th>
+                  {activeTab === 'employees' && (
+                    <>
+                      <th className={`px-4 py-4 text-left text-xs font-medium ${classes.textMuted} uppercase tracking-wider`}>Employee</th>
+                      <th className={`px-4 py-4 text-left text-xs font-medium ${classes.textMuted} uppercase tracking-wider`}>Code</th>
+                      <th className={`px-4 py-4 text-left text-xs font-medium ${classes.textMuted} uppercase tracking-wider`}>Position</th>
+                      <th className={`px-4 py-4 text-left text-xs font-medium ${classes.textMuted} uppercase tracking-wider`}>Status</th>
+                    </>
+                  )}
+                  {activeTab === 'admins' && (
+                    <>
+                      <th className={`px-4 py-4 text-left text-xs font-medium ${classes.textMuted} uppercase tracking-wider`}>Admin</th>
+                      <th className={`px-4 py-4 text-left text-xs font-medium ${classes.textMuted} uppercase tracking-wider`}>Username</th>
+                      <th className={`px-4 py-4 text-left text-xs font-medium ${classes.textMuted} uppercase tracking-wider`}>Role</th>
+                      <th className={`px-4 py-4 text-left text-xs font-medium ${classes.textMuted} uppercase tracking-wider`}>Branch</th>
+                    </>
+                  )}
+                  {activeTab === 'branch_users' && (
+                    <>
+                      <th className={`px-4 py-4 text-left text-xs font-medium ${classes.textMuted} uppercase tracking-wider`}>Branch User</th>
+                      <th className={`px-4 py-4 text-left text-xs font-medium ${classes.textMuted} uppercase tracking-wider`}>Username</th>
+                      <th className={`px-4 py-4 text-left text-xs font-medium ${classes.textMuted} uppercase tracking-wider`}>Branch</th>
+                      <th className={`px-4 py-4 text-left text-xs font-medium ${classes.textMuted} uppercase tracking-wider`}>Status</th>
+                    </>
+                  )}
                   <th className={`px-4 py-4 text-right text-xs font-medium ${classes.textMuted} uppercase tracking-wider`}>Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {employees.map((employee) => (
-                  <tr key={employee.id} className={`border-b ${classes.border} last:border-0 ${classes.bgCardHover}`}>
-                    <td className="px-4 py-4">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-[#facc15] flex items-center justify-center text-black text-sm font-bold overflow-hidden">
-                          {employee.profileImage ? (
-                            <img
-                              src={`${process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || 'http://localhost:5002'}${employee.profileImage}`}
-                              alt={`${employee.firstName} ${employee.lastName}`}
-                              className="w-full h-full object-cover"
-                            />
-                          ) : (
-                            <span>{(employee.firstName || '')?.[0]}{(employee.lastName || '')?.[0]}</span>
-                          )}
-                        </div>
-                        <div>
-                          <p className={`${classes.text} font-medium text-sm`}>{employee.firstName} {employee.lastName}</p>
-                          <p className={`${classes.textMuted} text-xs`}>{employee.email}</p>
-                        </div>
-                      </div>
-                    </td>
-                    <td className={`px-4 py-4 ${classes.textMuted} font-mono text-sm`}>{employee.employeeCode}</td>
-                    <td className={`px-4 py-4 ${classes.textMuted} text-sm`}>{employee.position}</td>
-                    <td className="px-4 py-4">
-                      <span className="inline-flex items-center px-2.5 py-1 bg-green-500/20 text-green-400 text-xs font-medium rounded-full">
-                        {employee.status}
-                      </span>
-                    </td>
-                    <td className="px-4 py-4">
-                      <div className="flex items-center justify-end gap-2">
-                        <button className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
-                          employee.hasDeductions 
-                            ? 'bg-green-500/20 text-green-400 hover:bg-green-500/30' 
-                            : 'bg-red-500/20 text-red-400 hover:bg-red-500/30'
-                        }`}>
-                          {employee.hasDeductions ? (
-                            <><Check className="w-3 h-3" /> With Deductions</>
-                          ) : (
-                            <><X className="w-3 h-3" /> No Deductions</>
-                          )}
-                        </button>
-                        <button 
-                          onClick={() => handleQRClick(employee)}
-                          className={`p-1.5 ${classes.textMuted} hover:text-[#facc15] transition-colors`}
-                        >
-                          <QrCode className="w-4 h-4" />
-                        </button>
-                        <button 
-                          onClick={() => handleEditClick(employee)}
-                          className={`p-1.5 ${classes.textMuted} hover:text-[#facc15] transition-colors`}
-                        >
-                          <Edit2 className="w-4 h-4" />
-                        </button>
-                      </div>
+                {isLoading ? (
+                  <tr>
+                    <td colSpan={5} className="px-4 py-8 text-center text-gray-400">
+                      <Loader2 className="w-6 h-6 animate-spin mx-auto" />
+                      <span className="mt-2 block">Loading...</span>
                     </td>
                   </tr>
-                ))}
+                ) : (
+                  <>
+                    {activeTab === 'employees' && employees.map((employee) => (
+                      <tr key={employee.id} className={`border-b ${classes.border} last:border-0 ${classes.bgCardHover}`}>
+                        <td className="px-4 py-4">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-full bg-[#facc15] flex items-center justify-center text-black text-sm font-bold overflow-hidden">
+                              {employee.profileImage ? (
+                                <img
+                                  src={`${process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || 'http://localhost:5002'}${employee.profileImage}`}
+                                  alt={`${employee.firstName} ${employee.lastName}`}
+                                  className="w-full h-full object-cover"
+                                />
+                              ) : (
+                                <span>{(employee.firstName || '')?.[0]}{(employee.lastName || '')?.[0]}</span>
+                              )}
+                            </div>
+                            <div>
+                              <p className={`${classes.text} font-medium text-sm`}>{employee.firstName} {employee.lastName}</p>
+                              <p className={`${classes.textMuted} text-xs`}>{employee.email}</p>
+                            </div>
+                          </div>
+                        </td>
+                        <td className={`px-4 py-4 ${classes.textMuted} font-mono text-sm`}>{employee.employeeCode}</td>
+                        <td className={`px-4 py-4 ${classes.textMuted} text-sm`}>{employee.position}</td>
+                        <td className="px-4 py-4">
+                          <span className="inline-flex items-center px-2.5 py-1 bg-green-500/20 text-green-400 text-xs font-medium rounded-full">
+                            {employee.status}
+                          </span>
+                        </td>
+                        <td className="px-4 py-4">
+                          <div className="flex items-center justify-end gap-2">
+                            <button className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                              employee.hasDeductions 
+                                ? 'bg-green-500/20 text-green-400 hover:bg-green-500/30' 
+                                : 'bg-red-500/20 text-red-400 hover:bg-red-500/30'
+                            }`}>
+                              {employee.hasDeductions ? (
+                                <><Check className="w-3 h-3" /> With Deductions</>
+                              ) : (
+                                <><X className="w-3 h-3" /> No Deductions</>
+                              )}
+                            </button>
+                            <button 
+                              onClick={() => handleQRClick(employee)}
+                              className={`p-1.5 ${classes.textMuted} hover:text-[#facc15] transition-colors`}
+                            >
+                              <QrCode className="w-4 h-4" />
+                            </button>
+                            <button 
+                              onClick={() => handleEditClick(employee)}
+                              className={`p-1.5 ${classes.textMuted} hover:text-[#facc15] transition-colors`}
+                            >
+                              <Edit2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                    {activeTab === 'admins' && admins.map((admin) => (
+                      <tr key={admin.id} className={`border-b ${classes.border} last:border-0 ${classes.bgCardHover}`}>
+                        <td className="px-4 py-4">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-full bg-[#facc15] flex items-center justify-center text-black text-sm font-bold">
+                              {(admin.name || '')?.[0]}
+                            </div>
+                            <div>
+                              <p className={`${classes.text} font-medium text-sm`}>{admin.name}</p>
+                              <p className={`${classes.textMuted} text-xs`}>{admin.email}</p>
+                            </div>
+                          </div>
+                        </td>
+                        <td className={`px-4 py-4 ${classes.textMuted} font-mono text-sm`}>{admin.username}</td>
+                        <td className="px-4 py-4">
+                          <span className={`inline-flex items-center px-2.5 py-1 text-xs font-medium rounded-full ${
+                            admin.role === 'super_admin' ? 'bg-purple-500/20 text-purple-400' : 'bg-blue-500/20 text-blue-400'
+                          }`}>
+                            {admin.role === 'super_admin' ? 'Super Admin' : 'Admin'}
+                          </span>
+                        </td>
+                        <td className={`px-4 py-4 ${classes.textMuted} text-sm`}>{admin.branch_code || '-'}</td>
+                        <td className="px-4 py-4">
+                          <div className="flex items-center justify-end gap-2">
+                            <button 
+                              onClick={() => handleEditClick(admin)}
+                              className={`p-1.5 ${classes.textMuted} hover:text-[#facc15] transition-colors`}
+                            >
+                              <Edit2 className="w-4 h-4" />
+                            </button>
+                            <button 
+                              onClick={() => handleDeleteClick(admin)}
+                              className={`p-1.5 ${classes.textMuted} hover:text-red-400 transition-colors`}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                    {activeTab === 'branch_users' && branchUsers.map((branchUser) => (
+                      <tr key={branchUser.id} className={`border-b ${classes.border} last:border-0 ${classes.bgCardHover}`}>
+                        <td className="px-4 py-4">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-full bg-[#facc15] flex items-center justify-center text-black text-sm font-bold">
+                              {(branchUser.username || '')?.[0]}
+                            </div>
+                            <div>
+                              <p className={`${classes.text} font-medium text-sm`}>{branchUser.username}</p>
+                              <p className={`${classes.textMuted} text-xs`}>Branch User</p>
+                            </div>
+                          </div>
+                        </td>
+                        <td className={`px-4 py-4 ${classes.textMuted} font-mono text-sm`}>{branchUser.username}</td>
+                        <td className={`px-4 py-4 ${classes.textMuted} text-sm`}>{branchUser.branch_code}</td>
+                        <td className="px-4 py-4">
+                          <span className={`inline-flex items-center px-2.5 py-1 text-xs font-medium rounded-full ${
+                            branchUser.status === 'Active' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'
+                          }`}>
+                            {branchUser.status}
+                          </span>
+                        </td>
+                        <td className="px-4 py-4">
+                          <div className="flex items-center justify-end gap-2">
+                            <button 
+                              onClick={() => handleEditClick(branchUser)}
+                              className={`p-1.5 ${classes.textMuted} hover:text-[#facc15] transition-colors`}
+                            >
+                              <Edit2 className="w-4 h-4" />
+                            </button>
+                            <button 
+                              onClick={() => handleDeleteClick(branchUser)}
+                              className={`p-1.5 ${classes.textMuted} hover:text-red-400 transition-colors`}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </>
+                )}
               </tbody>
             </table>
           </div>
@@ -756,14 +1506,14 @@ export default function EmployeesPage() {
           {/* Pagination */}
           <div className="flex items-center justify-between px-4 py-4 border-t border-[#262626]">
             <span className="text-sm text-gray-400">
-              Showing <span className="text-white">{Math.min((page - 1) * employeesPerPage + 1, totalEmployees)}</span> to <span className="text-white">{Math.min(page * employeesPerPage, totalEmployees)}</span> of <span className="text-white">{totalEmployees}</span> employees
+              Showing <span className="text-white">{Math.min((page - 1) * itemsPerPage + 1, totalItems)}</span> to <span className="text-white">{Math.min(page * itemsPerPage, totalItems)}</span> of <span className="text-white">{totalItems}</span> {activeTab}
             </span>
             <div className="flex items-center gap-2">
               <span className="text-sm text-gray-400 mr-2">Show:</span>
               <select 
-                value={employeesPerPage}
+                value={itemsPerPage}
                 onChange={(e) => {
-                  setEmployeesPerPage(Number(e.target.value));
+                  setItemsPerPage(Number(e.target.value));
                   setPage(1);
                 }}
                 className="px-3 py-1.5 bg-[#1a1a1a] border border-[#262626] rounded text-white text-sm focus:outline-none focus:border-[#facc15]"
@@ -857,15 +1607,26 @@ export default function EmployeesPage() {
         isOpen={qrModalOpen} 
         onClose={() => setQrModalOpen(false)} 
       />
-      <EditEmployeeModal 
-        employee={selectedEmployee} 
-        isOpen={editModalOpen} 
-        onClose={() => setEditModalOpen(false)} 
+      
+      {/* Create Modal */}
+      <UserModal
+        isOpen={addModalOpen}
+        onClose={() => setAddModalOpen(false)}
+        onSuccess={fetchData}
+        userType={modalUserType}
+        setUserType={setModalUserType}
+        mode="create"
       />
-      <AddEmployeeModal 
-        isOpen={addModalOpen} 
-        onClose={() => setAddModalOpen(false)} 
-        onEmployeeAdded={fetchEmployees}
+      
+      {/* Edit Modal */}
+      <UserModal
+        isOpen={editModalOpen}
+        onClose={() => setEditModalOpen(false)}
+        onSuccess={fetchData}
+        userType={modalUserType}
+        setUserType={setModalUserType}
+        mode="edit"
+        editData={modalUserType === 'employee' ? selectedEmployee : modalUserType === 'admin' ? selectedAdmin : selectedBranchUser}
       />
     </div>
   );

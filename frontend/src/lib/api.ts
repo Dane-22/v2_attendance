@@ -428,4 +428,84 @@ export const documentApi = {
     api.get<ApiResponse<{ totalDocuments: number; archivedDocuments: number; documentsByType: any[]; employeesWithDocumentsCount: number }>>('/documents/stats'),
 };
 
+// Admin types
+export interface Admin {
+  id: number;
+  username: string;
+  name: string;
+  email: string;
+  role: 'admin' | 'super_admin';
+  branch_code: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateAdminRequest {
+  username: string;
+  password: string;
+  name: string;
+  email: string;
+  role: 'admin' | 'super_admin';
+  branch_code?: string;
+}
+
+export interface UpdateAdminRequest {
+  username?: string;
+  password?: string;
+  name?: string;
+  email?: string;
+  role?: 'admin' | 'super_admin';
+  branch_code?: string;
+}
+
+export const adminApi = {
+  getAll: (params?: { page?: number; limit?: number; search?: string }) =>
+    api.get<PaginatedResponse<Admin[]>>('/admins', { params }),
+  create: (data: CreateAdminRequest) =>
+    api.post<ApiResponse<Admin>>('/admins', data),
+  update: (id: number, data: UpdateAdminRequest) =>
+    api.put<ApiResponse<Admin>>(`/admins/${id}`, data),
+  delete: (id: number) =>
+    api.delete<ApiResponse<null>>(`/admins/${id}`),
+};
+
+// Branch User types
+export interface BranchUser {
+  id: number;
+  branch_code: string;
+  username: string;
+  status: string;
+  created_at: string;
+}
+
+export interface CreateBranchUserRequest {
+  branch_code: string;
+  username: string;
+  password: string;
+  status?: string;
+}
+
+export interface UpdateBranchUserRequest {
+  branch_code?: string;
+  username?: string;
+  password?: string;
+  status?: string;
+}
+
+export const branchUserApi = {
+  getAll: (params?: { page?: number; limit?: number; search?: string; branch_code?: string }) =>
+    api.get<PaginatedResponse<BranchUser[]>>('/branch-users', { params }),
+  create: (data: CreateBranchUserRequest) =>
+    api.post<ApiResponse<BranchUser>>('/branch-users', data),
+  update: (id: number, data: UpdateBranchUserRequest) =>
+    api.put<ApiResponse<BranchUser>>(`/branch-users/${id}`, data),
+  delete: (id: number) =>
+    api.delete<ApiResponse<null>>(`/branch-users/${id}`),
+};
+
+export const branchesApi = {
+  getAll: () =>
+    api.get<ApiResponse<{ id: number; code: string; name: string }[]>>('/branches'),
+};
+
 export default api;

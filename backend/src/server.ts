@@ -18,6 +18,8 @@ import logsRoutes from './routes/logs.routes';
 import branchRoutes from './routes/branch.routes';
 import notificationRoutes from './routes/notification.routes';
 import documentRoutes from './routes/document.routes';
+import adminRoutes from './routes/admin.routes';
+import branchUserRoutes from './routes/branch-user.routes';
 import { errorHandler } from './middleware/error.middleware';
 import { logBufferService } from './services/logBuffer.service';
 import { scheduleLogMonitoring } from './services/logMonitoring.service';
@@ -142,6 +144,8 @@ app.use('/api/logs', logsRoutes);
 app.use('/api/branches', branchRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/documents', documentRoutes);
+app.use('/api/admins', adminRoutes);
+app.use('/api/branch-users', branchUserRoutes);
 
 app.use(errorHandler);
 
