@@ -17,6 +17,7 @@ import reportRoutes from './routes/report.routes';
 import logsRoutes from './routes/logs.routes';
 import branchRoutes from './routes/branch.routes';
 import notificationRoutes from './routes/notification.routes';
+import documentRoutes from './routes/document.routes';
 import { errorHandler } from './middleware/error.middleware';
 import { logBufferService } from './services/logBuffer.service';
 import { scheduleLogMonitoring } from './services/logMonitoring.service';
@@ -140,6 +141,7 @@ app.use('/api/reports', reportRoutes);
 app.use('/api/logs', logsRoutes);
 app.use('/api/branches', branchRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/documents', documentRoutes);
 
 app.use(errorHandler);
 
