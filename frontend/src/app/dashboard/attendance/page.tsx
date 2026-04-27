@@ -259,7 +259,10 @@ export default function AttendancePage() {
     },
     onError: (error: AxiosError<{ message?: string }>) => {
       console.error('Transfer error:', error);
-      alert(error.response?.data?.message || error.message || 'Failed to transfer employee');
+      console.error('Error response data:', error.response?.data);
+      console.error('Error status:', error.response?.status);
+      const message = error.response?.data?.message || error.message || 'Failed to transfer employee';
+      alert(message);
     }
   });
 
