@@ -33,13 +33,13 @@ export default function LoginPage() {
         localStorage.setItem('user', JSON.stringify(user));
         setUser(user as any);
 
-        // Check if user is a branch device (branch-{letter}) OR admin with branch_code
-        const isBranchUser = /^branch-[a-z]+$/i.test(user.username) || (user.branch_code && user.branch_code !== '');
+        // Check user role: admins always go to dashboard, branch users go to QR scanner
+        const isAdmin = (user as any).role === 'admin' || (user as any).role === 'super_admin';
         
-        if (isBranchUser) {
-          router.push('/branch/qr-scanner');
-        } else {
+        if (isAdmin) {
           router.push('/dashboard');
+        } else {
+          router.push('/branch/qr-scanner');
         }
       }
     },

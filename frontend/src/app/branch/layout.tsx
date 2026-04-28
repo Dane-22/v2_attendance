@@ -19,11 +19,11 @@ export default function BranchLayout({
       return;
     }
     
-    // Verify this is a branch user
+    // Verify this is a branch user (not an admin)
     try {
       const user = JSON.parse(userStr);
-      const isBranchUser = /^branch-[a-z]+$/i.test(user.username) || (user.branch_code && user.branch_code !== '');
-      if (!isBranchUser) {
+      const isAdmin = user.role === 'admin' || user.role === 'super_admin';
+      if (isAdmin) {
         router.push('/dashboard');
       }
     } catch {
