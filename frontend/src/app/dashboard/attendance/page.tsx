@@ -179,6 +179,10 @@ export default function AttendancePage() {
       if (data.data?.previousBranch) {
         setPreviousBranchForUndo(data.data.previousBranch);
       }
+      // Show transfer success message
+      const fromBranch = data.data?.previousBranch || 'Unknown';
+      const toBranch = selectedBranch;
+      alert(`Employee transferred from ${fromBranch} to ${toBranch}`);
       // Clear search and force immediate refetch to update UI
       setSearchQuery('');
       // Refetch queries immediately to get fresh data
@@ -1053,7 +1057,15 @@ export default function AttendancePage() {
                           <button
                             onClick={() => {
                               console.log('Re-clocking in employee:', employee.id);
-                              clockInMutation.mutate({ employeeId: employee.id, branchCode: selectedBranch });
+                              // Check if employee's branch differs from selected branch
+                              if (employee.branchCode && employee.branchCode !== selectedBranch) {
+                                // Show auto-transfer confirmation modal
+                                setSelectedEmployeeForAutoTransfer(employee);
+                                setIsAutoTransferModalOpen(true);
+                              } else {
+                                // Same branch - normal clock-in
+                                clockInMutation.mutate({ employeeId: employee.id, branchCode: selectedBranch });
+                              }
                             }}
                             disabled={clockInMutation.isPending}
                             className="inline-flex items-center gap-1 px-3 py-1.5 bg-green-500/20 text-green-400 text-xs font-medium rounded-full hover:bg-green-500/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
@@ -1070,7 +1082,15 @@ export default function AttendancePage() {
                             <button
                               onClick={() => {
                                 console.log('Clocking in employee:', employee.id);
-                                clockInMutation.mutate({ employeeId: employee.id, branchCode: selectedBranch });
+                                // Check if employee's branch differs from selected branch
+                                if (employee.branchCode && employee.branchCode !== selectedBranch) {
+                                  // Show auto-transfer confirmation modal
+                                  setSelectedEmployeeForAutoTransfer(employee);
+                                  setIsAutoTransferModalOpen(true);
+                                } else {
+                                  // Same branch - normal clock-in
+                                  clockInMutation.mutate({ employeeId: employee.id, branchCode: selectedBranch });
+                                }
                               }}
                               disabled={clockInMutation.isPending}
                               className="inline-flex items-center gap-1 px-3 py-1.5 bg-green-500/20 text-green-400 text-xs font-medium rounded-full hover:bg-green-500/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
@@ -1209,8 +1229,17 @@ export default function AttendancePage() {
                   ) : selectedEmployeeForModal.timeIn !== null && selectedEmployeeForModal.timeOut !== null ? (
                     <button
                       onClick={() => {
-                        clockInMutation.mutate({ employeeId: selectedEmployeeForModal.id, branchCode: selectedBranch });
-                        setSelectedEmployeeForModal(null);
+                        // Check if employee's branch differs from selected branch
+                        if (selectedEmployeeForModal.branchCode && selectedEmployeeForModal.branchCode !== selectedBranch) {
+                          // Show auto-transfer confirmation modal
+                          setSelectedEmployeeForAutoTransfer(selectedEmployeeForModal);
+                          setIsAutoTransferModalOpen(true);
+                          setSelectedEmployeeForModal(null);
+                        } else {
+                          // Same branch - normal clock-in
+                          clockInMutation.mutate({ employeeId: selectedEmployeeForModal.id, branchCode: selectedBranch });
+                          setSelectedEmployeeForModal(null);
+                        }
                       }}
                       disabled={clockInMutation.isPending}
                       className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 bg-green-500/20 text-green-400 text-sm font-medium rounded-lg hover:bg-green-500/30 transition-colors disabled:opacity-50"
@@ -1226,8 +1255,17 @@ export default function AttendancePage() {
                     <>
                       <button
                         onClick={() => {
-                          clockInMutation.mutate({ employeeId: selectedEmployeeForModal.id, branchCode: selectedBranch });
-                          setSelectedEmployeeForModal(null);
+                          // Check if employee's branch differs from selected branch
+                          if (selectedEmployeeForModal.branchCode && selectedEmployeeForModal.branchCode !== selectedBranch) {
+                            // Show auto-transfer confirmation modal
+                            setSelectedEmployeeForAutoTransfer(selectedEmployeeForModal);
+                            setIsAutoTransferModalOpen(true);
+                            setSelectedEmployeeForModal(null);
+                          } else {
+                            // Same branch - normal clock-in
+                            clockInMutation.mutate({ employeeId: selectedEmployeeForModal.id, branchCode: selectedBranch });
+                            setSelectedEmployeeForModal(null);
+                          }
                         }}
                         disabled={clockInMutation.isPending}
                         className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 bg-green-500/20 text-green-400 text-sm font-medium rounded-lg hover:bg-green-500/30 transition-colors disabled:opacity-50"
