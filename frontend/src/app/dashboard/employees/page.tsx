@@ -85,9 +85,40 @@ function QRCodeModal({ employee, isOpen, onClose }: { employee: Employee | null;
   // Handle download
   const handleDownload = () => {
     if (canvasRef.current) {
+      // Create a temporary canvas to draw the QR + Text
+      const tempCanvas = document.createElement('canvas');
+      const ctx = tempCanvas.getContext('2d');
+      if (!ctx) return;
+
+      const qrSize = 224;
+      const padding = 20;
+      const textHeight = 60;
+      
+      tempCanvas.width = qrSize + (padding * 2);
+      tempCanvas.height = qrSize + (padding * 2) + textHeight;
+
+      // Draw white background
+      ctx.fillStyle = '#FFFFFF';
+      ctx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+
+      // Draw the QR code from the original canvas
+      ctx.drawImage(canvasRef.current, padding, padding);
+
+      // Add Text (Name and Code)
+      ctx.fillStyle = '#000000';
+      ctx.textAlign = 'center';
+      
+      // Name (Bold)
+      ctx.font = 'bold 16px Arial';
+      ctx.fillText(`${employee.firstName} ${employee.lastName}`.toUpperCase(), tempCanvas.width / 2, qrSize + padding + 25);
+      
+      // Employee Code
+      ctx.font = '14px Arial';
+      ctx.fillText(employee.employeeCode || '', tempCanvas.width / 2, qrSize + padding + 45);
+
       const link = document.createElement('a');
       link.download = `QR-${employee.employeeCode}-${qrFormat}.png`;
-      link.href = canvasRef.current.toDataURL('image/png');
+      link.href = tempCanvas.toDataURL('image/png');
       link.click();
     }
   };
