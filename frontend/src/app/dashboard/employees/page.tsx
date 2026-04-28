@@ -1,6 +1,8 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import QRCode from 'qrcode';
+import { useRouter } from 'next/navigation';
 import {
   Search,
   Plus,
@@ -36,12 +38,59 @@ type UserType = 'employee' | 'admin' | 'branch_user';
 type TabType = 'employees' | 'admins' | 'branch_users';
 
 // QR Code Modal Component
+// BACKUP OF ORIGINAL (lines 40-95): Placeholder QR code with Lucide icon, no download functionality
+/*
 function QRCodeModal({ employee, isOpen, onClose }: { employee: Employee | null; isOpen: boolean; onClose: () => void }) {
   const { classes } = useTheme();
-  
+  if (!isOpen || !employee) return null;
+  const qrData = `https://jajr.xandree.com/employee/select_employee.php?auto_timeIn=1&select_branch=1&emp_id=12&emp_code=${employee.employeeCode}`;
+  return ( ... );
+}
+*/
+function QRCodeModal({ employee, isOpen, onClose }: { employee: Employee | null; isOpen: boolean; onClose: () => void }) {
+  const { classes } = useTheme();
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [qrFormat, setQrFormat] = useState<'JAJR-EMP' | 'LEGACY'>('JAJR-EMP');
+  const [qrData, setQrData] = useState('');
+
+  // Generate QR data based on selected format
+  const generateQRData = (format: 'JAJR-EMP' | 'LEGACY', emp: Employee) => {
+    if (format === 'JAJR-EMP') {
+      return `JAJR-EMP:${emp.id}|${emp.employeeCode}|${emp.firstName} ${emp.lastName}`;
+    } else {
+      return `https://jajr.xandree.com/employee/select_employee.php?auto_timeIn=1&select_branch=1&emp_id=${emp.id}&emp_code=${emp.employeeCode}`;
+    }
+  };
+
+  // Generate QR code on canvas when format or employee changes
+  useEffect(() => {
+    if (!isOpen || !employee) return;
+
+    const data = generateQRData(qrFormat, employee);
+    setQrData(data);
+
+    if (canvasRef.current) {
+      QRCode.toCanvas(canvasRef.current, data, {
+        width: 224,
+        margin: 0,
+        errorCorrectionLevel: 'M'
+      }, (error) => {
+        if (error) console.error('QR code generation error:', error);
+      });
+    }
+  }, [qrFormat, employee, isOpen]);
+
   if (!isOpen || !employee) return null;
 
-  const qrData = `https://jajr.xandree.com/employee/select_employee.php?auto_timeIn=1&select_branch=1&emp_id=12&emp_code=${employee.employeeCode}`;
+  // Handle download
+  const handleDownload = () => {
+    if (canvasRef.current) {
+      const link = document.createElement('a');
+      link.download = `QR-${employee.employeeCode}-${qrFormat}.png`;
+      link.href = canvasRef.current.toDataURL('image/png');
+      link.click();
+    }
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
@@ -62,11 +111,22 @@ function QRCodeModal({ employee, isOpen, onClose }: { employee: Employee | null;
           <h3 className={`text-xl font-bold ${classes.text} mb-1`}>{employee.firstName} {employee.lastName}</h3>
           <p className="text-[#facc15] font-medium mb-6">{employee.employeeCode}</p>
 
-          {/* QR Code Placeholder */}
+          {/* QR Code Display */}
           <div className="w-64 h-64 mx-auto bg-white rounded-xl p-4 mb-4 flex items-center justify-center">
-            <div className={`w-56 h-56 ${classes.bgCardHover} rounded-lg flex items-center justify-center`}>
-              <QrCode className="w-40 h-40 text-black" />
-            </div>
+            <canvas ref={canvasRef} className="w-56 h-56" />
+          </div>
+
+          {/* Format Toggle */}
+          <div className="mb-4">
+            <label className={`${classes.textMuted} text-xs font-semibold mb-2 block`}>Format:</label>
+            <select
+              value={qrFormat}
+              onChange={(e) => setQrFormat(e.target.value as 'JAJR-EMP' | 'LEGACY')}
+              className={`w-full px-3 py-2 ${classes.bgCard} ${classes.text} border ${classes.border} rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#facc15]`}
+            >
+              <option value="JAJR-EMP">JAJR-EMP (Recommended)</option>
+              <option value="LEGACY">Legacy URL</option>
+            </select>
           </div>
 
           <p className={`${classes.textMuted} text-sm mb-4`}>Scan this QR code for quick employee identification</p>
@@ -82,7 +142,7 @@ function QRCodeModal({ employee, isOpen, onClose }: { employee: Employee | null;
             <button onClick={onClose} className={`flex-1 px-4 py-2 bg-[#262626] ${classes.text} rounded-lg hover:bg-[#333] transition-colors`}>
               Close
             </button>
-            <button className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-[#facc15] text-black font-medium rounded-lg hover:bg-yellow-400 transition-colors">
+            <button onClick={handleDownload} className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-[#facc15] text-black font-medium rounded-lg hover:bg-yellow-400 transition-colors">
               <Download className="w-4 h-4" />
               Download QR
             </button>
@@ -699,7 +759,7 @@ function UserModal({ isOpen, onClose, onSuccess, userType, setUserType, mode, ed
     setIsLoading(true);
     try {
       if (userType === 'employee') {
-        if (!employeeForm.employeeCode || !employeeForm.firstName || !employeeForm.lastName || !employeeForm.email || !employeeForm.position) {
+        if (!employeeForm.firstName || !employeeForm.lastName || !employeeForm.email || !employeeForm.position) {
           showToast('error', 'Please fill in all required fields');
           setIsLoading(false);
           return;
@@ -920,13 +980,22 @@ function UserModal({ isOpen, onClose, onSuccess, userType, setUserType, mode, ed
               <h3 className="text-[#facc15] font-semibold mb-4 pb-2 border-b border-[#262626]">Employment Details</h3>
               <div className="grid grid-cols-4 gap-4">
                 <div>
-                  <label className="block text-gray-400 text-sm mb-1">Employee Code <span className="text-red-400">*</span></label>
+                  <label className="block text-gray-400 text-sm mb-1">Employee Code</label>
                   <input
                     type="text"
+                    placeholder="Auto-generated if empty"
                     value={employeeForm.employeeCode || ''}
                     onChange={(e) => setEmployeeForm({ ...employeeForm, employeeCode: e.target.value })}
-                    className="w-full px-4 py-2 bg-[#141414] border border-[#facc15]/30 rounded-lg text-white focus:outline-none focus:border-[#facc15]"
+                    className="w-full px-4 py-2 bg-[#141414] border border-[#262626] rounded-lg text-white focus:outline-none focus:border-[#facc15]"
                   />
+                  <p className="text-[10px] text-gray-500 mt-1 italic">
+                    Leave empty to auto-generate ({
+                      !employeeForm.position || employeeForm.position === 'Worker' ? 'E0001' :
+                      employeeForm.position === 'Admin' ? 'ADMIN-2026-0001' :
+                      employeeForm.position === 'Engineer' ? 'ENG-2026-0001' :
+                      employeeForm.position === 'Developer' ? 'DEV-2026-0001' : 'format'
+                    })
+                  </p>
                 </div>
                 <div>
                   <label className="block text-gray-400 text-sm mb-1">Position <span className="text-red-400">*</span></label>
@@ -936,9 +1005,10 @@ function UserModal({ isOpen, onClose, onSuccess, userType, setUserType, mode, ed
                     className="w-full px-4 py-2 bg-[#141414] border border-[#facc15]/30 rounded-lg text-white focus:outline-none focus:border-[#facc15]"
                   >
                     <option value="">Select Position</option>
-                    <option>Worker</option>
-                    <option>Admin</option>
-                    <option>Super Admin</option>
+                    <option value="Worker">Worker</option>
+                    <option value="Admin">Admin</option>
+                    <option value="Engineer">Engineer</option>
+                    <option value="Developer">Developer</option>
                   </select>
                 </div>
                 <div>
@@ -1267,6 +1337,7 @@ function UserModal({ isOpen, onClose, onSuccess, userType, setUserType, mode, ed
 }
 
 export default function EmployeesPage() {
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState<TabType>('employees');
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
@@ -1279,14 +1350,14 @@ export default function EmployeesPage() {
   const [selectedBranchUser, setSelectedBranchUser] = useState<BranchUser | null>(null);
   const [modalUserType, setModalUserType] = useState<UserType>('employee');
   const [modalMode, setModalMode] = useState<'create' | 'edit'>('create');
-  
+
   // Data states
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [admins, setAdmins] = useState<Admin[]>([]);
   const [branchUsers, setBranchUsers] = useState<BranchUser[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [totalItems, setTotalItems] = useState(0);
-  
+
   const { showToast } = useToast();
   const { classes } = useTheme();
 
@@ -1545,12 +1616,21 @@ export default function EmployeesPage() {
                             <button 
                               onClick={() => handleQRClick(employee)}
                               className={`p-1.5 ${classes.textMuted} hover:text-[#facc15] transition-colors`}
+                              title="Generate QR Code"
                             >
                               <QrCode className="w-4 h-4" />
                             </button>
                             <button 
+                              onClick={() => router.push(`/dashboard/employees/face-registration?id=${employee.id}`)}
+                              className={`p-1.5 ${classes.textMuted} hover:text-[#facc15] transition-colors`}
+                              title="Register Face"
+                            >
+                              <UserPlus className="w-4 h-4" />
+                            </button>
+                            <button 
                               onClick={() => handleEditClick(employee)}
                               className={`p-1.5 ${classes.textMuted} hover:text-[#facc15] transition-colors`}
+                              title="Edit Employee"
                             >
                               <Edit2 className="w-4 h-4" />
                             </button>

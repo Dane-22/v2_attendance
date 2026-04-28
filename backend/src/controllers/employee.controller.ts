@@ -176,16 +176,83 @@ export const createEmployee = async (
   try {
     const data: CreateEmployeeRequest = req.body;
 
-    if (!data.employeeCode || !data.firstName || !data.lastName) {
-      throw new AppError('Employee code, first name, and last name are required', 400);
+    if (!data.firstName || !data.lastName) {
+      throw new AppError('First name and last name are required', 400);
     }
 
-    const existingEmployee = await prisma.employee.findUnique({
-      where: { employeeCode: data.employeeCode }
-    });
+    let employeeCode = data.employeeCode;
 
-    if (existingEmployee) {
-      throw new AppError('Employee code already exists', 409);
+    // Auto-generate employeeCode if not provided based on Position
+    if (!employeeCode) {
+      const position = (data.position || 'Worker').toLowerCase();
+      const year = new Date().getFullYear();
+      let prefix = '';
+      let pattern = '';
+
+      if (position.includes('engineer')) {
+        prefix = `ENG-${year}-`;
+        pattern = `ENG-${year}-%`;
+      } else if (position.includes('developer')) {
+        prefix = `DEV-${year}-`;
+        pattern = `DEV-${year}-%`;
+      } else if (position.includes('admin')) {
+        prefix = `ADMIN-${year}-`;
+        pattern = `ADMIN-${year}-%`;
+      } else {
+        // Default to Worker (E####)
+        prefix = 'E';
+        pattern = 'E%';
+      }
+
+      // Find the last employee with this prefix pattern
+      const lastEmployee = await prisma.employee.findFirst({
+        where: {
+          employeeCode: {
+            startsWith: prefix
+          }
+        },
+        orderBy: {
+          employeeCode: 'desc'
+        }
+      });
+
+      let nextNumber = 1;
+      if (lastEmployee && lastEmployee.employeeCode) {
+        const currentCode = lastEmployee.employeeCode;
+        // Extract the numeric part (the last 4 digits)
+        const match = currentCode.match(/(\d{4})$/);
+        if (match) {
+          nextNumber = parseInt(match[1], 10) + 1;
+        }
+      }
+
+      // Format with 4-digit padding
+      employeeCode = `${prefix}${nextNumber.toString().padStart(4, '0')}`;
+      
+      // Safety check: ensure the generated code doesn't exist (in case of gaps)
+      let codeExists = true;
+      let safetyCounter = 0;
+      while (codeExists && safetyCounter < 100) {
+        const existing = await prisma.employee.findUnique({
+          where: { employeeCode }
+        });
+        if (!existing) {
+          codeExists = false;
+        } else {
+          nextNumber++;
+          employeeCode = `${prefix}${nextNumber.toString().padStart(4, '0')}`;
+          safetyCounter++;
+        }
+      }
+    } else {
+      // If code is provided manually, check for uniqueness
+      const existingEmployee = await prisma.employee.findUnique({
+        where: { employeeCode }
+      });
+
+      if (existingEmployee) {
+        throw new AppError('Employee code already exists', 409);
+      }
     }
 
     if (data.email) {
@@ -199,7 +266,7 @@ export const createEmployee = async (
 
     const employee = await prisma.employee.create({
       data: {
-        employeeCode: data.employeeCode,
+        employeeCode: employeeCode,
         firstName: data.firstName,
         lastName: data.lastName,
         middleName: data.middleName,
