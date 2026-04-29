@@ -12,5 +12,6 @@ router.delete('/:id', auth_middleware_1.authenticate, employee_controller_1.dele
 router.get('/:id/qr', auth_middleware_1.authenticate, employee_controller_1.generateQRCode);
 router.post('/:id/upload-profile-image', auth_middleware_1.authenticate, employee_controller_1.uploadMiddleware, employee_controller_1.uploadProfileImage);
 router.patch('/:id/transfer', auth_middleware_1.authenticate, employee_controller_1.transferEmployee);
+router.patch('/:id/archive', auth_middleware_1.authenticate, employee_controller_1.archiveEmployee);
 exports.default = router;
 //# sourceMappingURL=employee.routes.js.map

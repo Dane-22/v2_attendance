@@ -65,12 +65,17 @@ export const login = async (
       throw new AppError('JWT configuration error', 500);
     }
 
+    // Detect if this is a branch user (by username pattern or branch_code)
+    const isBranchUser = /^branch-[a-h]$/i.test(admin.username) || (admin.branch_code && !admin.role);
+    const userRole = isBranchUser ? 'branch' : (admin.role || 'admin');
+    const userType = isBranchUser ? 'branch' : 'admin';
+
     const expiresIn = process.env.JWT_EXPIRES_IN || '24h';
     const token = jwt.sign(
       {
         adminId: admin.id,
         username: admin.username,
-        role: admin.role || 'admin'
+        role: userRole
       },
       process.env.JWT_SECRET,
       { expiresIn } as jwt.SignOptions
@@ -78,11 +83,17 @@ export const login = async (
 
     const { password: _, ...adminWithoutPassword } = admin;
 
+    // Update the user object with the correct role for branch users
+    const userWithCorrectRole = {
+      ...adminWithoutPassword,
+      role: userRole
+    };
+
     // Log successful login
     await logAuth({
       userId: admin.id,
       userName: admin.name,
-      userRole: admin.role || 'admin',
+      userRole: userRole,
       actionType: 'LOGIN',
       entityType: 'USER',
       entityId: admin.id.toString(),
@@ -96,15 +107,15 @@ export const login = async (
 
     const response: ApiResponse<{
       token: string;
-      user: Omit<typeof admin, 'password'>;
-      userType: 'admin';
+      user: any;
+      userType: 'admin' | 'branch';
     }> = {
       success: true,
       message: 'Login successful',
       data: {
         token,
-        user: adminWithoutPassword,
-        userType: 'admin'
+        user: userWithCorrectRole as any,
+        userType
       }
     };
 

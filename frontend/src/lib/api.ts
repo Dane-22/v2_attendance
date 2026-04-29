@@ -266,6 +266,7 @@ export interface BranchEmployee {
   id: number;
   name: string;
   avatar: string;
+  profileImage: string | null;
   employeeCode: string | null;
   department: string;
   position: string;
@@ -439,6 +440,7 @@ export interface Admin {
   branch_code: string | null;
   permissions: any;
   permissions_enabled: boolean;
+  profileImage: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -484,6 +486,7 @@ export interface BranchUser {
   branch_code: string;
   branch_name: string;
   role: string;
+  profileImage: string | null;
   created_at: string;
 }
 

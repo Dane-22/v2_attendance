@@ -33,9 +33,39 @@ import {
 } from '@/lib/api';
 import { useToast } from '@/components/Toast';
 import { useTheme } from '@/hooks/useTheme';
+import ProfileImage from '@/components/ProfileImage';
 
 type UserType = 'employee' | 'admin' | 'branch_user';
 type TabType = 'employees' | 'admins' | 'branch_users';
+
+// Helper function to safely construct image URLs
+const constructImageUrl = (profileImage: string | null | undefined, bustCache = false): string | null => {
+  if (!profileImage) return null;
+  
+  const baseUrl = process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || 'http://localhost:5000';
+  
+  // Ensure profileImage starts with a slash
+  const imagePath = profileImage.startsWith('/') ? profileImage : `/${profileImage}`;
+  
+  // Construct full URL
+  let fullUrl = `${baseUrl}${imagePath}`;
+  
+  // Add cache-busting timestamp for newly uploaded images
+  if (bustCache) {
+    const timestamp = Date.now();
+    fullUrl += (fullUrl.includes('?') ? '&' : '?') + `_t=${timestamp}`;
+  }
+  
+  // Basic URL validation
+  try {
+    new URL(fullUrl);
+    return fullUrl;
+  } catch {
+    // If URL construction fails, return null
+    console.warn('Invalid image URL constructed:', fullUrl);
+    return null;
+  }
+};
 
 // QR Code Modal Component
 // BACKUP OF ORIGINAL (lines 40-95): Placeholder QR code with Lucide icon, no download functionality
@@ -197,7 +227,7 @@ function EditEmployeeModal({ employee, isOpen, onClose }: { employee: Employee |
   useEffect(() => {
     if (employee) {
       setFormData(employee);
-      setImagePreview(employee.profileImage ? `${process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || 'http://localhost:5002'}${employee.profileImage}` : null);
+      setImagePreview(constructImageUrl(employee.profileImage));
     }
   }, [employee]);
 
@@ -282,27 +312,47 @@ function EditEmployeeModal({ employee, isOpen, onClose }: { employee: Employee |
 
     setIsLoading(true);
     try {
+      console.log('[EditEmployeeModal] Starting save process for employee:', employee.id);
+      console.log('[EditEmployeeModal] Selected image:', selectedImage?.name);
+
       // Upload image if selected
       if (selectedImage) {
+        console.log('[EditEmployeeModal] Compressing and uploading image...');
         const compressedImage = await compressImage(selectedImage);
+        console.log('[EditEmployeeModal] Image compressed, size:', compressedImage.size);
+        
         const uploadResponse = await employeeApi.uploadProfileImage(employee.id, compressedImage);
-        const uploadedData = uploadResponse.data?.data;
-        if (uploadedData?.profileImage) {
-          setFormData(prev => ({ ...prev, profileImage: uploadedData.profileImage }));
+        console.log('[EditEmployeeModal] Upload response:', uploadResponse.data);
+        
+        if (!uploadResponse.data?.success) {
+          console.error('[EditEmployeeModal] Upload failed:', uploadResponse.data);
+          showToast('error', 'Failed to upload profile image');
+          return;
         }
+        console.log('[EditEmployeeModal] Upload successful');
       }
 
+      // Exclude profileImage from update data - the upload endpoint already updates it in DB
+      // Sending the old profileImage value would overwrite the newly uploaded image
+      const { profileImage: _pi, ...updateData } = formData;
+      console.log('[EditEmployeeModal] Update data (excluding profileImage):', updateData);
+      
       // Update employee data
-      const updateResponse = await employeeApi.update(employee.id, formData);
+      const updateResponse = await employeeApi.update(employee.id, updateData);
+      console.log('[EditEmployeeModal] Update response:', updateResponse.data);
+      
       if (updateResponse.data?.success) {
         showToast('success', 'Employee updated successfully');
         onClose();
         // Refresh employee list
         window.location.reload();
+      } else {
+        console.error('[EditEmployeeModal] Update failed:', updateResponse.data);
+        showToast('error', 'Failed to update employee');
       }
     } catch (error) {
+      console.error('[EditEmployeeModal] Error in handleSave:', error);
       showToast('error', 'Failed to update employee');
-      console.error('Error updating employee:', error);
     } finally {
       setIsLoading(false);
     }
@@ -473,7 +523,7 @@ function EditEmployeeModal({ employee, isOpen, onClose }: { employee: Employee |
                     <button
                       onClick={() => {
                         setSelectedImage(null);
-                       setImagePreview(employee.profileImage ? `${process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || 'http://localhost:5002'}${employee.profileImage}` : null);
+                       setImagePreview(constructImageUrl(employee.profileImage));
                       }}
                       className="text-xs text-red-400 hover:text-red-300"
                     >
@@ -520,8 +570,87 @@ function AddEmployeeModal({ isOpen, onClose, onEmployeeAdded }: { isOpen: boolea
     hasDeductions: true,
     dailyRate: 0
   });
+  const [selectedImage, setSelectedImage] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const { showToast } = useToast();
+
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      // Validate file type
+      const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
+      if (!allowedTypes.includes(file.type)) {
+        showToast('error', 'Invalid file type. Only JPG, PNG, GIF, and WebP are allowed.');
+        return;
+      }
+
+      // Validate file size (10MB)
+      if (file.size > 10 * 1024 * 1024) {
+        showToast('error', 'File size exceeds 10MB limit.');
+        return;
+      }
+
+      setSelectedImage(file);
+      const previewUrl = URL.createObjectURL(file);
+      setImagePreview(previewUrl);
+    }
+  };
+
+  const compressImage = async (file: File): Promise<File> => {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+
+      img.onload = () => {
+        const maxWidth = 800;
+        const maxHeight = 800;
+        let width = img.width;
+        let height = img.height;
+
+        if (width > height) {
+          if (width > maxWidth) {
+            height = (height * maxWidth) / width;
+            width = maxWidth;
+          }
+        } else {
+          if (height > maxHeight) {
+            width = (width * maxHeight) / height;
+            height = maxHeight;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, width, height);
+          canvas.toBlob(
+            (blob) => {
+              if (blob) {
+                const compressedFile = new File([blob], file.name, {
+                  type: file.type,
+                  lastModified: Date.now()
+                });
+                resolve(compressedFile);
+              } else {
+                reject(new Error('Failed to compress image'));
+              }
+            },
+            file.type,
+            0.8
+          );
+        } else {
+          reject(new Error('Failed to get canvas context'));
+        }
+      };
+
+      img.onerror = () => reject(new Error('Failed to load image'));
+      img.src = URL.createObjectURL(file);
+    });
+  };
 
   const handleAdd = async () => {
     // Validation
@@ -532,9 +661,29 @@ function AddEmployeeModal({ isOpen, onClose, onEmployeeAdded }: { isOpen: boolea
 
     setIsLoading(true);
     try {
+      // Create employee first
       const response = await employeeApi.create(formData);
-      if (response.data?.success) {
-        showToast('success', 'Employee added successfully');
+      if (response.data?.success && response.data.data) {
+        const newEmployee = response.data.data;
+        
+        // If there's a selected image, upload it
+        if (selectedImage) {
+          try {
+            const compressedImage = await compressImage(selectedImage);
+            const uploadResponse = await employeeApi.uploadProfileImage(newEmployee.id, compressedImage);
+            if (uploadResponse.data?.success) {
+              showToast('success', 'Employee added successfully with profile image');
+            } else {
+              showToast('success', 'Employee added but profile image upload failed');
+            }
+          } catch (uploadError) {
+            console.error('Error uploading profile image:', uploadError);
+            showToast('success', 'Employee added but profile image upload failed');
+          }
+        } else {
+          showToast('success', 'Employee added successfully');
+        }
+        
         onClose();
         onEmployeeAdded();
       }
@@ -671,6 +820,53 @@ function AddEmployeeModal({ isOpen, onClose, onEmployeeAdded }: { isOpen: boolea
               </div>
             </div>
           </div>
+
+          {/* Profile Image */}
+          <div className="mb-6">
+            <h3 className="text-[#facc15] font-semibold mb-4 pb-2 border-b border-[#262626]">Profile Image</h3>
+            <div className="flex items-center gap-4">
+              <div className="w-20 h-20 rounded-full bg-[#262626] flex items-center justify-center text-[#facc15] text-xl font-bold border-2 border-[#facc15]/30 overflow-hidden">
+                {imagePreview ? (
+                  <img src={imagePreview} alt="Profile" className="w-full h-full object-cover" />
+                ) : (
+                  <span>{(formData.firstName || '')?.[0]}{(formData.lastName || '')?.[0]}</span>
+                )}
+              </div>
+              <div className="flex-1 max-w-md">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
+                  onChange={handleImageChange}
+                  className="hidden"
+                />
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-3 border-2 border-dashed border-[#facc15]/30 rounded-lg text-[#facc15] hover:bg-[#facc15]/10 transition-colors"
+                >
+                  <UserPlus className="w-5 h-5" />
+                  Choose Profile Image
+                </button>
+                {selectedImage && (
+                  <div className="flex items-center gap-2 mt-2">
+                    <button
+                      onClick={() => {
+                        setSelectedImage(null);
+                        setImagePreview(null);
+                      }}
+                      className="text-xs text-red-400 hover:text-red-300"
+                    >
+                      Remove selected image
+                    </button>
+                    <span className="text-xs text-gray-400">
+                      {selectedImage.name} ({(selectedImage.size / 1024).toFixed(1)} KB)
+                    </span>
+                  </div>
+                )}
+                <p className="text-gray-500 text-xs mt-2">Optional • Max file size: 10MB • Auto-compressed to ~500KB • Formats: JPG, PNG, GIF, WebP</p>
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Footer Actions */}
@@ -727,6 +923,11 @@ function UserModal({ isOpen, onClose, onSuccess, userType, setUserType, mode, ed
     contact_number: ''
   });
 
+  // Profile image state for employees
+  const [selectedImage, setSelectedImage] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   // Fetch branches for dropdowns
   useEffect(() => {
     if (isOpen) {
@@ -743,6 +944,12 @@ function UserModal({ isOpen, onClose, onSuccess, userType, setUserType, mode, ed
     if (editData && mode === 'edit') {
       if (userType === 'employee' && 'employeeCode' in editData) {
         setEmployeeForm(editData);
+        // Load profile image preview for employees
+        if ('profileImage' in editData && editData.profileImage) {
+          setImagePreview(constructImageUrl(editData.profileImage));
+        } else {
+          setImagePreview(null);
+        }
       } else if (userType === 'admin' && 'role' in editData) {
         setAdminForm({
           username: editData.username,
@@ -771,6 +978,8 @@ function UserModal({ isOpen, onClose, onSuccess, userType, setUserType, mode, ed
     setEmployeeForm({ status: 'Active', hasDeductions: true, dailyRate: 0 });
     setAdminForm({ role: 'admin', permissions_enabled: false, permissions: [] });
     setBranchUserForm({ password: '', branch_name: '', address: '', contact_number: '' });
+    setSelectedImage(null);
+    setImagePreview(null);
   };
 
   const handleClose = () => {
@@ -786,10 +995,92 @@ function UserModal({ isOpen, onClose, onSuccess, userType, setUserType, mode, ed
     return password.length >= minLength && hasUpperCase && hasLowerCase && hasNumber;
   };
 
+  // Image handling functions for employees
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      // Validate file type
+      const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
+      if (!allowedTypes.includes(file.type)) {
+        showToast('error', 'Invalid file type. Only JPG, PNG, GIF, and WebP are allowed.');
+        return;
+      }
+
+      // Validate file size (10MB)
+      if (file.size > 10 * 1024 * 1024) {
+        showToast('error', 'File size exceeds 10MB limit.');
+        return;
+      }
+
+      setSelectedImage(file);
+      const previewUrl = URL.createObjectURL(file);
+      setImagePreview(previewUrl);
+    }
+  };
+
+  const compressImage = async (file: File): Promise<File> => {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+
+      img.onload = () => {
+        const maxWidth = 800;
+        const maxHeight = 800;
+        let width = img.width;
+        let height = img.height;
+
+        if (width > height) {
+          if (width > maxWidth) {
+            height = (height * maxWidth) / width;
+            width = maxWidth;
+          }
+        } else {
+          if (height > maxHeight) {
+            width = (width * maxHeight) / height;
+            height = maxHeight;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, width, height);
+          canvas.toBlob(
+            (blob) => {
+              if (blob) {
+                const compressedFile = new File([blob], file.name, {
+                  type: file.type,
+                  lastModified: Date.now()
+                });
+                resolve(compressedFile);
+              } else {
+                reject(new Error('Failed to compress image'));
+              }
+            },
+            file.type,
+            0.8
+          );
+        } else {
+          reject(new Error('Failed to get canvas context'));
+        }
+      };
+
+      img.onerror = () => reject(new Error('Failed to load image'));
+      img.src = URL.createObjectURL(file);
+    });
+  };
+
   const handleSubmit = async () => {
+    console.log('[UserModal] handleSubmit called');
+    console.log('[UserModal] userType:', userType, 'mode:', mode, 'editData:', editData);
+    console.log('[UserModal] selectedImage:', selectedImage?.name);
+    
     setIsLoading(true);
     try {
       if (userType === 'employee') {
+        console.log('[UserModal] Processing employee form');
         if (!employeeForm.firstName || !employeeForm.lastName || !employeeForm.email || !employeeForm.position) {
           showToast('error', 'Please fill in all required fields');
           setIsLoading(false);
@@ -797,18 +1088,73 @@ function UserModal({ isOpen, onClose, onSuccess, userType, setUserType, mode, ed
         }
         
         if (mode === 'edit' && editData && 'id' in editData) {
-          const response = await employeeApi.update(editData.id, employeeForm);
+          console.log('[UserModal] Editing employee:', editData.id);
+          // Upload image if selected
+          let imageUploaded = false;
+          if (selectedImage) {
+            console.log('[UserModal] Uploading profile image...');
+            try {
+              const compressedImage = await compressImage(selectedImage);
+              console.log('[UserModal] Image compressed, uploading...');
+              const uploadResponse = await employeeApi.uploadProfileImage(editData.id, compressedImage);
+              console.log('[UserModal] Upload response:', uploadResponse.data);
+              if (uploadResponse.data?.success) {
+                imageUploaded = true;
+                showToast('success', 'Profile image uploaded successfully');
+              }
+            } catch (uploadError) {
+              console.error('[UserModal] Error uploading profile image:', uploadError);
+              showToast('error', 'Failed to upload profile image');
+            }
+          }
+          
+          // Exclude profileImage from update data - the upload endpoint already updates it in DB
+          // Sending the old profileImage value would overwrite the newly uploaded image
+          const { profileImage: _pi, ...updateData } = employeeForm;
+          console.log('[UserModal] Updating employee with data:', updateData);
+          const response = await employeeApi.update(editData.id, updateData);
+          console.log('[UserModal] Update response:', response.data);
           if (response.data?.success) {
-            showToast('success', 'Employee updated successfully');
+            if (imageUploaded) {
+              showToast('success', 'Employee updated successfully with profile image');
+            } else {
+              showToast('success', 'Employee updated successfully');
+            }
             handleClose();
-            onSuccess();
+            // Small delay to ensure database is updated before refreshing
+            setTimeout(() => {
+              onSuccess();
+            }, 500);
           }
         } else {
           const response = await employeeApi.create(employeeForm);
           if (response.data?.success) {
-            showToast('success', 'Employee added successfully');
+            const newEmployee = response.data.data;
+            
+            // Upload image if selected
+            let imageUploaded = false;
+            if (selectedImage && newEmployee) {
+              try {
+                const compressedImage = await compressImage(selectedImage);
+                const uploadResponse = await employeeApi.uploadProfileImage(newEmployee.id, compressedImage);
+                if (uploadResponse.data?.success) {
+                  imageUploaded = true;
+                }
+              } catch (uploadError) {
+                console.error('Error uploading profile image:', uploadError);
+              }
+            }
+            
+            if (imageUploaded) {
+              showToast('success', 'Employee added successfully with profile image');
+            } else {
+              showToast('success', 'Employee added successfully');
+            }
             handleClose();
-            onSuccess();
+            // Small delay to ensure database is updated before refreshing
+            setTimeout(() => {
+              onSuccess();
+            }, 500);
           }
         }
       } else if (userType === 'admin') {
@@ -1004,6 +1350,55 @@ function UserModal({ isOpen, onClose, onSuccess, userType, setUserType, mode, ed
               </div>
             </div>
           </div>
+
+          {/* Profile Image - Employee Only */}
+          {userType === 'employee' && (
+            <div className="mb-6">
+              <h3 className="text-[#facc15] font-semibold mb-4 pb-2 border-b border-[#262626]">Profile Image</h3>
+              <div className="flex items-center gap-4">
+                <div className="w-20 h-20 rounded-full bg-[#262626] flex items-center justify-center text-[#facc15] text-xl font-bold border-2 border-[#facc15]/30 overflow-hidden">
+                  {imagePreview ? (
+                    <img src={imagePreview} alt="Profile" className="w-full h-full object-cover" />
+                  ) : (
+                    <span>{(employeeForm.firstName || '')?.[0]}{(employeeForm.lastName || '')?.[0]}</span>
+                  )}
+                </div>
+                <div className="flex-1 max-w-md">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
+                    onChange={handleImageChange}
+                    className="hidden"
+                  />
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-3 border-2 border-dashed border-[#facc15]/30 rounded-lg text-[#facc15] hover:bg-[#facc15]/10 transition-colors"
+                  >
+                    <UserPlus className="w-5 h-5" />
+                    Choose Profile Image
+                  </button>
+                  {selectedImage && (
+                    <div className="flex items-center gap-2 mt-2">
+                      <button
+                        onClick={() => {
+                          setSelectedImage(null);
+                          setImagePreview(null);
+                        }}
+                        className="text-xs text-red-400 hover:text-red-300"
+                      >
+                        Remove selected image
+                      </button>
+                      <span className="text-xs text-gray-400">
+                        {selectedImage.name} ({(selectedImage.size / 1024).toFixed(1)} KB)
+                      </span>
+                    </div>
+                  )}
+                  <p className="text-gray-500 text-xs mt-2">Optional • Max file size: 10MB • Auto-compressed to ~500KB • Formats: JPG, PNG, GIF, WebP</p>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Employee-Specific Fields */}
           {userType === 'employee' && (
@@ -1607,17 +2002,12 @@ export default function EmployeesPage() {
                       <tr key={employee.id} className={`border-b ${classes.border} last:border-0 ${classes.bgCardHover}`}>
                         <td className="px-4 py-4">
                           <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-full bg-[#facc15] flex items-center justify-center text-black text-sm font-bold overflow-hidden">
-                              {employee.profileImage ? (
-                                <img
-                                  src={`${process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || 'http://localhost:5002'}${employee.profileImage}`}
-                                  alt={`${employee.firstName} ${employee.lastName}`}
-                                  className="w-full h-full object-cover"
-                                />
-                              ) : (
-                                <span>{(employee.firstName || '')?.[0]}{(employee.lastName || '')?.[0]}</span>
-                              )}
-                            </div>
+                            <ProfileImage
+                              src={constructImageUrl(employee.profileImage)}
+                              name={`${employee.firstName || ''} ${employee.lastName || ''}`}
+                              alt={`${employee.firstName || ''} ${employee.lastName || ''}`}
+                              size="md"
+                            />
                             <div>
                               <p className={`${classes.text} font-medium text-sm`}>{employee.firstName} {employee.lastName}</p>
                               <p className={`${classes.textMuted} text-xs`}>{employee.email}</p>
@@ -1673,9 +2063,12 @@ export default function EmployeesPage() {
                       <tr key={admin.id} className={`border-b ${classes.border} last:border-0 ${classes.bgCardHover}`}>
                         <td className="px-4 py-4">
                           <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-full bg-[#facc15] flex items-center justify-center text-black text-sm font-bold">
-                              {(admin.name || '')?.[0]}
-                            </div>
+                            <ProfileImage
+                              src={constructImageUrl(admin.profileImage)}
+                              name={admin.name || ''}
+                              alt={admin.name || ''}
+                              size="md"
+                            />
                             <div>
                               <p className={`${classes.text} font-medium text-sm`}>{admin.name}</p>
                               <p className={`${classes.textMuted} text-xs`}>{admin.email}</p>
@@ -1713,9 +2106,12 @@ export default function EmployeesPage() {
                       <tr key={branchUser.id} className={`border-b ${classes.border} last:border-0 ${classes.bgCardHover}`}>
                         <td className="px-4 py-4">
                           <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-full bg-[#facc15] flex items-center justify-center text-black text-sm font-bold">
-                              {(branchUser.username || '')?.[0]}
-                            </div>
+                            <ProfileImage
+                              src={constructImageUrl(branchUser.profileImage)}
+                              name={branchUser.username || ''}
+                              alt={branchUser.username || ''}
+                              size="md"
+                            />
                             <div>
                               <p className={`${classes.text} font-medium text-sm`}>{branchUser.username}</p>
                               <p className={`${classes.textMuted} text-xs`}>Branch User</p>

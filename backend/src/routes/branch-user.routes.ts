@@ -4,7 +4,9 @@ import {
   getAllBranchUsers,
   createBranchUser,
   updateBranchUser,
-  deleteBranchUser
+  deleteBranchUser,
+  uploadProfileImage,
+  uploadMiddleware
 } from '../controllers/branch-user.controller';
 
 const router = Router();
@@ -13,5 +15,6 @@ router.get('/', authenticate, getAllBranchUsers);
 router.post('/', authenticate, createBranchUser);
 router.put('/:id', authenticate, updateBranchUser);
 router.delete('/:id', authenticate, deleteBranchUser);
+router.post('/:id/upload-profile-image', authenticate, uploadMiddleware, uploadProfileImage);
 
 export default router;

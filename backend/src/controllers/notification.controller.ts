@@ -142,8 +142,14 @@ export const getUnreadCount = async (
 
     const unreadCount = await prisma.notifications.count({
       where: {
-        OR: recipientConditions,
-        is_read: false,
+        AND: [
+          {
+            OR: recipientConditions,
+          },
+          {
+            is_read: false,
+          },
+        ],
       },
     });
 

@@ -9,7 +9,8 @@ import {
   generateQRCode,
   uploadProfileImage,
   uploadMiddleware,
-  transferEmployee
+  transferEmployee,
+  archiveEmployee
 } from '../controllers/employee.controller';
 
 const router = Router();
@@ -22,5 +23,6 @@ router.delete('/:id', authenticate, deleteEmployee);
 router.get('/:id/qr', authenticate, generateQRCode);
 router.post('/:id/upload-profile-image', authenticate, uploadMiddleware, uploadProfileImage);
 router.patch('/:id/transfer', authenticate, transferEmployee);
+router.patch('/:id/archive', authenticate, archiveEmployee);
 
 export default router;

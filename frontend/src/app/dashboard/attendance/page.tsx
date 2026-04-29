@@ -7,6 +7,30 @@ import { AxiosError } from 'axios';
 import { Search, Plus, X, RotateCcw, Lightbulb, Clock, UserX, UserCheck, ChevronLeft, ChevronRight, CheckCircle, Loader2, LogIn, LogOut, MoreVertical } from 'lucide-react';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import RecentActivity from '@/components/RecentActivity';
+import ProfileImage from '@/components/ProfileImage';
+
+// Helper function to safely construct image URLs
+const constructImageUrl = (profileImage: string | null | undefined): string | null => {
+  if (!profileImage) return null;
+  
+  const baseUrl = process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || 'http://localhost:5002';
+  
+  // Ensure profileImage starts with a slash
+  const imagePath = profileImage.startsWith('/') ? profileImage : `/${profileImage}`;
+  
+  // Construct full URL
+  const fullUrl = `${baseUrl}${imagePath}`;
+  
+  // Basic URL validation
+  try {
+    new URL(fullUrl);
+    return fullUrl;
+  } catch {
+    // If URL construction fails, return null
+    console.warn('Invalid image URL constructed:', fullUrl);
+    return null;
+  }
+};
 
 // Employee type from API
 interface EmployeeData {
@@ -16,6 +40,7 @@ interface EmployeeData {
   lastName: string | null;
   name: string;
   avatar: string;
+  profileImage: string | null;
   department: string | null;
   position: string | null;
   branchName: string | null;
@@ -37,6 +62,7 @@ interface DisplayEmployee {
   id: number;
   name: string;
   avatar: string;
+  profileImage: string | null;
   department: string;
   branchName: string;
   timeIn: string | null;
@@ -338,6 +364,7 @@ export default function AttendancePage() {
           id: emp.id,
           name: `${emp.firstName || ''} ${emp.lastName || ''}`.trim() || 'Unknown',
           avatar: `${emp.firstName?.[0] || ''}${emp.lastName?.[0] || ''}`.toUpperCase(),
+          profileImage: emp.profileImage,
           employeeCode: emp.employeeCode,
           department: emp.department || 'General',
           position: emp.position || 'Worker',
@@ -722,9 +749,12 @@ export default function AttendancePage() {
                       }`}
                     >
                       <span className="text-gray-400 text-sm w-6">{indexOfFirstEmployee + index + 1}</span>
-                      <div className="w-10 h-10 rounded-full bg-[#facc15] flex items-center justify-center text-black text-sm font-bold flex-shrink-0">
-                        {employee.avatar}
-                      </div>
+                      <ProfileImage
+                        src={constructImageUrl(employee.profileImage)}
+                        name={employee.name}
+                        alt={employee.name}
+                        size="md"
+                      />
                       <div className="flex-1 min-w-0">
                         <p className="text-white font-medium text-sm truncate">{employee.name}</p>
                       </div>
@@ -800,9 +830,12 @@ export default function AttendancePage() {
                       }`}
                     >
                       <span className="text-gray-400 text-sm w-6">{indexOfFirstEmployee + index + 1}</span>
-                      <div className="w-10 h-10 rounded-full bg-[#facc15] flex items-center justify-center text-black text-sm font-bold flex-shrink-0">
-                        {employee.avatar}
-                      </div>
+                      <ProfileImage
+                        src={constructImageUrl(employee.profileImage)}
+                        name={employee.name}
+                        alt={employee.name}
+                        size="md"
+                      />
                       <div className="flex-1 min-w-0">
                         <p className="text-white font-medium text-sm truncate">{employee.name}</p>
                       </div>
@@ -852,9 +885,12 @@ export default function AttendancePage() {
                       }`}
                     >
                       <span className="text-gray-400 text-sm w-6">{indexOfFirstEmployee + index + 1}</span>
-                      <div className="w-10 h-10 rounded-full bg-[#facc15] flex items-center justify-center text-black text-sm font-bold flex-shrink-0">
-                        {employee.avatar}
-                      </div>
+                      <ProfileImage
+                        src={constructImageUrl(employee.profileImage)}
+                        name={employee.name}
+                        alt={employee.name}
+                        size="md"
+                      />
                       <div className="flex-1 min-w-0">
                         <p className="text-white font-medium text-sm truncate">{employee.name}</p>
                       </div>
@@ -871,9 +907,12 @@ export default function AttendancePage() {
                       }`}
                     >
                       <span className="text-gray-400 text-sm w-6">{indexOfFirstEmployee + index + 1}</span>
-                      <div className="w-10 h-10 rounded-full bg-[#facc15] flex items-center justify-center text-black text-sm font-bold flex-shrink-0">
-                        {employee.avatar}
-                      </div>
+                      <ProfileImage
+                        src={constructImageUrl(employee.profileImage)}
+                        name={employee.name}
+                        alt={employee.name}
+                        size="md"
+                      />
                       <div className="flex-1 min-w-0">
                         <p className="text-white font-medium text-sm truncate">{employee.name}</p>
                       </div>
@@ -994,9 +1033,12 @@ export default function AttendancePage() {
                     <td className="px-4 py-4 text-gray-400 hidden sm:table-cell">{indexOfFirstEmployee + index + 1}</td>
                     <td className="px-4 py-4">
                       <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-[#facc15] flex items-center justify-center text-black text-xs font-bold">
-                          {employee.avatar}
-                        </div>
+                        <ProfileImage
+                          src={constructImageUrl(employee.profileImage)}
+                          name={employee.name}
+                          alt={employee.name}
+                          size="sm"
+                        />
                         <div>
                           <p className="text-white font-medium text-sm">{employee.name}</p>
                         </div>
@@ -1157,9 +1199,12 @@ export default function AttendancePage() {
               </div>
 
               <div className="flex items-center gap-4 mb-6">
-                <div className="w-16 h-16 rounded-full bg-[#facc15] flex items-center justify-center text-black text-xl font-bold">
-                  {selectedEmployeeForModal.avatar}
-                </div>
+                <ProfileImage
+                  src={constructImageUrl(selectedEmployeeForModal.profileImage)}
+                  name={selectedEmployeeForModal.name}
+                  alt={selectedEmployeeForModal.name}
+                  size="xl"
+                />
                 <div>
                   <p className="text-white font-semibold text-lg">{selectedEmployeeForModal.name}</p>
                   <p className="text-gray-400 text-sm">ID: {selectedEmployeeForModal.id}</p>

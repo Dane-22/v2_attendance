@@ -5,8 +5,49 @@ import { AppError } from '../middleware/error.middleware';
 import { AuthenticatedRequest } from '../middleware/auth.middleware';
 import { ApiResponse, PaginatedResponse } from '../types/api.types';
 import { logCreate, logUpdate, logDelete } from '../services/activityLogger.service';
+import multer from 'multer';
+import path from 'path';
+import fs from 'fs';
 
 const prisma = new PrismaClient();
+
+// Configure multer for admin profile image uploads
+const uploadDir = path.join(process.cwd(), 'assets', 'profile-images', 'admins');
+
+// Ensure upload directory exists
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir, { recursive: true });
+}
+
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, uploadDir);
+  },
+  filename: (req, file, cb) => {
+    const adminId = req.params.id;
+    const timestamp = Date.now();
+    const ext = path.extname(file.originalname);
+    cb(null, `${adminId}_${timestamp}${ext}`);
+  }
+});
+
+const upload = multer({
+  storage,
+  limits: {
+    fileSize: 10 * 1024 * 1024, // 10MB
+  },
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = /jpeg|jpg|png|gif|webp/;
+    const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
+    const mimetype = allowedTypes.test(file.mimetype);
+
+    if (extname && mimetype) {
+      cb(null, true);
+    } else {
+      cb(new Error('Invalid file type. Only JPG, PNG, GIF, and WebP are allowed.'));
+    }
+  }
+});
 
 // Password complexity validation
 const validatePassword = (password: string): boolean => {
@@ -335,3 +376,75 @@ export const deleteAdmin = async (
     next(error);
   }
 };
+
+export const uploadProfileImage = async (
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const id = parseInt(req.params.id);
+
+    const admin = await prisma.admins.findUnique({
+      where: { id }
+    });
+
+    if (!admin) {
+      throw new AppError('Admin not found', 404);
+    }
+
+    if (!req.file) {
+      throw new AppError('No file uploaded', 400);
+    }
+
+    // Generate the image URL path
+    const imagePath = `/assets/profile-images/admins/${req.file.filename}`;
+
+    // Update admin with new profile image
+    const updatedAdmin = await prisma.admins.update({
+      where: { id },
+      data: { profileImage: imagePath },
+      select: {
+        id: true,
+        username: true,
+        name: true,
+        email: true,
+        role: true,
+        branch_code: true,
+        permissions: true,
+        permissions_enabled: true,
+        profileImage: true,
+        created_at: true,
+        updated_at: true
+      }
+    });
+
+    // Log profile image update
+    await logUpdate({
+      userId: req.admin?.id || 0,
+      userName: req.admin?.name || 'unknown',
+      userRole: req.admin?.role || 'admin',
+      entityType: 'ADMIN',
+      entityId: admin.id.toString(),
+      entityName: admin.name,
+      description: `Updated profile image for admin: ${admin.username}`,
+      detailsBefore: { profileImage: admin.profileImage },
+      detailsAfter: { profileImage: imagePath },
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent']
+    });
+
+    const response: ApiResponse<typeof updatedAdmin> = {
+      success: true,
+      message: 'Profile image uploaded successfully',
+      data: updatedAdmin
+    };
+
+    res.json(response);
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Export upload middleware for use in routes
+export const uploadMiddleware = upload.single('profileImage');

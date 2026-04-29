@@ -24,6 +24,7 @@ const notification_routes_1 = __importDefault(require("./routes/notification.rou
 const document_routes_1 = __importDefault(require("./routes/document.routes"));
 const admin_routes_1 = __importDefault(require("./routes/admin.routes"));
 const branch_user_routes_1 = __importDefault(require("./routes/branch-user.routes"));
+const faceRecognition_routes_1 = __importDefault(require("./routes/faceRecognition.routes"));
 const error_middleware_1 = require("./middleware/error.middleware");
 const logMonitoring_service_1 = require("./services/logMonitoring.service");
 const logCleanup_job_1 = require("./jobs/logCleanup.job");
@@ -128,6 +129,7 @@ app.use('/api/notifications', notification_routes_1.default);
 app.use('/api/documents', document_routes_1.default);
 app.use('/api/admins', admin_routes_1.default);
 app.use('/api/branch-users', branch_user_routes_1.default);
+app.use('/api/face-recognition', faceRecognition_routes_1.default);
 app.use(error_middleware_1.errorHandler);
 app.use((req, res) => {
     res.status(404).json({

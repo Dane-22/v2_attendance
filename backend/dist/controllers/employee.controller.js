@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.uploadMiddleware = exports.transferEmployee = exports.uploadProfileImage = exports.generateQRCode = exports.deleteEmployee = exports.updateEmployee = exports.createEmployee = exports.getEmployeeById = exports.getAllEmployees = void 0;
+exports.uploadMiddleware = exports.archiveEmployee = exports.transferEmployee = exports.uploadProfileImage = exports.generateQRCode = exports.deleteEmployee = exports.updateEmployee = exports.createEmployee = exports.getEmployeeById = exports.getAllEmployees = void 0;
 const client_1 = require("@prisma/client");
 const error_middleware_1 = require("../middleware/error.middleware");
 const activityLogger_service_1 = require("../services/activityLogger.service");
@@ -13,7 +13,7 @@ const path_1 = __importDefault(require("path"));
 const fs_1 = __importDefault(require("fs"));
 const prisma = new client_1.PrismaClient();
 // Configure multer for profile image uploads
-const uploadDir = path_1.default.join(process.cwd(), 'public', 'uploads', 'profile-images');
+const uploadDir = path_1.default.join(process.cwd(), 'assets', 'profile-images', 'employees');
 // Ensure upload directory exists
 if (!fs_1.default.existsSync(uploadDir)) {
     fs_1.default.mkdirSync(uploadDir, { recursive: true });
@@ -154,14 +154,80 @@ exports.getEmployeeById = getEmployeeById;
 const createEmployee = async (req, res, next) => {
     try {
         const data = req.body;
-        if (!data.employeeCode || !data.firstName || !data.lastName) {
-            throw new error_middleware_1.AppError('Employee code, first name, and last name are required', 400);
+        if (!data.firstName || !data.lastName) {
+            throw new error_middleware_1.AppError('First name and last name are required', 400);
         }
-        const existingEmployee = await prisma.employee.findUnique({
-            where: { employeeCode: data.employeeCode }
-        });
-        if (existingEmployee) {
-            throw new error_middleware_1.AppError('Employee code already exists', 409);
+        let employeeCode = data.employeeCode;
+        // Auto-generate employeeCode if not provided based on Position
+        if (!employeeCode) {
+            const position = (data.position || 'Worker').toLowerCase();
+            const year = new Date().getFullYear();
+            let prefix = '';
+            let pattern = '';
+            if (position.includes('engineer')) {
+                prefix = `ENG-${year}-`;
+                pattern = `ENG-${year}-%`;
+            }
+            else if (position.includes('developer')) {
+                prefix = `DEV-${year}-`;
+                pattern = `DEV-${year}-%`;
+            }
+            else if (position.includes('admin')) {
+                prefix = `ADMIN-${year}-`;
+                pattern = `ADMIN-${year}-%`;
+            }
+            else {
+                // Default to Worker (E####)
+                prefix = 'E';
+                pattern = 'E%';
+            }
+            // Find the last employee with this prefix pattern
+            const lastEmployee = await prisma.employee.findFirst({
+                where: {
+                    employeeCode: {
+                        startsWith: prefix
+                    }
+                },
+                orderBy: {
+                    employeeCode: 'desc'
+                }
+            });
+            let nextNumber = 1;
+            if (lastEmployee && lastEmployee.employeeCode) {
+                const currentCode = lastEmployee.employeeCode;
+                // Extract the numeric part (the last 4 digits)
+                const match = currentCode.match(/(\d{4})$/);
+                if (match) {
+                    nextNumber = parseInt(match[1], 10) + 1;
+                }
+            }
+            // Format with 4-digit padding
+            employeeCode = `${prefix}${nextNumber.toString().padStart(4, '0')}`;
+            // Safety check: ensure the generated code doesn't exist (in case of gaps)
+            let codeExists = true;
+            let safetyCounter = 0;
+            while (codeExists && safetyCounter < 100) {
+                const existing = await prisma.employee.findUnique({
+                    where: { employeeCode }
+                });
+                if (!existing) {
+                    codeExists = false;
+                }
+                else {
+                    nextNumber++;
+                    employeeCode = `${prefix}${nextNumber.toString().padStart(4, '0')}`;
+                    safetyCounter++;
+                }
+            }
+        }
+        else {
+            // If code is provided manually, check for uniqueness
+            const existingEmployee = await prisma.employee.findUnique({
+                where: { employeeCode }
+            });
+            if (existingEmployee) {
+                throw new error_middleware_1.AppError('Employee code already exists', 409);
+            }
         }
         if (data.email) {
             const existingEmail = await prisma.employee.findUnique({
@@ -173,7 +239,7 @@ const createEmployee = async (req, res, next) => {
         }
         const employee = await prisma.employee.create({
             data: {
-                employeeCode: data.employeeCode,
+                employeeCode: employeeCode,
                 firstName: data.firstName,
                 lastName: data.lastName,
                 middleName: data.middleName,
@@ -398,7 +464,7 @@ const uploadProfileImage = async (req, res, next) => {
             throw new error_middleware_1.AppError('No file uploaded', 400);
         }
         // Generate the image URL path
-        const imagePath = `/uploads/profile-images/${req.file.filename}`;
+        const imagePath = `/assets/profile-images/employees/${req.file.filename}`;
         // Update employee with new profile image
         const updatedEmployee = await prisma.employee.update({
             where: { id },
@@ -558,6 +624,75 @@ const transferEmployee = async (req, res, next) => {
     }
 };
 exports.transferEmployee = transferEmployee;
+const archiveEmployee = async (req, res, next) => {
+    try {
+        const id = parseInt(req.params.id);
+        const { reason } = req.body;
+        const employee = await prisma.employee.findUnique({
+            where: { id }
+        });
+        if (!employee) {
+            throw new error_middleware_1.AppError('Employee not found', 404);
+        }
+        // Copy employee data to archived_employees table
+        const archivedEmployee = await prisma.$queryRaw `
+      INSERT INTO archived_employees (
+        id, employeeCode, firstName, middleName, lastName, email, department,
+        position, branchName, branchCode, status, dailyRate, performanceAllowance,
+        hasDeductions, hasDeduction, branchId, defaultBranchId, profileImage,
+        createdAt, updatedAt, archivedAt, archivedBy, archiveReason
+      )
+      VALUES (
+        ${employee.id}, ${employee.employeeCode}, ${employee.firstName}, ${employee.middleName},
+        ${employee.lastName}, ${employee.email}, ${employee.department}, ${employee.position},
+        ${employee.branchName}, ${employee.branchCode}, 'Inactive', ${employee.dailyRate},
+        ${employee.performanceAllowance}, ${employee.hasDeductions}, ${employee.hasDeduction},
+        ${employee.branchId}, ${employee.defaultBranchId}, ${employee.profileImage},
+        ${employee.createdAt}, ${employee.updatedAt}, NOW(),
+        ${req.admin?.name || 'unknown'}, ${reason || 'Employee archived'}
+      )
+    `;
+        // Update employee status to Inactive
+        const updatedEmployee = await prisma.employee.update({
+            where: { id },
+            data: { status: 'Inactive' },
+            select: {
+                id: true,
+                employeeCode: true,
+                firstName: true,
+                lastName: true,
+                status: true
+            }
+        });
+        // Log employee archiving
+        await (0, activityLogger_service_1.logUpdate)({
+            userId: req.admin?.id || 0,
+            userName: req.admin?.name || 'unknown',
+            userRole: req.admin?.role || 'admin',
+            entityType: 'EMPLOYEE',
+            entityId: employee.id.toString(),
+            entityName: `${employee.firstName} ${employee.lastName}`,
+            description: `Archived employee: ${employee.employeeCode} - ${employee.firstName} ${employee.lastName}`,
+            detailsBefore: { status: employee.status },
+            detailsAfter: { status: 'Inactive' },
+            changes: ['status'],
+            ipAddress: req.ip,
+            userAgent: req.headers['user-agent'],
+            branchId: employee.branchId || undefined,
+            metadata: { reason, archivedBy: req.admin?.name }
+        });
+        const response = {
+            success: true,
+            message: 'Employee archived successfully',
+            data: updatedEmployee
+        };
+        res.json(response);
+    }
+    catch (error) {
+        next(error);
+    }
+};
+exports.archiveEmployee = archiveEmployee;
 // Export upload middleware for use in routes
 exports.uploadMiddleware = upload.single('profileImage');
 //# sourceMappingURL=employee.controller.js.map

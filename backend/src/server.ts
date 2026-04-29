@@ -20,6 +20,7 @@ import notificationRoutes from './routes/notification.routes';
 import documentRoutes from './routes/document.routes';
 import adminRoutes from './routes/admin.routes';
 import branchUserRoutes from './routes/branch-user.routes';
+import faceRecognitionRoutes from './routes/faceRecognition.routes';
 import { errorHandler } from './middleware/error.middleware';
 import { logBufferService } from './services/logBuffer.service';
 import { scheduleLogMonitoring } from './services/logMonitoring.service';
@@ -146,6 +147,7 @@ app.use('/api/notifications', notificationRoutes);
 app.use('/api/documents', documentRoutes);
 app.use('/api/admins', adminRoutes);
 app.use('/api/branch-users', branchUserRoutes);
+app.use('/api/face-recognition', faceRecognitionRoutes);
 
 app.use(errorHandler);
 

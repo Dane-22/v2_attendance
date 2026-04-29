@@ -57,18 +57,27 @@ const login = async (req, res, next) => {
         if (!process.env.JWT_SECRET) {
             throw new error_middleware_1.AppError('JWT configuration error', 500);
         }
+        // Detect if this is a branch user (by username pattern or branch_code)
+        const isBranchUser = /^branch-[a-h]$/i.test(admin.username) || (admin.branch_code && !admin.role);
+        const userRole = isBranchUser ? 'branch' : (admin.role || 'admin');
+        const userType = isBranchUser ? 'branch' : 'admin';
         const expiresIn = process.env.JWT_EXPIRES_IN || '24h';
         const token = jsonwebtoken_1.default.sign({
             adminId: admin.id,
             username: admin.username,
-            role: admin.role || 'admin'
+            role: userRole
         }, process.env.JWT_SECRET, { expiresIn });
         const { password: _, ...adminWithoutPassword } = admin;
+        // Update the user object with the correct role for branch users
+        const userWithCorrectRole = {
+            ...adminWithoutPassword,
+            role: userRole
+        };
         // Log successful login
         await (0, activityLogger_service_1.logAuth)({
             userId: admin.id,
             userName: admin.name,
-            userRole: admin.role || 'admin',
+            userRole: userRole,
             actionType: 'LOGIN',
             entityType: 'USER',
             entityId: admin.id.toString(),
@@ -84,8 +93,8 @@ const login = async (req, res, next) => {
             message: 'Login successful',
             data: {
                 token,
-                user: adminWithoutPassword,
-                userType: 'admin'
+                user: userWithCorrectRole,
+                userType
             }
         };
         res.json(response);

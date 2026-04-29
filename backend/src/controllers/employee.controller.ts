@@ -12,7 +12,7 @@ import fs from 'fs';
 const prisma = new PrismaClient();
 
 // Configure multer for profile image uploads
-const uploadDir = path.join(process.cwd(), 'public', 'uploads', 'profile-images');
+const uploadDir = path.join(process.cwd(), 'assets', 'profile-images', 'employees');
 
 // Ensure upload directory exists
 if (!fs.existsSync(uploadDir)) {
@@ -530,7 +530,7 @@ export const uploadProfileImage = async (
     }
 
     // Generate the image URL path
-    const imagePath = `/uploads/profile-images/${req.file.filename}`;
+    const imagePath = `/assets/profile-images/employees/${req.file.filename}`;
 
     // Update employee with new profile image
     const updatedEmployee = await prisma.employee.update({
@@ -702,6 +702,85 @@ export const transferEmployee = async (
         employee: updatedEmployee,
         previousBranch
       }
+    };
+
+    res.json(response);
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const archiveEmployee = async (
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const id = parseInt(req.params.id);
+    const { reason } = req.body;
+
+    const employee = await prisma.employee.findUnique({
+      where: { id }
+    });
+
+    if (!employee) {
+      throw new AppError('Employee not found', 404);
+    }
+
+    // Copy employee data to archived_employees table
+    const archivedEmployee = await prisma.$queryRaw`
+      INSERT INTO archived_employees (
+        id, employeeCode, firstName, middleName, lastName, email, department,
+        position, branchName, branchCode, status, dailyRate, performanceAllowance,
+        hasDeductions, hasDeduction, branchId, defaultBranchId, profileImage,
+        createdAt, updatedAt, archivedAt, archivedBy, archiveReason
+      )
+      VALUES (
+        ${employee.id}, ${employee.employeeCode}, ${employee.firstName}, ${employee.middleName},
+        ${employee.lastName}, ${employee.email}, ${employee.department}, ${employee.position},
+        ${employee.branchName}, ${employee.branchCode}, 'Inactive', ${employee.dailyRate},
+        ${employee.performanceAllowance}, ${employee.hasDeductions}, ${employee.hasDeduction},
+        ${employee.branchId}, ${employee.defaultBranchId}, ${employee.profileImage},
+        ${employee.createdAt}, ${employee.updatedAt}, NOW(),
+        ${req.admin?.name || 'unknown'}, ${reason || 'Employee archived'}
+      )
+    `;
+
+    // Update employee status to Inactive
+    const updatedEmployee = await prisma.employee.update({
+      where: { id },
+      data: { status: 'Inactive' },
+      select: {
+        id: true,
+        employeeCode: true,
+        firstName: true,
+        lastName: true,
+        status: true
+      }
+    });
+
+    // Log employee archiving
+    await logUpdate({
+      userId: req.admin?.id || 0,
+      userName: req.admin?.name || 'unknown',
+      userRole: req.admin?.role || 'admin',
+      entityType: 'EMPLOYEE',
+      entityId: employee.id.toString(),
+      entityName: `${employee.firstName} ${employee.lastName}`,
+      description: `Archived employee: ${employee.employeeCode} - ${employee.firstName} ${employee.lastName}`,
+      detailsBefore: { status: employee.status },
+      detailsAfter: { status: 'Inactive' },
+      changes: ['status'],
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+      branchId: employee.branchId || undefined,
+      metadata: { reason, archivedBy: req.admin?.name }
+    });
+
+    const response: ApiResponse<typeof updatedEmployee> = {
+      success: true,
+      message: 'Employee archived successfully',
+      data: updatedEmployee
     };
 
     res.json(response);
