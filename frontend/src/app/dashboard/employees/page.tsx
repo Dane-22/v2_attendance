@@ -1194,8 +1194,16 @@ function UserModal({ isOpen, onClose, onSuccess, userType, setUserType, mode, ed
           }
         }
       } else if (userType === 'branch_user') {
-        if (!branchUserForm.password || !branchUserForm.branch_name) {
+        // For edit mode, only branch_name is required; password is optional
+        // For create mode, both are required
+        if (mode === 'create' && (!branchUserForm.password || !branchUserForm.branch_name)) {
           showToast('error', 'Password and branch name are required');
+          setIsLoading(false);
+          return;
+        }
+        
+        if (mode === 'edit' && !branchUserForm.branch_name) {
+          showToast('error', 'Branch name is required');
           setIsLoading(false);
           return;
         }
@@ -1846,17 +1854,22 @@ export default function EmployeesPage() {
   };
 
   const handleEditClick = (item: Employee | Admin | BranchUser) => {
-    if (activeTab === 'employees' && 'employeeCode' in item) {
-      setSelectedEmployee(item);
+    // Improved type detection with multiple property checks
+    const isEmployee = 'employeeCode' in item || 'firstName' in item;
+    const isAdmin = 'role' in item && 'username' in item && !('employeeCode' in item);
+    const isBranchUser = 'branch_code' in item || ('branch_name' in item && !('employeeCode' in item));
+
+    if (activeTab === 'employees' && isEmployee) {
+      setSelectedEmployee(item as Employee);
       setModalUserType('employee');
       setSelectedAdmin(null);
       setSelectedBranchUser(null);
-    } else if (activeTab === 'admins' && 'role' in item) {
+    } else if (activeTab === 'admins' && isAdmin) {
       setSelectedAdmin(item as Admin);
       setModalUserType('admin');
       setSelectedEmployee(null);
       setSelectedBranchUser(null);
-    } else if (activeTab === 'branch_users' && 'branch_code' in item) {
+    } else if (activeTab === 'branch_users' && isBranchUser) {
       setSelectedBranchUser(item as BranchUser);
       setModalUserType('branch_user');
       setSelectedEmployee(null);
