@@ -128,62 +128,6 @@ const branches = [
   { code: 'H', name: 'Testing Branch' },
 ] as const;
 
-// Generate mock employee attendance history for modal calendar (will be replaced with real data later)
-const generateEmployeeAttendanceHistory = (employeeCode: string, month: number, year: number) => {
-  const history: Record<number, { status: 'present' | 'late' | 'absent' | null; timeIn?: string; timeOut?: string; location?: string }> = {};
-  
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const currentPhilippinesDay = getPhilippinesDay();
-  const now = new Date();
-  const formatter = new Intl.DateTimeFormat('en-US', {
-    timeZone: 'Asia/Manila',
-    month: 'numeric',
-    year: 'numeric'
-  });
-  const parts = formatter.formatToParts(now);
-  const pMonth = parseInt(parts.find(p => p.type === 'month')?.value || '0', 10) - 1;
-  const pYear = parseInt(parts.find(p => p.type === 'year')?.value || '0', 10);
-  const isCurrentMonth = pMonth === month && pYear === year;
-  
-  for (let day = 1; day <= daysInMonth; day++) {
-    // Skip future dates for current month
-    if (isCurrentMonth && day > currentPhilippinesDay) {
-      history[day] = { status: null };
-      continue;
-    }
-    
-    // Generate deterministic random-ish data based on employee code and day
-    const seed = employeeCode.charCodeAt(1) + day;
-    const rand = (seed * 9301 + 49297) % 233280 / 233280;
-    
-    if (rand > 0.85) {
-      history[day] = { status: null };
-    } else if (rand > 0.7) {
-      history[day] = { 
-        status: 'absent', 
-        timeIn: '-', 
-        timeOut: '-', 
-        location: 'BCDA - Admin' 
-      };
-    } else if (rand > 0.55) {
-      history[day] = { 
-        status: 'late', 
-        timeIn: `0${Math.floor(rand * 2) + 8}:${Math.floor(rand * 50 + 10).toString().padStart(2, '0')} AM`, 
-        timeOut: `0${Math.floor(rand * 2) + 5}:${Math.floor(rand * 50 + 10).toString().padStart(2, '0')} PM`, 
-        location: 'BCDA - Admin' 
-      };
-    } else {
-      history[day] = { 
-        status: 'present', 
-        timeIn: `0${Math.floor(rand * 1) + 6}:${Math.floor(rand * 50 + 30).toString().padStart(2, '0')} AM`, 
-        timeOut: `0${Math.floor(rand * 2) + 5}:${Math.floor(rand * 50 + 10).toString().padStart(2, '0')} PM`, 
-        location: day % 3 === 0 ? 'BCDA - Admin' : day % 3 === 1 ? 'BCDA - Control Tower' : 'Sto. Rosario' 
-      };
-    }
-  }
-  return history;
-};
-
 // Modal Calendar Component
 function EmployeeAttendanceModal({ 
   employee, 
@@ -200,7 +144,72 @@ function EmployeeAttendanceModal({
 }) {
   const [modalMonth, setModalMonth] = useState(initialMonth);
   const [modalYear, setModalYear] = useState(initialYear);
-  const [attendanceHistory, setAttendanceHistory] = useState<Record<number, any>>({});
+  const [selectedDay, setSelectedDay] = useState<number | null>(null);
+  
+  // Calculate date range for the modal month
+  const startDate = useMemo(() => {
+    return `${modalYear}-${String(modalMonth + 1).padStart(2, '0')}-01`;
+  }, [modalMonth, modalYear]);
+
+  const endDate = useMemo(() => {
+    const daysInMonth = new Date(modalYear, modalMonth + 1, 0).getDate();
+    return `${modalYear}-${String(modalMonth + 1).padStart(2, '0')}-${String(daysInMonth).padStart(2, '0')}`;
+  }, [modalMonth, modalYear]);
+  
+  // Fetch real attendance data for this employee
+  const { data: employeeAttendanceData, isLoading } = useQuery({
+    queryKey: ['employee-attendance-modal', employee?.employeeId, startDate, endDate],
+    queryFn: async () => {
+      if (!employee?.employeeId) return [];
+      const response = await attendanceApi.getAll({
+        employeeId: employee.employeeId,
+        startDate,
+        endDate
+      });
+      return response.data.data || [];
+    },
+    enabled: isOpen && !!employee?.employeeId,
+    staleTime: 30000
+  });
+  
+  // Group attendance records by day - support multiple records per day
+  const attendanceHistory = useMemo(() => {
+    const history: Record<number, { records: any[]; summary: { present: number; late: number; absent: number } }> = {};
+    
+    if (!employeeAttendanceData) return history;
+    
+    employeeAttendanceData.forEach((record: Attendance) => {
+      const recordDate = new Date(record.date);
+      const day = recordDate.getDate();
+      
+      if (!history[day]) {
+        history[day] = { records: [], summary: { present: 0, late: 0, absent: 0 } };
+      }
+      
+      // Format times from actual check_in/check_out
+      const timeIn = record.check_in 
+        ? new Date(record.check_in).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })
+        : '-';
+      const timeOut = record.check_out 
+        ? new Date(record.check_out).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })
+        : '-';
+      
+      history[day].records.push({
+        status: record.status,
+        timeIn,
+        timeOut,
+        location: record.branch_code || 'Unknown',
+        notes: record.notes
+      });
+      
+      // Update summary counts
+      if (record.status === 'present') history[day].summary.present++;
+      else if (record.status === 'late') history[day].summary.late++;
+      else if (record.status === 'absent') history[day].summary.absent++;
+    });
+    
+    return history;
+  }, [employeeAttendanceData]);
   
   // Prevent body scroll when modal is open
   useEffect(() => {
@@ -213,13 +222,12 @@ function EmployeeAttendanceModal({
       document.body.style.overflow = 'auto';
     };
   }, [isOpen]);
-  
-  // Regenerate attendance history when month/year changes
+
+  // Sync modal month/year when initial values change - MUST be before early return
   useEffect(() => {
-    if (employee) {
-      setAttendanceHistory(generateEmployeeAttendanceHistory(employee.code, modalMonth, modalYear));
-    }
-  }, [modalMonth, modalYear, employee]);
+    setModalMonth(initialMonth);
+    setModalYear(initialYear);
+  }, [initialMonth, initialYear]);
   
   if (!isOpen || !employee) return null;
   
@@ -349,31 +357,52 @@ function EmployeeAttendanceModal({
                 className={`aspect-square p-2 rounded-lg border transition-all ${
                   item.prevMonth || item.nextMonth
                     ? 'bg-transparent border-transparent text-gray-600'
-                    : item.record?.status
-                    ? `${getStatusColor(item.record.status)} text-white`
+                    : item.record?.records && item.record.records.length > 0
+                    ? `${getStatusColor(item.record.records[0].status)} text-white`
                     : 'bg-[#1a1a1a] border-[#262626] text-gray-500'
                 }`}
               >
                 <div className="flex flex-col h-full justify-between">
                   <span className="text-sm font-medium">{item.day}</span>
-                  {item.record?.status && (
+                  {item.record?.records && item.record.records.length > 0 && (
                     <div className="text-[9px] leading-tight">
-                      <div className="text-gray-300">{item.record.timeIn}</div>
-                      <div className="text-gray-400">{item.record.timeOut}</div>
+                      {/* Show first record */}
+                      <div className="text-gray-300">{item.record.records[0].timeIn}</div>
+                      <div className="text-gray-400">{item.record.records[0].timeOut}</div>
                       <div className="flex items-center gap-0.5 mt-0.5 text-gray-500">
                         <MapPin className="w-2 h-2" />
-                        <span className="truncate">{item.record.location}</span>
+                        <span className="truncate">{item.record.records[0].location}</span>
                       </div>
+                      {/* Show count if multiple records - clickable */}
+                      {item.record.records.length > 1 && (
+                        <div 
+                          className="text-[#facc15] mt-0.5 cursor-pointer hover:text-yellow-400 hover:underline"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedDay(item.day);
+                          }}
+                        >
+                          +{item.record.records.length - 1} more
+                        </div>
+                      )}
                       <div className={`mt-1 font-medium ${
-                        item.record.status === 'present' ? 'text-green-400' :
-                        item.record.status === 'late' ? 'text-[#facc15]' :
-                        item.record.status === 'absent' ? 'text-red-400' : 'text-gray-400'
+                        item.record.records[0].status === 'present' ? 'text-green-400' :
+                        item.record.records[0].status === 'late' ? 'text-[#facc15]' :
+                        item.record.records[0].status === 'absent' ? 'text-red-400' : 'text-gray-400'
                       }`}>
-                        {getStatusText(item.record.status)}
+                        {getStatusText(item.record.records[0].status)}
                       </div>
+                      {/* Summary if multiple records with different statuses */}
+                      {(item.record.summary.present > 0 || item.record.summary.late > 0 || item.record.summary.absent > 0) && (
+                        <div className="mt-1 pt-1 border-t border-[#262626] flex gap-1 text-[8px]">
+                          {item.record.summary.present > 0 && <span className="text-green-400">{item.record.summary.present}P</span>}
+                          {item.record.summary.late > 0 && <span className="text-[#facc15]">{item.record.summary.late}L</span>}
+                          {item.record.summary.absent > 0 && <span className="text-red-400">{item.record.summary.absent}A</span>}
+                        </div>
+                      )}
                     </div>
                   )}
-                  {!item.record?.status && !item.prevMonth && !item.nextMonth && (
+                  {(!item.record?.records || item.record.records.length === 0) && !item.prevMonth && !item.nextMonth && (
                     <span className="text-[9px] text-gray-600 mt-auto">No Record</span>
                   )}
                 </div>
@@ -382,6 +411,48 @@ function EmployeeAttendanceModal({
           </div>
         </div>
         
+        {/* Selected Day Details */}
+        {selectedDay && attendanceHistory[selectedDay] && (
+          <div className="px-6 pb-4">
+            <div className="bg-[#1a1a1a] rounded-lg border border-[#262626] p-4">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-white font-medium">
+                  {monthNames[modalMonth]} {selectedDay}, {modalYear} - All Records ({attendanceHistory[selectedDay].records.length})
+                </h3>
+                <button 
+                  onClick={() => setSelectedDay(null)}
+                  className="p-1 hover:bg-red-500/20 text-gray-400 hover:text-red-400 rounded transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              <div className="space-y-2 max-h-[200px] overflow-y-auto">
+                {attendanceHistory[selectedDay].records.map((record, ridx) => (
+                  <div key={ridx} className="flex items-center justify-between py-2 px-3 bg-[#141414] rounded border border-[#262626]">
+                    <div className="flex items-center gap-3">
+                      <span className={`text-xs px-2 py-0.5 rounded border ${
+                        record.status === 'present' ? 'text-green-400 border-green-500/30 bg-green-500/10' :
+                        record.status === 'late' ? 'text-[#facc15] border-[#facc15]/30 bg-[#facc15]/10' :
+                        record.status === 'absent' ? 'text-red-400 border-red-500/30 bg-red-500/10' :
+                        'text-gray-400 border-gray-500/30 bg-gray-500/10'
+                      }`}>
+                        {record.status || 'No Record'}
+                      </span>
+                      <div className="flex items-center gap-1 text-gray-500">
+                        <MapPin className="w-3 h-3" />
+                        <span className="text-xs">{record.location}</span>
+                      </div>
+                    </div>
+                    <div className="text-xs text-gray-400">
+                      {record.timeIn} - {record.timeOut}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Legend */}
         <div className="flex items-center justify-center gap-6 px-6 py-4 border-t border-[#262626] text-xs">
           <div className="flex items-center gap-2">
@@ -427,6 +498,33 @@ function BranchAttendanceModal({
   const [modalYear, setModalYear] = useState(initialYear);
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
 
+  // Calculate date range for the modal month
+  const startDate = useMemo(() => {
+    return `${modalYear}-${String(modalMonth + 1).padStart(2, '0')}-01`;
+  }, [modalMonth, modalYear]);
+
+  const endDate = useMemo(() => {
+    const daysInMonth = new Date(modalYear, modalMonth + 1, 0).getDate();
+    return `${modalYear}-${String(modalMonth + 1).padStart(2, '0')}-${String(daysInMonth).padStart(2, '0')}`;
+  }, [modalMonth, modalYear]);
+
+  // Fetch real attendance data for this branch
+  const { data: branchAttendanceData } = useQuery({
+    queryKey: ['branch-attendance-modal', branch, startDate, endDate],
+    queryFn: async () => {
+      if (!branch) return [];
+      const response = await attendanceApi.getAll({
+        startDate,
+        endDate
+      });
+      // Filter by branch code
+      const allRecords = response.data.data || [];
+      return allRecords.filter((record: Attendance) => record.branch_code === branch);
+    },
+    enabled: isOpen && !!branch,
+    staleTime: 30000
+  });
+
   // Prevent body scroll when modal is open
   useEffect(() => {
     if (isOpen) {
@@ -438,6 +536,12 @@ function BranchAttendanceModal({
       document.body.style.overflow = 'auto';
     };
   }, [isOpen]);
+
+  // Sync modal month/year when initial values change
+  useEffect(() => {
+    setModalMonth(initialMonth);
+    setModalYear(initialYear);
+  }, [initialMonth, initialYear]);
 
   if (!isOpen || !branch) return null;
 
@@ -484,49 +588,59 @@ function BranchAttendanceModal({
     modalCalendarDays.push({ day, nextMonth: true });
   }
 
-  // Generate daily records for branch
+  // Generate daily records for branch from real attendance data
   const generateDailyRecords = (day: number) => {
-    const records: { name: string; timeIn: string; timeOut: string; location: string; status: 'present' | 'late' | 'absent' }[] = [];
+    const records: { name: string; timeIn: string; timeOut: string; location: string; status: 'present' | 'late' | 'absent' | null; employeeCode: string }[] = [];
     
-    // Check if this is a future date
-    const currentPhilippinesDay = getPhilippinesDay();
-    const now = new Date();
-    const formatter = new Intl.DateTimeFormat('en-US', {
-      timeZone: 'Asia/Manila',
-      month: 'numeric',
-      year: 'numeric'
-    });
-    const parts = formatter.formatToParts(now);
-    const pMonth = parseInt(parts.find(p => p.type === 'month')?.value || '0', 10) - 1;
-    const pYear = parseInt(parts.find(p => p.type === 'year')?.value || '0', 10);
-    const isCurrentMonth = pMonth === modalMonth && pYear === modalYear;
-    
-    // Skip future dates for current month
-    if (isCurrentMonth && day > currentPhilippinesDay) {
+    if (!branchAttendanceData) {
       return {
         records: [],
         summary: { present: 0, late: 0, absent: 0, total: branchEmployees.length }
       };
     }
     
-    const presentCount = Math.floor(Math.random() * branchEmployees.length * 0.7) + Math.floor(branchEmployees.length * 0.2);
-    const lateCount = Math.floor(Math.random() * 5);
-    const absentCount = branchEmployees.length - presentCount - lateCount;
+    // Filter records for this specific day
+    const dayRecords = branchAttendanceData.filter((record: Attendance) => {
+      const recordDate = new Date(record.date);
+      return recordDate.getDate() === day;
+    });
     
-    branchEmployees.forEach((emp, idx) => {
-      let status: 'present' | 'late' | 'absent';
-      if (idx < presentCount) status = 'present';
-      else if (idx < presentCount + lateCount) status = 'late';
-      else status = 'absent';
+    // Group by employee to handle multiple entries
+    const employeeRecords: Record<number, any[]> = {};
+    dayRecords.forEach((record: Attendance) => {
+      if (!employeeRecords[record.employeeId]) {
+        employeeRecords[record.employeeId] = [];
+      }
+      employeeRecords[record.employeeId].push(record);
+    });
+    
+    // Build records from real data
+    Object.entries(employeeRecords).forEach(([empId, empRecords]) => {
+      const firstRecord = empRecords[0];
+      const empData = branchEmployees.find(e => e.employeeId === parseInt(empId));
+      
+      // Format times from actual check_in/check_out - handle multiple records
+      const timeIn = firstRecord.check_in 
+        ? new Date(firstRecord.check_in).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })
+        : '-';
+      const timeOut = firstRecord.check_out 
+        ? new Date(firstRecord.check_out).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })
+        : '-';
       
       records.push({
-        name: emp.name,
-        timeIn: status === 'absent' ? '-' : `06:${30 + Math.floor(Math.random() * 30).toString().padStart(2, '0')} AM`,
-        timeOut: status === 'absent' ? '-' : `0${5 + Math.floor(Math.random() * 2)}:${Math.floor(Math.random() * 60).toString().padStart(2, '0')} PM`,
-        location: branch,
-        status
+        name: empData?.name || `Employee ${empId}`,
+        timeIn,
+        timeOut,
+        location: firstRecord.branch_code || branch,
+        status: firstRecord.status,
+        employeeCode: empData?.code || ''
       });
     });
+    
+    // Calculate summary from real data
+    const presentCount = records.filter(r => r.status === 'present').length;
+    const lateCount = records.filter(r => r.status === 'late').length;
+    const absentCount = records.filter(r => r.status === 'absent').length;
     
     return {
       records,
@@ -617,7 +731,7 @@ function BranchAttendanceModal({
                         <div className="flex-1 space-y-1 overflow-hidden">
                           {dayData.records.slice(0, 4).map((record, ridx) => (
                             <div key={ridx} className="text-[10px] leading-tight truncate">
-                              <span className={getStatusColor(record.status)}>{record.name}</span>
+                              <span className={getStatusColor(record.status || '')}>{record.name}</span>
                             </div>
                           ))}
                           {dayData.records.length > 4 && (
@@ -668,9 +782,9 @@ function BranchAttendanceModal({
                     {dayData.records.map((record, ridx) => (
                       <div key={ridx} className="flex items-center justify-between py-2 px-3 bg-[#141414] rounded border border-[#262626]">
                         <div className="flex items-center gap-3">
-                          <span className={getStatusColor(record.status)}>{record.name}</span>
-                          <span className={`text-[10px] px-2 py-0.5 rounded border ${getStatusColor(record.status)}`}>
-                            {record.status}
+                          <span className={getStatusColor(record.status || '')}>{record.name}</span>
+                          <span className={`text-[10px] px-2 py-0.5 rounded border ${getStatusColor(record.status || '')}`}>
+                            {record.status || 'No Record'}
                           </span>
                         </div>
                         <div className="text-[10px] text-gray-400">
