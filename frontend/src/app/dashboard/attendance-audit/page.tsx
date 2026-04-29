@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { createPortal } from 'react-dom';
 import { attendanceApi, branchApi, Attendance } from '@/lib/api';
 import { 
@@ -22,7 +22,8 @@ import {
   Building2,
   CalendarDays,
   Briefcase,
-  Loader2
+  Loader2,
+  RefreshCw
 } from 'lucide-react';
 
 // Helper to get Philippines date string (YYYY-MM-DD)
@@ -49,6 +50,17 @@ const getPhilippinesDay = (): number => {
     day: 'numeric'
   });
   return parseInt(formatter.format(now), 10);
+};
+
+const formatSyncTime = (timestamp: number): string => {
+  if (!timestamp) return 'Never';
+  return new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Manila',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: true
+  }).format(new Date(timestamp));
 };
 
 // Generate calendar data based on branch filter
@@ -1092,6 +1104,7 @@ interface AuditRecord {
 }
 
 export default function AttendanceAuditPage() {
+  const queryClient = useQueryClient();
   const [activeFilter, setActiveFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedDate, setSelectedDate] = useState(getPhilippinesDay());
@@ -1111,6 +1124,7 @@ export default function AttendanceAuditPage() {
   const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
   const [selectedBranchFilter, setSelectedBranchFilter] = useState('ALL');
   const [isDayDetailsModalOpen, setIsDayDetailsModalOpen] = useState(false);
+  const [isManualRefreshing, setIsManualRefreshing] = useState(false);
 
   // Format date for API (YYYY-MM-DD) using calendar month/year
   const formattedDate = useMemo(() => {
@@ -1133,7 +1147,14 @@ export default function AttendanceAuditPage() {
   }, [calendarYear, calendarMonth, selectedDate]);
 
   // Fetch attendance audit data
-  const { data: auditData, isLoading } = useQuery({
+  const {
+    data: auditData,
+    isLoading,
+    isFetching: isAuditFetching,
+    isError: isAuditError,
+    refetch: refetchAudit,
+    dataUpdatedAt: auditDataUpdatedAt
+  } = useQuery({
     queryKey: ['attendance-audit', formattedDate, selectedBranchFilter],
     queryFn: async () => {
       const response = await attendanceApi.getAudit({
@@ -1142,7 +1163,11 @@ export default function AttendanceAuditPage() {
         status: activeFilter === 'all' ? undefined : activeFilter
       });
       return response.data.data;
-    }
+    },
+    refetchInterval: 30000,
+    refetchIntervalInBackground: false,
+    staleTime: 15000,
+    gcTime: 300000
   });
 
   const records = auditData?.records || [];
@@ -1169,7 +1194,13 @@ export default function AttendanceAuditPage() {
   }, [calendarMonth, calendarYear]);
 
   // Fetch monthly attendance data for calendar counts
-  const { data: monthlyAttendanceData } = useQuery({
+  const {
+    data: monthlyAttendanceData,
+    isFetching: isMonthlyFetching,
+    isError: isMonthlyError,
+    refetch: refetchMonthly,
+    dataUpdatedAt: monthlyDataUpdatedAt
+  } = useQuery({
     queryKey: ['attendance-monthly', startDate, endDate, selectedBranchFilter],
     queryFn: async () => {
       const response = await attendanceApi.getAll({
@@ -1178,8 +1209,31 @@ export default function AttendanceAuditPage() {
       });
       return response.data.data || [];
     },
-    enabled: !!startDate && !!endDate
+    enabled: !!startDate && !!endDate,
+    refetchInterval: 30000,
+    refetchIntervalInBackground: false,
+    staleTime: 60000,
+    gcTime: 600000
   });
+
+  const isSyncing = isManualRefreshing || isAuditFetching || isMonthlyFetching;
+  const hasSyncError = isAuditError || isMonthlyError;
+  const lastSyncedAt = Math.max(auditDataUpdatedAt || 0, monthlyDataUpdatedAt || 0);
+  const syncStateLabel = hasSyncError ? 'Sync failed' : isSyncing ? 'Syncing...' : 'Live';
+
+  const handleManualRefresh = async () => {
+    setIsManualRefreshing(true);
+    try {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['attendance-audit'] }),
+        queryClient.invalidateQueries({ queryKey: ['attendance-monthly'] }),
+        refetchAudit(),
+        refetchMonthly()
+      ]);
+    } finally {
+      setIsManualRefreshing(false);
+    }
+  };
 
   // Generate calendar days based on branch filter
   const calendarDays = generateCalendarDays(selectedBranchFilter, selectedDate, calendarMonth, calendarYear);
@@ -1281,8 +1335,34 @@ export default function AttendanceAuditPage() {
             Attendance <span className="text-[#facc15]">Audit</span>
           </h1>
           <p className="text-gray-400 mt-1">Review daily attendance records by selecting a date</p>
+          <div className="flex items-center gap-3 mt-2 text-xs">
+            <span className={`px-2 py-1 rounded-full border ${
+              hasSyncError
+                ? 'text-red-400 border-red-500/40 bg-red-500/10'
+                : isSyncing
+                ? 'text-[#facc15] border-[#facc15]/40 bg-[#facc15]/10'
+                : 'text-green-400 border-green-500/40 bg-green-500/10'
+            }`}>
+              {syncStateLabel}
+            </span>
+            <span className="text-gray-500">Last synced: {formatSyncTime(lastSyncedAt)}</span>
+          </div>
         </div>
       </div>
+
+      {hasSyncError && (
+        <div className="bg-red-500/10 border border-red-500/30 rounded-lg px-4 py-3 flex items-center justify-between gap-3">
+          <p className="text-red-300 text-sm">Unable to sync attendance data. Please retry.</p>
+          <button
+            onClick={handleManualRefresh}
+            disabled={isSyncing}
+            className="inline-flex items-center gap-2 px-3 py-1.5 bg-red-500/20 hover:bg-red-500/30 text-red-200 rounded-md text-sm transition-colors disabled:opacity-60"
+          >
+            <RefreshCw className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} />
+            Retry sync
+          </button>
+        </div>
+      )}
 
       {/* Search and Filters Bar */}
       <div className="flex flex-col lg:flex-row gap-4">
@@ -1330,6 +1410,14 @@ export default function AttendanceAuditPage() {
 
       {/* Action Buttons */}
       <div className="flex flex-wrap gap-2">
+        <button
+          onClick={handleManualRefresh}
+          disabled={isSyncing}
+          className="flex items-center gap-2 px-4 py-2 bg-[#1a1a1a] border border-[#262626] text-gray-300 rounded-lg hover:border-[#facc15] transition-colors disabled:opacity-60"
+        >
+          <RefreshCw className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} />
+          Refresh
+        </button>
         <button className="flex items-center gap-2 px-4 py-2 bg-[#1a1a1a] border border-[#262626] text-gray-300 rounded-lg hover:border-[#facc15] transition-colors">
           <Calendar className="w-4 h-4" />
           This Week
