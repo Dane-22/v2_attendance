@@ -149,7 +149,9 @@ export default function AttendancePage() {
       console.log('[Attendance] Parsed employees:', employees.length, 'items');
       return employees;
     },
-    enabled: !!selectedBranch
+    enabled: !!selectedBranch,
+    refetchInterval: isConnected ? false : 20000,
+    refetchIntervalInBackground: false
   });
 
   // Search all employees when search query exists
@@ -171,7 +173,9 @@ export default function AttendancePage() {
       const response = await attendanceApi.getAll({ startDate: new Date().toISOString().split('T')[0], endDate: new Date().toISOString().split('T')[0], limit: 1000 });
       console.log('Today attendance:', response.data.data);
       return response.data.data || [];
-    }
+    },
+    refetchInterval: isConnected ? false : 20000,
+    refetchIntervalInBackground: false
   });
 
   // Manual clock-in mutation
@@ -539,7 +543,9 @@ export default function AttendancePage() {
           {/* Connection Status Indicator */}
           <div className="flex items-center gap-2">
             <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`} />
-            <span className="text-xs text-gray-500">{isConnected ? 'Connected' : 'Disconnected'}</span>
+            <span className="text-xs text-gray-500">
+              {isConnected ? 'Connected' : 'Disconnected (polling sync active)'}
+            </span>
           </div>
         </div>
         <div className="text-gray-400 text-sm">

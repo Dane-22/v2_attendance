@@ -16,7 +16,9 @@ export const emitAttendanceUpdate = (
   io: SocketIOServer,
   branchCode: string,
   data: {
+    attendanceId?: number;
     type: 'clock_in' | 'clock_out' | 'mark_absent';
+    action?: 'clock_in' | 'clock_out' | 'mark_absent';
     employeeId: number;
     employeeName: string;
     employeeCode: string;
@@ -25,6 +27,7 @@ export const emitAttendanceUpdate = (
     timestamp: string;
     previousStatus?: string;
     newStatus?: string;
+    status?: string;
   }
 ): void => {
   const roomName = `branch-${branchCode}`;

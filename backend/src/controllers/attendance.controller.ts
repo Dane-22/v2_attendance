@@ -8,6 +8,8 @@ import { logScan, logCreate, logUpdate, logError } from '../services/activityLog
 import { emitAttendanceUpdate, emitStatsUpdate } from '../routes/websocket.routes';
 
 const prisma = new PrismaClient();
+const RECENT_SCAN_WINDOW_MS = 3000;
+const recentScansByEmployee = new Map<number, number>();
 
 // Get Philippines date as YYYY-MM-DD string using Intl.DateTimeFormat
 // This ensures we get the correct date components for Asia/Manila timezone
@@ -26,6 +28,40 @@ const getPhilippinesDateString = (): string => {
   const month = parts.find(p => p.type === 'month')?.value;
   const day = parts.find(p => p.type === 'day')?.value;
   return `${year}-${month}-${day}`;
+};
+
+const getPhilippinesDateRangeForDate = (dateStr: string): { start: Date; end: Date } => {
+  const [yearRaw, monthRaw, dayRaw] = dateStr.split('-');
+  const year = parseInt(yearRaw || '0', 10);
+  const month = parseInt(monthRaw || '0', 10);
+  const day = parseInt(dayRaw || '0', 10);
+
+  if (!year || !month || !day) {
+    throw new AppError('Invalid date format. Expected YYYY-MM-DD', 400);
+  }
+
+  return {
+    start: new Date(Date.UTC(year, month - 1, day)),
+    end: new Date(Date.UTC(year, month - 1, day + 1))
+  };
+};
+
+const resolveAttendanceBranchCode = async (employee: { branchCode: string | null; branchId: number | null }, adminBranchCode?: string | null): Promise<string> => {
+  if (adminBranchCode) return adminBranchCode;
+  if (employee.branchCode) return employee.branchCode;
+
+  if (employee.branchId) {
+    const employeeBranch = await prisma.branches.findUnique({
+      where: { id: employee.branchId },
+      select: { branch_code: true }
+    });
+
+    if (employeeBranch?.branch_code) {
+      return employeeBranch.branch_code;
+    }
+  }
+
+  throw new AppError('Unable to resolve branch code for attendance record', 422);
 };
 
 // Unified clock endpoint - uses raw SQL to bypass Prisma @db.Date timezone bugs
@@ -136,7 +172,9 @@ export const clock = async (
       // Emit WebSocket event for real-time update
       if (global.io && activeRecord.branch_code) {
         emitAttendanceUpdate(global.io, activeRecord.branch_code, {
+          attendanceId: updatedRecord?.id || activeRecord.id,
           type: 'clock_out',
+          action: 'clock_out',
           employeeId: employee.id,
           employeeName: `${employee.firstName} ${employee.lastName}`,
           employeeCode: employee.employeeCode || '',
@@ -144,7 +182,8 @@ export const clock = async (
           branchName: activeRecord.branch_code || '',
           timestamp: checkOutTime.toISOString(),
           previousStatus: 'present',
-          newStatus: 'completed'
+          newStatus: 'completed',
+          status: 'completed'
         });
       }
 
@@ -164,12 +203,30 @@ export const clock = async (
       // No active clock-in → CLOCK IN
       const checkInTime = new Date();
       const status = determineStatus(checkInTime);
+      const resolvedBranchCode = await resolveAttendanceBranchCode(employee, adminBranchCode);
+
+      const nowMs = Date.now();
+      const lastScanMs = recentScansByEmployee.get(employee.id);
+      if (lastScanMs && nowMs - lastScanMs < RECENT_SCAN_WINDOW_MS) {
+        const response: ApiResponse<any> = {
+          success: true,
+          message: 'Duplicate scan ignored',
+          data: {
+            ignored: true,
+            employeeId: employee.id,
+            employeeName: `${employee.firstName} ${employee.lastName}`
+          }
+        };
+        res.status(200).json(response);
+        return;
+      }
+      recentScansByEmployee.set(employee.id, nowMs);
 
       // Use raw SQL to insert - bypasses Prisma timezone conversion on date field
       const todayStr = getPhilippinesDateString();
       const result = await prisma.$executeRaw`
         INSERT INTO attendance (employee_id, date, check_in, status, branch_code, notes, created_at, updated_at)
-        VALUES (${employee.id}, ${todayStr}, ${checkInTime}, ${status}, ${adminBranchCode || employee.branchName || null}, ${notes || null}, NOW(), NOW())
+        VALUES (${employee.id}, ${todayStr}, ${checkInTime}, ${status}, ${resolvedBranchCode}, ${notes || null}, NOW(), NOW())
       `;
 
       // Fetch the created record
@@ -193,14 +250,16 @@ export const clock = async (
         ipAddress: req.ip,
         userAgent: req.headers['user-agent'],
         branchId: employee.branchId || undefined,
-        metadata: { method: 'qr_scan', branch_code: adminBranchCode || employee.branchName, status },
+        metadata: { method: 'qr_scan', branch_code: resolvedBranchCode, status },
       });
 
       // Emit WebSocket event for real-time update
-      const branchCode = adminBranchCode || employee.branchName || 'A';
+      const branchCode = resolvedBranchCode;
       if (global.io) {
         emitAttendanceUpdate(global.io, branchCode, {
+          attendanceId: newRecord?.id,
           type: 'clock_in',
+          action: 'clock_in',
           employeeId: employee.id,
           employeeName: `${employee.firstName} ${employee.lastName}`,
           employeeCode: employee.employeeCode || '',
@@ -208,7 +267,8 @@ export const clock = async (
           branchName: branchCode,
           timestamp: checkInTime.toISOString(),
           previousStatus: 'available',
-          newStatus: status
+          newStatus: status,
+          status
         });
       }
 
@@ -265,18 +325,14 @@ const determineStatus = (checkInTime: Date): AttendanceStatus => {
 };
 
 const performClockIn = async (
-  employee: { id: number; branchName: string | null; status: string | null },
+  employee: { id: number; branchName: string | null; branchCode?: string | null; status: string | null },
   notes: string | undefined,
   isManual: boolean,
   branchCode?: string
 ): Promise<{ attendance: Attendance; message: string }> => {
   const { start: todayStart, end: todayEnd } = getPhilippinesDateRange();
-  const dateNow = new Date();
-  const todayStr = getPhilippinesDateString();
-  
   console.log('[CLOCK-IN DEBUG] Philippines date range:', todayStart.toISOString(), 'to', todayEnd.toISOString());
-  console.log('[CLOCK-IN DEBUG] Philippines date string:', todayStr);
-  console.log('[CLOCK-IN DEBUG] Server time:', dateNow.toISOString());
+  console.log('[CLOCK-IN DEBUG] Server time:', new Date().toISOString());
 
   // Check if employee has an active (incomplete) shift at a different branch
   const activeShift = await prisma.attendance.findFirst({
@@ -326,7 +382,7 @@ const performClockIn = async (
       data: {
         check_in: checkInTime,
         status,
-        branch_code: branchCode || employee.branchName || absentRecord.branch_code || undefined,
+      branch_code: branchCode || employee.branchCode || absentRecord.branch_code || undefined,
         notes: notes || absentRecord.notes
       }
     });
@@ -344,7 +400,7 @@ const performClockIn = async (
       date: todayStart,
       check_in: checkInTime,
       status,
-      branch_code: branchCode || employee.branchName || undefined,
+      branch_code: branchCode || employee.branchCode || undefined,
       notes
     }
   });
@@ -463,7 +519,9 @@ export const clockIn = async (
     const branchCode = employee.branchCode || employee.branchName || 'A';
     if (global.io) {
       emitAttendanceUpdate(global.io, branchCode, {
+        attendanceId: attendance.id,
         type: 'clock_in',
+        action: 'clock_in',
         employeeId: employee.id,
         employeeName: `${employee.firstName} ${employee.lastName}`,
         employeeCode: employee.employeeCode || '',
@@ -471,7 +529,8 @@ export const clockIn = async (
         branchName: branchCode,
         timestamp: new Date().toISOString(),
         previousStatus: 'available',
-        newStatus: attendance.status || 'present'
+        newStatus: attendance.status || 'present',
+        status: attendance.status || 'present'
       });
     }
 
@@ -533,7 +592,9 @@ export const manualClockIn = async (
     const branchCode = branch_code || employee.branchCode || employee.branchName || 'A';
     if (global.io) {
       emitAttendanceUpdate(global.io, branchCode, {
+        attendanceId: attendance.id,
         type: 'clock_in',
+        action: 'clock_in',
         employeeId: employee.id,
         employeeName: `${employee.firstName} ${employee.lastName}`,
         employeeCode: employee.employeeCode || '',
@@ -541,7 +602,8 @@ export const manualClockIn = async (
         branchName: branchCode,
         timestamp: new Date().toISOString(),
         previousStatus: 'available',
-        newStatus: attendance.status || 'present'
+        newStatus: attendance.status || 'present',
+        status: attendance.status || 'present'
       });
     }
 
@@ -637,7 +699,9 @@ export const manualClockInWithTransfer = async (
       const branchCode = branch_code || employee.branchCode || employee.branchName || 'A';
       if (global.io) {
         emitAttendanceUpdate(global.io, branchCode, {
+          attendanceId: attendance.id,
           type: 'clock_in',
+          action: 'clock_in',
           employeeId: employee.id,
           employeeName: `${employee.firstName} ${employee.lastName}`,
           employeeCode: employee.employeeCode || '',
@@ -645,7 +709,8 @@ export const manualClockInWithTransfer = async (
           branchName: branchCode,
           timestamp: new Date().toISOString(),
           previousStatus: 'available',
-          newStatus: attendance.status || 'present'
+          newStatus: attendance.status || 'present',
+          status: attendance.status || 'present'
         });
       }
 
@@ -726,7 +791,9 @@ export const manualClockInWithTransfer = async (
     if (global.io) {
       // Emit to new branch
       emitAttendanceUpdate(global.io, branch_code, {
+        attendanceId: result.attendance.id,
         type: 'clock_in',
+        action: 'clock_in',
         employeeId: employee.id,
         employeeName: `${employee.firstName} ${employee.lastName}`,
         employeeCode: employee.employeeCode || '',
@@ -734,13 +801,16 @@ export const manualClockInWithTransfer = async (
         branchName: branch_code,
         timestamp: new Date().toISOString(),
         previousStatus: 'available',
-        newStatus: result.attendance.status || 'present'
+        newStatus: result.attendance.status || 'present',
+        status: result.attendance.status || 'present'
       });
 
       // Emit to old branch if different
       if (previousBranch && previousBranch !== branch_code) {
         emitAttendanceUpdate(global.io, previousBranch, {
+          attendanceId: result.attendance.id,
           type: 'clock_in',
+          action: 'clock_in',
           employeeId: employee.id,
           employeeName: `${employee.firstName} ${employee.lastName}`,
           employeeCode: employee.employeeCode || '',
@@ -748,7 +818,8 @@ export const manualClockInWithTransfer = async (
           branchName: branch_code,
           timestamp: new Date().toISOString(),
           previousStatus: 'available',
-          newStatus: result.attendance.status || 'present'
+          newStatus: result.attendance.status || 'present',
+          status: result.attendance.status || 'present'
         });
       }
     }
@@ -823,7 +894,9 @@ export const clockOut = async (
     const branchCode = employee.branchCode || employee.branchName || 'A';
     if (global.io) {
       emitAttendanceUpdate(global.io, branchCode, {
+        attendanceId: attendance.id,
         type: 'clock_out',
+        action: 'clock_out',
         employeeId: employee.id,
         employeeName: `${employee.firstName} ${employee.lastName}`,
         employeeCode: employee.employeeCode || '',
@@ -831,7 +904,8 @@ export const clockOut = async (
         branchName: branchCode,
         timestamp: new Date().toISOString(),
         previousStatus: 'present',
-        newStatus: 'completed'
+        newStatus: 'completed',
+        status: 'completed'
       });
     }
 
@@ -889,7 +963,9 @@ export const manualClockOut = async (
     const branchCode = employee.branchCode || employee.branchName || 'A';
     if (global.io) {
       emitAttendanceUpdate(global.io, branchCode, {
+        attendanceId: attendance.id,
         type: 'clock_out',
+        action: 'clock_out',
         employeeId: employee.id,
         employeeName: `${employee.firstName} ${employee.lastName}`,
         employeeCode: employee.employeeCode || '',
@@ -897,7 +973,8 @@ export const manualClockOut = async (
         branchName: branchCode,
         timestamp: new Date().toISOString(),
         previousStatus: 'present',
-        newStatus: 'completed'
+        newStatus: 'completed',
+        status: 'completed'
       });
     }
 
@@ -923,16 +1000,16 @@ export const getAttendanceRecords = async (
     const limit = parseInt(req.query.limit as string) || 20;
     const skip = (page - 1) * limit;
     const employeeId = req.query.employeeId ? parseInt(req.query.employeeId as string) : undefined;
-    const startDate = req.query.startDate ? new Date(req.query.startDate as string) : undefined;
-    const endDate = req.query.endDate ? new Date(req.query.endDate as string) : undefined;
+    const startDate = req.query.startDate as string | undefined;
+    const endDate = req.query.endDate as string | undefined;
 
     const where: any = {};
     
     if (employeeId) where.employeeId = employeeId;
     if (startDate || endDate) {
       where.date = {};
-      if (startDate) where.date.gte = startDate;
-      if (endDate) where.date.lte = endDate;
+      if (startDate) where.date.gte = getPhilippinesDateRangeForDate(startDate).start;
+      if (endDate) where.date.lt = getPhilippinesDateRangeForDate(endDate).end;
     }
 
     const [records, total] = await Promise.all([
@@ -987,8 +1064,8 @@ export const getMyAttendance = async (
     const limit = parseInt(req.query.limit as string) || 20;
     const skip = (page - 1) * limit;
     const employeeId = parseInt(req.query.employeeId as string);
-    const startDate = req.query.startDate ? new Date(req.query.startDate as string) : undefined;
-    const endDate = req.query.endDate ? new Date(req.query.endDate as string) : undefined;
+    const startDate = req.query.startDate as string | undefined;
+    const endDate = req.query.endDate as string | undefined;
 
     if (!employeeId) {
       throw new AppError('Employee ID is required', 400);
@@ -998,8 +1075,8 @@ export const getMyAttendance = async (
     
     if (startDate || endDate) {
       where.date = {};
-      if (startDate) where.date.gte = startDate;
-      if (endDate) where.date.lte = endDate;
+      if (startDate) where.date.gte = getPhilippinesDateRangeForDate(startDate).start;
+      if (endDate) where.date.lt = getPhilippinesDateRangeForDate(endDate).end;
     }
 
     const [records, total] = await Promise.all([
@@ -1037,8 +1114,12 @@ export const getAttendanceStats = async (
 ): Promise<void> => {
   try {
     const employeeId = parseInt(req.query.employeeId as string);
-    const startDate = req.query.startDate ? new Date(req.query.startDate as string) : new Date(new Date().getFullYear(), new Date().getMonth(), 1);
-    const endDate = req.query.endDate ? new Date(req.query.endDate as string) : new Date();
+    const now = new Date();
+    const currentMonthStart = getPhilippinesDateString().replace(/-\d{2}$/, '-01');
+    const startDateInput = (req.query.startDate as string | undefined) || currentMonthStart;
+    const endDateInput = (req.query.endDate as string | undefined) || getPhilippinesDateString();
+    const startDate = getPhilippinesDateRangeForDate(startDateInput).start;
+    const endDate = getPhilippinesDateRangeForDate(endDateInput).end;
 
     if (!employeeId) {
       throw new AppError('Employee ID is required', 400);
@@ -1049,7 +1130,7 @@ export const getAttendanceStats = async (
         employeeId,
         date: {
           gte: startDate,
-          lte: endDate
+          lt: endDate
         }
       }
     });
@@ -1084,8 +1165,8 @@ export const getAttendanceStats = async (
       message: 'Attendance statistics retrieved',
       data: {
         period: {
-          start: startDate.toISOString().split('T')[0],
-          end: endDate.toISOString().split('T')[0]
+          start: startDateInput,
+          end: endDateInput
         },
         stats: {
           totalDays,
@@ -1230,7 +1311,9 @@ export const markIndividualAbsent = async (
     const branchCode = employee.branchCode || 'A';
     if (global.io) {
       emitAttendanceUpdate(global.io, branchCode, {
+        attendanceId: attendance.id,
         type: 'mark_absent',
+        action: 'mark_absent',
         employeeId: employee.id,
         employeeName: `Employee ${employeeId}`,
         employeeCode: '',
@@ -1238,7 +1321,8 @@ export const markIndividualAbsent = async (
         branchName: branchCode,
         timestamp: new Date().toISOString(),
         previousStatus: 'available',
-        newStatus: 'absent'
+        newStatus: 'absent',
+        status: 'absent'
       });
     }
 
@@ -1349,7 +1433,9 @@ export const markAbsent = async (
     // Emit WebSocket event for real-time update
     if (global.io) {
       emitAttendanceUpdate(global.io, branch_code, {
+        attendanceId: 0,
         type: 'mark_absent',
+        action: 'mark_absent',
         employeeId: 0,
         employeeName: `Bulk mark absent (${absentEmployeeIds.length} employees)`,
         employeeCode: '',
@@ -1357,7 +1443,8 @@ export const markAbsent = async (
         branchName: branch_code,
         timestamp: new Date().toISOString(),
         previousStatus: 'available',
-        newStatus: 'absent'
+        newStatus: 'absent',
+        status: 'absent'
       });
     }
 
@@ -1387,11 +1474,7 @@ export const getAttendanceAudit = async (
     // Parse date or use Philippines date range
     let dateRange: { start: Date; end: Date };
     if (date) {
-      const d = new Date(date as string);
-      dateRange = {
-        start: new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate())),
-        end: new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate() + 1))
-      };
+      dateRange = getPhilippinesDateRangeForDate(date as string);
     } else {
       dateRange = getPhilippinesDateRange();
     }

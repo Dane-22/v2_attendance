@@ -2,8 +2,8 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useMutation } from '@tanstack/react-query';
-import { attendanceApi } from '@/lib/api';
+import { useMutation, useQuery } from '@tanstack/react-query';
+import { attendanceApi, branchApi, BranchEmployee } from '@/lib/api';
 import { AxiosError } from 'axios';
 import jsQR from 'jsqr';
 import { useWebSocket } from '@/hooks/useWebSocket';
@@ -44,8 +44,7 @@ export default function BranchQRScannerPage() {
   const [manualCode, setManualCode] = useState('');
   const [showManualEntry, setShowManualEntry] = useState(false);
   const [showPresentList, setShowPresentList] = useState(false);
-  const [presentEmployees, setPresentEmployees] = useState<string[]>([]);
-  const { isConnected, joinBranch, emit } = useWebSocket();
+  const { isConnected, joinBranch, emit, on, off } = useWebSocket();
 
   // Play success sound on scan
   const playSuccessSound = () => {
@@ -115,6 +114,7 @@ export default function BranchQRScannerPage() {
           timestamp: new Date().toISOString(),
         });
       }
+      refetchPresentEmployees();
 
       setTimeout(() => {
         setScanResult(null);
@@ -330,9 +330,36 @@ export default function BranchQRScannerPage() {
     router.push('/login');
   };
 
-  const isBranchUser = user?.username?.match(/^branch-[a-h]$/i);
   const branchCode = user?.branch_code || user?.username?.split('-')[1]?.toUpperCase() || 'A';
   const branchName = getBranchName(branchCode);
+  const todayDate = new Date().toISOString().split('T')[0];
+
+  const { data: presentEmployeesData = [], refetch: refetchPresentEmployees } = useQuery({
+    queryKey: ['branch-present-employees', branchCode, todayDate],
+    queryFn: async () => {
+      const response = await branchApi.getEmployees(branchCode);
+      const employees = response.data?.data || [];
+      return employees.filter((emp: BranchEmployee) => emp.timeIn && !emp.timeOut);
+    },
+    enabled: !!branchCode,
+    refetchInterval: isConnected ? false : 20000,
+    refetchIntervalInBackground: false
+  });
+
+  const presentEmployees = presentEmployeesData.map((emp) => emp.name);
+
+  useEffect(() => {
+    const handleAttendanceUpdate = (data: any) => {
+      if (!data?.branchCode || data.branchCode === branchCode) {
+        refetchPresentEmployees();
+      }
+    };
+
+    on('attendance:update', handleAttendanceUpdate);
+    return () => {
+      off('attendance:update', handleAttendanceUpdate);
+    };
+  }, [branchCode, on, off, refetchPresentEmployees]);
 
   // Full screen mobile interface for branch devices
   return (
