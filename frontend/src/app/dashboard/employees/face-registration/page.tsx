@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import FaceRegistration from '@/components/FaceRegistration';
 import { ArrowLeft, User } from 'lucide-react';
@@ -14,7 +14,7 @@ interface Employee {
   position: string | null;
 }
 
-export default function FaceRegistrationPage() {
+function FaceRegistrationContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const employeeId = searchParams.get('id');
@@ -141,5 +141,20 @@ export default function FaceRegistrationPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function FaceRegistrationPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+          <p>Loading...</p>
+        </div>
+      </div>
+    }>
+      <FaceRegistrationContent />
+    </Suspense>
   );
 }
