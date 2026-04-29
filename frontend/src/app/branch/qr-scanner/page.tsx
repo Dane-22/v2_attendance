@@ -97,8 +97,20 @@ export default function BranchQRScannerPage() {
     onSuccess: (response: any) => {
       const action = response.data?.data?.action || response.data?.action || 'clock_in';
       const name = response.data?.data?.employeeName || response.data?.employeeName || lastEmployeeName || 'Employee';
-      const label = action === 'clock_out' ? 'Clock Out' : 'Clock In';
-      setScanResult({ success: true, message: `${label}: ${name}`, show: true });
+      const transferred = response.data?.data?.transferred || false;
+      const previousBranch = response.data?.data?.previousBranch;
+      const currentBranch = response.data?.data?.currentBranch;
+
+      let message: string;
+      if (action === 'clock_out') {
+        message = `Clock Out: ${name}`;
+      } else if (transferred && previousBranch) {
+        message = `Clock In & Transferred: ${name}\nFrom ${previousBranch} to ${currentBranch}`;
+      } else {
+        message = `Clock In: ${name}`;
+      }
+
+      setScanResult({ success: true, message, show: true });
       setCooldown(true);
 
       // Play success sound
@@ -112,14 +124,18 @@ export default function BranchQRScannerPage() {
           action: action,
           branchCode: user.branch_code,
           timestamp: new Date().toISOString(),
+          transferred,
+          previousBranch,
         });
       }
       refetchPresentEmployees();
 
+      // Show longer cooldown for transfers so user can read the message
+      const cooldownDuration = transferred ? 4000 : 2000;
       setTimeout(() => {
         setScanResult(null);
         setCooldown(false);
-      }, 2000);
+      }, cooldownDuration);
     },
     onError: (error: AxiosError<{ message?: string }>) => {
       const msg = error.response?.data?.message || 'Scan Failed';

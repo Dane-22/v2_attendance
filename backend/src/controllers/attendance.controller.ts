@@ -222,20 +222,94 @@ export const clock = async (
       }
       recentScansByEmployee.set(employee.id, nowMs);
 
-      // Use raw SQL to insert - bypasses Prisma timezone conversion on date field
-      const todayStr = getPhilippinesDateString();
-      const result = await prisma.$executeRaw`
-        INSERT INTO attendance (employee_id, date, check_in, status, branch_code, notes, created_at, updated_at)
-        VALUES (${employee.id}, ${todayStr}, ${checkInTime}, ${status}, ${resolvedBranchCode}, ${notes || null}, NOW(), NOW())
-      `;
+      // Check if employee needs to be transferred (different branch)
+      const needsTransfer = employee.branchCode !== resolvedBranchCode;
+      let previousBranch: string | null = null;
+      let transferResult: { attendance: any; updatedEmployee: any } | null = null;
 
-      // Fetch the created record
-      const newRecord = await prisma.attendance.findFirst({
+      if (needsTransfer && adminBranchCode) {
+        // Validate destination branch exists
+        const destinationBranch = await prisma.branches.findUnique({
+          where: { branch_code: adminBranchCode }
+        });
+
+        if (!destinationBranch) {
+          throw new AppError('Destination branch not found', 404);
+        }
+
+        previousBranch = employee.branchCode;
+
+        // Perform atomic transaction: clock-in + transfer
+        transferResult = await prisma.$transaction(async (tx) => {
+          // Use raw SQL to insert attendance - bypasses Prisma timezone conversion on date field
+          const todayStr = getPhilippinesDateString();
+          await tx.$executeRaw`
+            INSERT INTO attendance (employee_id, date, check_in, status, branch_code, notes, created_at, updated_at)
+            VALUES (${employee.id}, ${todayStr}, ${checkInTime}, ${status}, ${resolvedBranchCode}, ${notes || null}, NOW(), NOW())
+          `;
+
+          // Fetch the created attendance record
+          const attendance = await tx.attendance.findFirst({
+            where: { employeeId: employee.id },
+            orderBy: { id: 'desc' }
+          });
+
+          // Update employee branch
+          const updatedEmployee = await tx.employee.update({
+            where: { id: employee.id },
+            data: {
+              branchCode: adminBranchCode,
+              branchName: destinationBranch.branch_name,
+              branchId: destinationBranch.id
+            },
+            select: {
+              id: true,
+              employeeCode: true,
+              firstName: true,
+              lastName: true,
+              branchName: true,
+              branchCode: true,
+              branchId: true,
+              status: true
+            }
+          });
+
+          return { attendance, updatedEmployee };
+        });
+
+        // Log auto-transfer action
+        await logUpdate({
+          userId: req.admin?.id || employee.id,
+          userName: req.admin?.name || employee.firstName || 'unknown',
+          userRole: req.admin?.role || 'employee',
+          entityType: 'EMPLOYEE',
+          entityId: employee.id.toString(),
+          entityName: `${employee.firstName} ${employee.lastName}`,
+          description: `QR Scan transfer on clock in at ${adminBranchCode} from ${previousBranch}`,
+          detailsBefore: { branchCode: previousBranch, branchName: employee.branchName },
+          detailsAfter: { branchCode: adminBranchCode, branchName: destinationBranch.branch_name },
+          ipAddress: req.ip,
+          userAgent: req.headers['user-agent'],
+          metadata: { method: 'qr_scan_auto_transfer', employeeId: employee.id, previousBranch, newBranch: adminBranchCode }
+        });
+
+        console.log('[CLOCK] Clock IN with TRANSFER successful for employee:', employee.id, 'transferred from', previousBranch, 'to', adminBranchCode);
+      } else {
+        // Same branch - just clock in without transfer
+        const todayStr = getPhilippinesDateString();
+        await prisma.$executeRaw`
+          INSERT INTO attendance (employee_id, date, check_in, status, branch_code, notes, created_at, updated_at)
+          VALUES (${employee.id}, ${todayStr}, ${checkInTime}, ${status}, ${resolvedBranchCode}, ${notes || null}, NOW(), NOW())
+        `;
+
+        console.log('[CLOCK] Clock IN successful for employee:', employee.id, 'date range:', todayStart.toISOString());
+      }
+
+      // Fetch the created record (outside transaction for non-transfer, or from result)
+      const newRecord = transferResult?.attendance || await prisma.attendance.findFirst({
         where: { employeeId: employee.id },
         orderBy: { id: 'desc' }
       });
-
-      console.log('[CLOCK] Clock IN successful for employee:', employee.id, 'date range:', todayStart.toISOString());
 
       // Log clock in
       await logScan({
@@ -245,17 +319,20 @@ export const clock = async (
         entityType: 'ATTENDANCE',
         entityId: newRecord?.id.toString(),
         entityName: `Attendance for ${employee.firstName} ${employee.lastName}`,
-        description: `Clock IN: ${employee.firstName} ${employee.lastName} at ${checkInTime.toLocaleTimeString()}`,
+        description: needsTransfer
+          ? `Clock IN with transfer: ${employee.firstName} ${employee.lastName} at ${checkInTime.toLocaleTimeString()} (transferred from ${previousBranch})`
+          : `Clock IN: ${employee.firstName} ${employee.lastName} at ${checkInTime.toLocaleTimeString()}`,
         detailsAfter: newRecord,
         ipAddress: req.ip,
         userAgent: req.headers['user-agent'],
-        branchId: employee.branchId || undefined,
-        metadata: { method: 'qr_scan', branch_code: resolvedBranchCode, status },
+        branchId: transferResult?.updatedEmployee?.branchId || employee.branchId || undefined,
+        metadata: { method: 'qr_scan', branch_code: resolvedBranchCode, status, transferred: needsTransfer, previousBranch },
       });
 
       // Emit WebSocket event for real-time update
       const branchCode = resolvedBranchCode;
       if (global.io) {
+        // Emit to new/current branch
         emitAttendanceUpdate(global.io, branchCode, {
           attendanceId: newRecord?.id,
           type: 'clock_in',
@@ -268,18 +345,46 @@ export const clock = async (
           timestamp: checkInTime.toISOString(),
           previousStatus: 'available',
           newStatus: status,
-          status
+          status,
+          transferred: needsTransfer,
+          previousBranch: previousBranch
         });
+
+        // If transferred, also emit to old branch
+        if (needsTransfer && previousBranch) {
+          emitAttendanceUpdate(global.io, previousBranch, {
+            attendanceId: newRecord?.id,
+            type: 'clock_in',
+            action: 'clock_in',
+            employeeId: employee.id,
+            employeeName: `${employee.firstName} ${employee.lastName}`,
+            employeeCode: employee.employeeCode || '',
+            branchCode: branchCode,
+            branchName: branchCode,
+            timestamp: checkInTime.toISOString(),
+            previousStatus: 'available',
+            newStatus: status,
+            status,
+            transferred: true,
+            previousBranch: previousBranch
+          });
+        }
       }
 
       const response: ApiResponse<any> = {
         success: true,
-        message: `Clocked in successfully at ${checkInTime.toLocaleTimeString()}`,
+        message: needsTransfer
+          ? `Clocked in and transferred from ${previousBranch} to ${resolvedBranchCode}`
+          : `Clocked in successfully at ${checkInTime.toLocaleTimeString()}`,
         data: {
           action: 'clock_in',
           employeeId: employee.id,
           employeeName: `${employee.firstName} ${employee.lastName}`,
-          attendance: newRecord
+          attendance: newRecord,
+          transferred: needsTransfer,
+          previousBranch: previousBranch,
+          currentBranch: resolvedBranchCode,
+          employee: transferResult?.updatedEmployee
         }
       };
 

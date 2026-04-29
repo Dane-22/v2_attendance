@@ -28,6 +28,8 @@ export const emitAttendanceUpdate = (
     previousStatus?: string;
     newStatus?: string;
     status?: string;
+    transferred?: boolean;
+    previousBranch?: string | null;
   }
 ): void => {
   const roomName = `branch-${branchCode}`;
