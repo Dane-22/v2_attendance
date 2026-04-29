@@ -352,20 +352,52 @@ export const updateBranchUser = async (
       }
     });
 
-    // Update branch record
-    const branch = await prisma.branches.update({
-      where: { branch_code: existingAdmin.branch_code },
-      data: branchUpdateData,
-      select: {
-        id: true,
-        branch_code: true,
-        branch_name: true,
-        address: true,
-        contact_number: true,
-        status: true,
-        created_at: true
-      }
+    // Check if branch exists before updating
+    const existingBranch = await prisma.branches.findUnique({
+      where: { branch_code: existingAdmin.branch_code }
     });
+
+    let branch;
+    if (existingBranch) {
+      // Only update branch if it exists and there's data to update
+      if (Object.keys(branchUpdateData).length > 0) {
+        branch = await prisma.branches.update({
+          where: { branch_code: existingAdmin.branch_code },
+          data: branchUpdateData,
+          select: {
+            id: true,
+            branch_code: true,
+            branch_name: true,
+            address: true,
+            contact_number: true,
+            status: true,
+            created_at: true
+          }
+        });
+      } else {
+        branch = existingBranch;
+      }
+    } else {
+      // If branch doesn't exist, create it with default values
+      branch = await prisma.branches.create({
+        data: {
+          branch_code: existingAdmin.branch_code,
+          branch_name: branch_name || existingAdmin.username,
+          address: address || null,
+          contact_number: contact_number || null,
+          status: 'Active'
+        },
+        select: {
+          id: true,
+          branch_code: true,
+          branch_name: true,
+          address: true,
+          contact_number: true,
+          status: true,
+          created_at: true
+        }
+      });
+    }
 
     // Log admin update
     await logUpdate({
