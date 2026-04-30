@@ -160,7 +160,7 @@ export const employeeApi = {
 };
 
 export const attendanceApi = {
-  getAll: (params?: { page?: number; limit?: number; employeeId?: number; startDate?: string; endDate?: string }) =>
+  getAll: (params?: { page?: number; limit?: number; employeeId?: number; startDate?: string; endDate?: string; branch_code?: string }) =>
     api.get<PaginatedResponse<Attendance[]>>('/attendance', { params }),
   getMyAttendance: (params?: { page?: number; limit?: number; employeeId: number; startDate?: string; endDate?: string }) =>
     api.get<PaginatedResponse<Attendance[]>>('/attendance/my', { params }),

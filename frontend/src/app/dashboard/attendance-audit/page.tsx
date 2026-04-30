@@ -1269,7 +1269,7 @@ export default function AttendanceAuditPage() {
     refetch: refetchAudit,
     dataUpdatedAt: auditDataUpdatedAt
   } = useQuery({
-    queryKey: ['attendance-audit', formattedDate, selectedBranchFilter],
+    queryKey: ['attendance-audit', formattedDate, selectedBranchFilter, activeFilter],
     queryFn: async () => {
       const response = await attendanceApi.getAudit({
         date: formattedDate,
@@ -1319,7 +1319,9 @@ export default function AttendanceAuditPage() {
     queryFn: async () => {
       const response = await attendanceApi.getAll({
         startDate,
-        endDate
+        endDate,
+        limit: 1000,
+        branch_code: selectedBranchFilter === 'ALL' ? undefined : selectedBranchFilter
       });
       return response.data.data || [];
     },

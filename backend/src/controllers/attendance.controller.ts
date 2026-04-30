@@ -1107,10 +1107,12 @@ export const getAttendanceRecords = async (
     const employeeId = req.query.employeeId ? parseInt(req.query.employeeId as string) : undefined;
     const startDate = req.query.startDate as string | undefined;
     const endDate = req.query.endDate as string | undefined;
+    const branch_code = req.query.branch_code as string | undefined;
 
     const where: any = {};
     
     if (employeeId) where.employeeId = employeeId;
+    if (branch_code) where.branch_code = branch_code;
     if (startDate || endDate) {
       where.date = {};
       if (startDate) where.date.gte = getPhilippinesDateRangeForDate(startDate).start;
