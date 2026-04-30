@@ -38,24 +38,30 @@ import ProfileImage from '@/components/ProfileImage';
 type UserType = 'employee' | 'admin' | 'branch_user';
 type TabType = 'employees' | 'admins' | 'branch_users';
 
+// Track recently updated images for cache busting
+const recentlyUpdatedImages = new Set<string>();
+
 // Helper function to safely construct image URLs
 const constructImageUrl = (profileImage: string | null | undefined, bustCache = false): string | null => {
   if (!profileImage) return null;
-  
+
   const baseUrl = process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || 'http://localhost:5000';
-  
+
   // Ensure profileImage starts with a slash
   const imagePath = profileImage.startsWith('/') ? profileImage : `/${profileImage}`;
-  
+
   // Construct full URL
   let fullUrl = `${baseUrl}${imagePath}`;
-  
+
   // Add cache-busting timestamp for newly uploaded images
-  if (bustCache) {
+  // Check both explicit bustCache param and our tracking Set
+  if (bustCache || recentlyUpdatedImages.has(profileImage)) {
     const timestamp = Date.now();
     fullUrl += (fullUrl.includes('?') ? '&' : '?') + `_t=${timestamp}`;
+    // Remove from tracking after applying cache bust
+    recentlyUpdatedImages.delete(profileImage);
   }
-  
+
   // Basic URL validation
   try {
     new URL(fullUrl);
@@ -328,6 +334,11 @@ function EditEmployeeModal({ employee, isOpen, onClose }: { employee: Employee |
           console.error('[EditEmployeeModal] Upload failed:', uploadResponse.data);
           showToast('error', 'Failed to upload profile image');
           return;
+        }
+        // Track the new image path for cache busting
+        const newImagePath = uploadResponse.data.data?.profileImage;
+        if (newImagePath) {
+          recentlyUpdatedImages.add(newImagePath);
         }
         console.log('[EditEmployeeModal] Upload successful');
       }
@@ -672,6 +683,11 @@ function AddEmployeeModal({ isOpen, onClose, onEmployeeAdded }: { isOpen: boolea
             const compressedImage = await compressImage(selectedImage);
             const uploadResponse = await employeeApi.uploadProfileImage(newEmployee.id, compressedImage);
             if (uploadResponse.data?.success) {
+              // Track the new image path for cache busting
+              const newImagePath = uploadResponse.data.data?.profileImage;
+              if (newImagePath) {
+                recentlyUpdatedImages.add(newImagePath);
+              }
               showToast('success', 'Employee added successfully with profile image');
             } else {
               showToast('success', 'Employee added but profile image upload failed');
@@ -1100,6 +1116,11 @@ function UserModal({ isOpen, onClose, onSuccess, userType, setUserType, mode, ed
               console.log('[UserModal] Upload response:', uploadResponse.data);
               if (uploadResponse.data?.success) {
                 imageUploaded = true;
+                // Track the new image path for cache busting
+                const newImagePath = uploadResponse.data.data?.profileImage;
+                if (newImagePath) {
+                  recentlyUpdatedImages.add(newImagePath);
+                }
                 showToast('success', 'Profile image uploaded successfully');
               }
             } catch (uploadError) {
@@ -1139,6 +1160,11 @@ function UserModal({ isOpen, onClose, onSuccess, userType, setUserType, mode, ed
                 const uploadResponse = await employeeApi.uploadProfileImage(newEmployee.id, compressedImage);
                 if (uploadResponse.data?.success) {
                   imageUploaded = true;
+                  // Track the new image path for cache busting
+                  const newImagePath = uploadResponse.data.data?.profileImage;
+                  if (newImagePath) {
+                    recentlyUpdatedImages.add(newImagePath);
+                  }
                 }
               } catch (uploadError) {
                 console.error('Error uploading profile image:', uploadError);

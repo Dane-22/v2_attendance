@@ -9,18 +9,32 @@ import { useWebSocket } from '@/hooks/useWebSocket';
 import RecentActivity from '@/components/RecentActivity';
 import ProfileImage from '@/components/ProfileImage';
 
+// Track recently updated images for cache busting
+const recentlyUpdatedImages = new Set<string>();
+
 // Helper function to safely construct image URLs
-const constructImageUrl = (profileImage: string | null | undefined): string | null => {
+const constructImageUrl = (profileImage: string | null | undefined, bustCache = false): string | null => {
   if (!profileImage) return null;
-  
-  const baseUrl = process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || 'http://localhost:5002';
-  
+
+  // Use port 5000 for localhost, 5002 for production
+  const defaultPort = typeof window !== 'undefined' && window.location.hostname === 'localhost' ? 5000 : 5002;
+  const baseUrl = process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || `http://localhost:${defaultPort}`;
+
   // Ensure profileImage starts with a slash
   const imagePath = profileImage.startsWith('/') ? profileImage : `/${profileImage}`;
-  
+
   // Construct full URL
-  const fullUrl = `${baseUrl}${imagePath}`;
-  
+  let fullUrl = `${baseUrl}${imagePath}`;
+
+  // Add cache-busting timestamp for newly uploaded images
+  // Check both explicit bustCache param and our tracking Set
+  if (bustCache || recentlyUpdatedImages.has(profileImage)) {
+    const timestamp = Date.now();
+    fullUrl += (fullUrl.includes('?') ? '&' : '?') + `_t=${timestamp}`;
+    // Remove from tracking after applying cache bust
+    recentlyUpdatedImages.delete(profileImage);
+  }
+
   // Basic URL validation
   try {
     new URL(fullUrl);

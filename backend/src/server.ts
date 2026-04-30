@@ -127,6 +127,13 @@ if (!fs.existsSync(publicDir)) {
 }
 app.use('/uploads', express.static(path.join(publicDir, 'uploads')));
 
+// Serve static files from assets directory (profile images)
+const assetsDir = path.join(process.cwd(), 'assets');
+if (!fs.existsSync(assetsDir)) {
+  fs.mkdirSync(assetsDir, { recursive: true });
+}
+app.use('/assets', express.static(assetsDir));
+
 app.get('/health', (req, res) => {
   res.json({ 
     status: 'ok', 
