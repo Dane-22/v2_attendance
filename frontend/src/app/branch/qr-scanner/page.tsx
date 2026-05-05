@@ -44,6 +44,8 @@ export default function BranchQRScannerPage() {
   const [manualCode, setManualCode] = useState('');
   const [showManualEntry, setShowManualEntry] = useState(false);
   const [showPresentList, setShowPresentList] = useState(false);
+  const [processingDelay, setProcessingDelay] = useState(false);
+  const [countdown, setCountdown] = useState<number>(0);
   const { isConnected, joinBranch, emit, on, off } = useWebSocket();
 
   // Play success sound on scan
@@ -187,7 +189,7 @@ export default function BranchQRScannerPage() {
 
   // Scan video frame for QR codes
   const scanFrame = () => {
-    if (!scanning || !videoRef.current || !canvasRef.current || cooldown) {
+    if (!scanning || !videoRef.current || !canvasRef.current || cooldown || processingDelay) {
       requestAnimationFrame(scanFrame);
       return;
     }
@@ -317,15 +319,29 @@ export default function BranchQRScannerPage() {
       return;
     }
 
-    // Send to unified clock endpoint - backend decides clock-in or clock-out
-    performClockAction(qrData);
+    // Start 5-second processing delay
+    setProcessingDelay(true);
+    setCountdown(5);
     
-    if (!cameraError) {
-      setTimeout(() => {
-        setScanning(true);
-        setLastScan(null);
-      }, 2000);
-    }
+    let currentCount = 5;
+    const countdownInterval = setInterval(() => {
+      currentCount -= 1;
+      setCountdown(currentCount);
+      
+      if (currentCount === 0) {
+        clearInterval(countdownInterval);
+        setProcessingDelay(false);
+        // Send to unified clock endpoint - backend decides clock-in or clock-out
+        performClockAction(qrData);
+        
+        if (!cameraError) {
+          setTimeout(() => {
+            setScanning(true);
+            setLastScan(null);
+          }, 2000);
+        }
+      }
+    }, 1000);
   };
 
   // Unified clock action - backend decides clock-in or clock-out
@@ -545,6 +561,19 @@ export default function BranchQRScannerPage() {
         </div>
       )}
 
+      {/* Countdown Overlay */}
+      {processingDelay && (
+        <div className="absolute inset-0 bg-black/80 z-40 flex items-center justify-center">
+          <div className="text-center">
+            <div className="text-8xl font-bold text-yellow-400 mb-4 animate-pulse">
+              {countdown}
+            </div>
+            <p className="text-white text-xl font-medium">Processing...</p>
+            <p className="text-gray-400 text-sm mt-2">Please wait</p>
+          </div>
+        </div>
+      )}
+
       {/* Debug Info - Shows raw QR data */}
       {lastQrData && !scanResult?.show && (
         <div className="absolute top-20 left-4 right-4 z-40 bg-black/90 border border-yellow-500/50 rounded-lg p-3">
@@ -560,7 +589,7 @@ export default function BranchQRScannerPage() {
 
       {/* Result Toast */}
       {scanResult?.show && (
-        <div className={`absolute bottom-0 left-0 right-0 p-4 z-30 ${scanResult.success ? 'bg-green-600' : 'bg-red-600'}`}>
+        <div className={`absolute top-0 left-0 right-0 p-4 z-30 ${scanResult.success ? 'bg-green-600' : 'bg-red-600'}`}>
           <div className="flex items-center gap-3">
             <div className={`w-10 h-10 rounded-full flex items-center justify-center ${scanResult.success ? 'bg-green-500' : 'bg-red-500'}`}>
               {scanResult.success ? (
