@@ -30,11 +30,6 @@ model Employee {
   branchCode           String?   @map("branch_code") @db.VarChar(10)
   // pinHash              String?   @map("pin_hash") @db.VarChar(255)
   // pinSalt              String?   @map("pin_salt") @db.VarChar(255)
-  // Facial recognition fields
-  faceEmbedding        String?   @map("face_embedding") @db.Text
-  faceRegisteredAt     DateTime? @map("face_registered_at") @db.Timestamp(0)
-  faceConsentGiven     Boolean?  @default(false) @map("face_consent_given")
-  faceDataVersion      String?   @default("v1") @map("face_data_version") @db.VarChar(10)
 
   @@index([branchName], map: "idx_employee_branch")
   @@index([branchCode], map: "idx_employee_branch_code")
@@ -258,17 +253,35 @@ enum activity_logs_status {
   PENDING
 }
 
-model FaceRecognitionLog {
-  id              Int      @id @default(autoincrement())
-  employeeId      Int      @map("employee_id")
-  branchCode      String   @map("branch_code") @db.VarChar(10)
-  scanResult      String   @db.VarChar(20)
-  confidence      Float?   @db.Float
-  ipAddress       String?  @map("ip_address") @db.VarChar(45)
-  userAgent       String?  @map("user_agent") @db.Text
-  timestamp       DateTime @default(now()) @db.Timestamp(0)
+enum task_status {
+  todo
+  in_progress
+  completed
+}
 
-  @@index([employeeId], map: "idx_face_log_employee")
-  @@index([timestamp], map: "idx_face_log_timestamp")
-  @@map("face_recognition_logs")
+enum task_priority {
+  low
+  medium
+  high
+}
+
+model Task {
+  id              Int           @id @default(autoincrement())
+  title           String        @db.VarChar(255)
+  description     String?       @db.Text
+  status          task_status   @default(todo)
+  priority        task_priority @default(medium)
+  dueDate         DateTime?     @map("due_date") @db.Date
+  labels          Json?         @default("[]")
+  employeeId      Int           @map("employee_id")
+  totalTimeSpent  Int           @default(0) @map("total_time_spent")
+  isTimerRunning  Boolean       @default(false) @map("is_timer_running")
+  lastTimerStart  DateTime?     @map("last_timer_start")
+  createdAt       DateTime?     @default(now()) @map("created_at") @db.Timestamp(0)
+  updatedAt       DateTime?     @default(now()) @updatedAt @map("updated_at") @db.Timestamp(0)
+
+  @@index([employeeId], map: "idx_task_employee")
+  @@index([status], map: "idx_task_status")
+  @@index([createdAt], map: "idx_task_created")
+  @@map("tasks")
 }
