@@ -105,11 +105,11 @@ export default function BranchQRScannerPage() {
 
       let message: string;
       if (action === 'clock_out') {
-        message = `Clock Out: ${name}`;
+        message = `Okay, ${name} timed out`;
       } else if (transferred && previousBranch) {
-        message = `Clock In & Transferred: ${name}\nFrom ${previousBranch} to ${currentBranch}`;
+        message = `Okay, ${name} timed in & transferred\nFrom ${previousBranch} to ${currentBranch}`;
       } else {
-        message = `Clock In: ${name}`;
+        message = `Okay, ${name} timed in`;
       }
 
       setScanResult({ success: true, message, show: true });
@@ -321,9 +321,9 @@ export default function BranchQRScannerPage() {
 
     // Start 5-second processing delay
     setProcessingDelay(true);
-    setCountdown(5);
+    setCountdown(3);
     
-    let currentCount = 5;
+    let currentCount = 3;
     const countdownInterval = setInterval(() => {
       currentCount -= 1;
       setCountdown(currentCount);
@@ -590,7 +590,7 @@ export default function BranchQRScannerPage() {
       {/* Result Toast */}
       {scanResult?.show && (
         <div className={`absolute top-0 left-0 right-0 p-4 z-30 ${scanResult.success ? 'bg-green-600' : 'bg-red-600'}`}>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center justify-center">
             <div className={`w-10 h-10 rounded-full flex items-center justify-center ${scanResult.success ? 'bg-green-500' : 'bg-red-500'}`}>
               {scanResult.success ? (
                 <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -602,7 +602,7 @@ export default function BranchQRScannerPage() {
                 </svg>
               )}
             </div>
-            <span className="text-white font-medium">{scanResult.message}</span>
+            <span className="text-white font-medium text-5xl ml-3" style={{ fontSize: '34px' }}>{scanResult.message}</span>
           </div>
         </div>
       )}
