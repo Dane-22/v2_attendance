@@ -590,19 +590,19 @@ export default function BranchQRScannerPage() {
       {/* Result Toast */}
       {scanResult?.show && (
         <div className="absolute top-1/2 left-0 right-0 transform -translate-y-1/2 p-4 z-30">
-          <div className="flex items-center justify-center">
-            <div className={`w-10 h-10 rounded-full flex items-center justify-center ${scanResult.success ? 'bg-green-500' : 'bg-red-500'}`}>
+          <div className="flex items-center justify-center bg-black bg-opacity-70 rounded-lg px-6 py-4 mx-4">
+            <div className={`w-12 h-12 rounded-full flex items-center justify-center ${scanResult.success ? 'bg-green-500' : 'bg-red-500'}`}>
               {scanResult.success ? (
-                <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg className="w-7 h-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                 </svg>
               ) : (
-                <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg className="w-7 h-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
               )}
             </div>
-            <span className="text-white font-medium text-5xl ml-3" style={{ fontSize: '24px' }}>{scanResult.message}</span>
+            <span className="text-white font-bold text-5xl ml-4" style={{ fontSize: '24px' }}>{scanResult.message}</span>
           </div>
         </div>
       )}
