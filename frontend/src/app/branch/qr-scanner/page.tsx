@@ -589,7 +589,7 @@ export default function BranchQRScannerPage() {
 
       {/* Result Toast */}
       {scanResult?.show && (
-        <div className={`absolute top-0 left-0 right-0 p-4 z-30 ${scanResult.success ? 'bg-green-600' : 'bg-red-600'}`}>
+        <div className="absolute top-1/2 left-0 right-0 transform -translate-y-1/2 p-4 z-30">
           <div className="flex items-center justify-center">
             <div className={`w-10 h-10 rounded-full flex items-center justify-center ${scanResult.success ? 'bg-green-500' : 'bg-red-500'}`}>
               {scanResult.success ? (
@@ -602,7 +602,7 @@ export default function BranchQRScannerPage() {
                 </svg>
               )}
             </div>
-            <span className="text-white font-medium text-5xl ml-3" style={{ fontSize: '34px' }}>{scanResult.message}</span>
+            <span className="text-white font-medium text-5xl ml-3" style={{ fontSize: '24px' }}>{scanResult.message}</span>
           </div>
         </div>
       )}
