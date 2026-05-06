@@ -128,6 +128,25 @@ export const clock = async (
 
     if (activeRecord) {
       // Employee has active clock-in → CLOCK OUT
+      
+      // Check for recent duplicate scan to prevent rapid consecutive scans
+      const nowMs = Date.now();
+      const lastScanMs = recentScansByEmployee.get(employee.id);
+      if (lastScanMs && nowMs - lastScanMs < RECENT_SCAN_WINDOW_MS) {
+        const response: ApiResponse<any> = {
+          success: true,
+          message: 'Duplicate scan ignored',
+          data: {
+            ignored: true,
+            employeeId: employee.id,
+            employeeName: `${employee.firstName} ${employee.lastName}`
+          }
+        };
+        res.status(200).json(response);
+        return;
+      }
+      recentScansByEmployee.set(employee.id, nowMs);
+      
       const checkOutTime = new Date();
 
       // Check branch mismatch
