@@ -5,6 +5,7 @@ import { useTheme } from '@/hooks/useTheme';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { createPortal } from 'react-dom';
 import { attendanceApi, branchApi, Attendance } from '@/lib/api';
+import ProfileImage from '@/components/ProfileImage';
 import { 
   Search, 
   Calendar,
@@ -26,6 +27,19 @@ import {
   Loader2,
   RefreshCw
 } from 'lucide-react';
+
+const constructImageUrl = (profileImage: string | null | undefined): string | null => {
+  if (!profileImage) return null;
+
+  const baseUrl = process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || 'http://localhost:5000';
+  const imagePath = profileImage.startsWith('/') ? profileImage : `/${profileImage}`;
+
+  try {
+    return new URL(`${baseUrl}${imagePath}`).toString();
+  } catch {
+    return null;
+  }
+};
 
 // Helper to get Philippines date string (YYYY-MM-DD)
 const getPhilippinesDateString = (): string => {
@@ -1272,6 +1286,7 @@ interface AuditRecord {
   employeeId: number;
   name: string;
   code: string;
+  profileImage: string | null;
   branch: string;
   timeIn: string;
   timeOut: string;
@@ -1779,9 +1794,13 @@ export default function AttendanceAuditPage() {
                   <div key={employee.id} className={`p-4 border-b ${classes.border} last:border-0`}>
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex items-center gap-3 min-w-0">
-                        <div className={`w-8 h-8 rounded-full ${classes.bg} flex items-center justify-center shrink-0`}>
-                          <User className={`w-4 h-4 ${classes.textMuted}`} />
-                        </div>
+                        <ProfileImage
+                          src={constructImageUrl(employee.profileImage)}
+                          name={employee.name}
+                          alt={employee.name}
+                          size="sm"
+                          className="shrink-0"
+                        />
                         <div className="min-w-0">
                           <button
                             onClick={() => {
@@ -1873,9 +1892,12 @@ export default function AttendanceAuditPage() {
                       <tr key={employee.id} className={`border-b ${classes.border} last:border-0 ${classes.hover} transition-colors`}>
                         <td className="px-4 py-4">
                           <div className="flex items-center gap-3">
-                            <div className={`w-8 h-8 rounded-full ${classes.bg} flex items-center justify-center`}>
-                              <User className={`w-4 h-4 ${classes.textMuted}`} />
-                            </div>
+                            <ProfileImage
+                              src={constructImageUrl(employee.profileImage)}
+                              name={employee.name}
+                              alt={employee.name}
+                              size="sm"
+                            />
                             <div>
                               <button
                                 onClick={() => {

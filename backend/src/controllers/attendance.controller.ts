@@ -1624,6 +1624,7 @@ export const getAttendanceAudit = async (
         employeeCode: true,
         firstName: true,
         lastName: true,
+        profileImage: true,
         department: true,
         branchName: true
       }
@@ -1657,6 +1658,7 @@ export const getAttendanceAudit = async (
         employeeId: record.employeeId,
         name: emp ? `${emp.firstName || ''} ${emp.lastName || ''}`.trim() : 'Unknown',
         code: emp?.employeeCode || '-',
+        profileImage: emp?.profileImage || null,
         branch: record.branch_code || emp?.branchName || '-',
         timeIn: checkIn,
         timeOut: checkOut,

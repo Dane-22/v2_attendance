@@ -109,6 +109,56 @@ export interface PayrollRecord {
   netPay: number | null;
   status: 'draft' | 'processed';
   createdAt: Date | null;
+  reviewStatus?: 'draft' | 'needs_review' | 'processed';
+  payableDays?: number;
+  payableMinutes?: number;
+  overtimeHoursCandidate?: number;
+  overtimeMinutesCandidate?: number;
+  issues?: PayrollIssue[];
+  employee?: PayrollEmployeeSummary;
+  dailyBreakdown?: PayrollDailyBreakdown[];
+}
+
+export interface PayrollIssue {
+  code: 'NO_ATTENDANCE' | 'INCOMPLETE_ATTENDANCE' | 'MISSING_DAILY_RATE' | 'ZERO_PAYABLE_TIME' | 'LATE_ATTENDANCE';
+  severity: 'warning' | 'error';
+  message: string;
+}
+
+export interface PayrollDailyBreakdown {
+  date: string;
+  checkIn: string | null;
+  checkOut: string | null;
+  payableMinutes: number;
+  dayFraction: number;
+  overtimeMinutesCandidate: number;
+  late: boolean;
+  issues: PayrollIssue[];
+}
+
+export interface PayrollEmployeeSummary {
+  id: number;
+  employeeCode: string | null;
+  firstName: string | null;
+  middleName: string | null;
+  lastName: string | null;
+  branchName: string | null;
+  branchCode: string | null;
+  department: string | null;
+  position: string | null;
+  status: string | null;
+}
+
+export interface WeeklyPayrollBatchResponse {
+  weekStart: string;
+  weekEnd: string;
+  totals: {
+    employees: number;
+    created: number;
+    updated: number;
+    skippedProcessed: number;
+  };
+  records: PayrollRecord[];
 }
 
 export interface LoginCredentials {
@@ -181,7 +231,7 @@ export const attendanceApi = {
   manualClockOut: (data: { employeeId: number; notes?: string }) =>
     api.post<ApiResponse<Attendance>>('/attendance/manual-clock-out', data),
   getAudit: (params: { date?: string; branch_code?: string; status?: string }) =>
-    api.get<ApiResponse<{ date: string; records: { id: number; employeeId: number; name: string; code: string; branch: string; timeIn: string; timeOut: string; hours: string; status: string; rawStatus: string; }[]; stats: { totalRecords: number; currentlyPresent: number; completedShifts: number; absent: number; present: number; late: number; } }>>('/attendance/audit', { params }),
+    api.get<ApiResponse<{ date: string; records: { id: number; employeeId: number; name: string; code: string; profileImage: string | null; branch: string; timeIn: string; timeOut: string; hours: string; status: string; rawStatus: string; }[]; stats: { totalRecords: number; currentlyPresent: number; completedShifts: number; absent: number; present: number; late: number; } }>>('/attendance/audit', { params }),
   markAbsent: (data: { branch_code: string }) =>
     api.post<ApiResponse<{ markedCount: number }>>('/attendance/mark-absent', data),
   markIndividualAbsent: (employeeId: number) =>
@@ -189,7 +239,7 @@ export const attendanceApi = {
 };
 
 export const payrollApi = {
-  getAll: (params?: { page?: number; limit?: number; employeeId?: number; status?: string }) =>
+  getAll: (params?: { page?: number; limit?: number; employeeId?: number; status?: string; weekStart?: string; weekEnd?: string }) =>
     api.get<PaginatedResponse<PayrollRecord[]>>('/payroll', { params }),
   getMyPayroll: (params?: { page?: number; limit?: number; employeeId: number }) =>
     api.get<PaginatedResponse<PayrollRecord[]>>('/payroll/my', { params }),
@@ -197,6 +247,10 @@ export const payrollApi = {
     api.get<ApiResponse<PayrollRecord>>(`/payroll/${id}`),
   calculate: (data: { employeeId: number; weekStart: string; weekEnd: string }) =>
     api.post<ApiResponse<PayrollRecord>>('/payroll/calculate', data),
+  calculateWeekly: (data: { weekStart: string; weekEnd: string }) =>
+    api.post<ApiResponse<WeeklyPayrollBatchResponse>>('/payroll/calculate-weekly', data),
+  approveOvertime: (id: number, data?: { hours?: number }) =>
+    api.post<ApiResponse<PayrollRecord>>(`/payroll/${id}/approve-overtime`, data ?? {}),
   process: (id: number) =>
     api.post<ApiResponse<PayrollRecord>>(`/payroll/${id}/process`),
   updateStatus: (id: number, status: 'draft' | 'processed') =>
@@ -518,6 +572,71 @@ export const branchUserApi = {
 export const branchesApi = {
   getAll: () =>
     api.get<ApiResponse<{ id: number; code: string; name: string }[]>>('/branches'),
+};
+
+// Task types
+export type TaskStatus = 'todo' | 'in_progress' | 'completed';
+export type TaskPriority = 'low' | 'medium' | 'high';
+
+export interface Task {
+  id: number;
+  title: string;
+  description: string | null;
+  status: TaskStatus;
+  priority: TaskPriority;
+  dueDate: Date | null;
+  labels: string[];
+  employeeId: number;
+  totalTimeSpent: number;
+  isTimerRunning: boolean;
+  lastTimerStart: Date | null;
+  createdAt: Date | null;
+  updatedAt: Date | null;
+}
+
+export interface CreateTaskRequest {
+  title: string;
+  description?: string;
+  priority?: TaskPriority;
+  dueDate?: string;
+  labels?: string[];
+}
+
+export interface UpdateTaskRequest {
+  title?: string;
+  description?: string;
+  status?: TaskStatus;
+  priority?: TaskPriority;
+  dueDate?: string | null;
+  labels?: string[];
+}
+
+export interface TimerStatus {
+  isRunning: boolean;
+  totalTimeSpent: number;
+  currentElapsed: number;
+  totalDisplay: number;
+}
+
+export const taskApi = {
+  getAll: (params?: { status?: TaskStatus; priority?: TaskPriority }) =>
+    api.get<ApiResponse<Task[]>>('/tasks', { params }),
+  getAllAdmin: (params?: { status?: TaskStatus; priority?: TaskPriority; employeeId?: number }) =>
+    api.get<ApiResponse<(Task & { admin: { id: number; username: string; name: string; role: string | null } | null })[]>>('/tasks/admin/all', { params }),
+  getById: (id: number) =>
+    api.get<ApiResponse<Task>>(`/tasks/${id}`),
+  create: (data: CreateTaskRequest) =>
+    api.post<ApiResponse<Task>>('/tasks', data),
+  update: (id: number, data: UpdateTaskRequest) =>
+    api.put<ApiResponse<Task>>(`/tasks/${id}`, data),
+  delete: (id: number) =>
+    api.delete<ApiResponse<null>>(`/tasks/${id}`),
+  startTimer: (id: number) =>
+    api.post<ApiResponse<Task>>(`/tasks/${id}/timer/start`),
+  stopTimer: (id: number) =>
+    api.post<ApiResponse<Task>>(`/tasks/${id}/timer/stop`),
+  getTimerStatus: (id: number) =>
+    api.get<ApiResponse<TimerStatus>>(`/tasks/${id}/timer/status`),
 };
 
 export default api;
