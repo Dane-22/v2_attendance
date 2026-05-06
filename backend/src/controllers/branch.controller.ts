@@ -7,18 +7,6 @@ import { logView } from '../services/activityLogger.service';
 
 const prisma = new PrismaClient();
 
-// Branch mapping from branch_code to full name
-const branchNames: Record<string, string> = {
-  'A': 'Sto. Rosario',
-  'B': 'BCDA',
-  'C': 'Sundara',
-  'D': 'Panicsican',
-  'E': 'Main Office',
-  'F': 'Capitol',
-  'G': 'MAINTENANCE',
-  'H': 'Testing Branch',
-};
-
 export const getBranches = async (
   req: AuthenticatedRequest,
   res: Response,
@@ -26,7 +14,7 @@ export const getBranches = async (
 ): Promise<void> => {
   try {
     // Get branch devices from admins table (where role is empty or branch device)
-    const branches = await prisma.admins.findMany({
+    const admins = await prisma.admins.findMany({
       where: {
         branch_code: { not: null }
       },
@@ -40,14 +28,34 @@ export const getBranches = async (
       }
     });
 
-    // Format branches with full names
-    const formattedBranches = branches.map(branch => ({
-      id: branch.id.toString(),
-      code: branch.branch_code || '',
-      name: branch.name,
-      shortName: branchNames[branch.branch_code || ''] || branch.branch_code || 'Unknown',
-      description: `Deploy employees to ${branchNames[branch.branch_code || ''] || branch.branch_code} for attendance.`
-    }));
+    // Get all branch codes
+    const branchCodes = admins.map(a => a.branch_code).filter(Boolean) as string[];
+
+    // Fetch branch names from branches table
+    const branchesData = await prisma.branches.findMany({
+      where: {
+        branch_code: { in: branchCodes }
+      },
+      select: {
+        branch_code: true,
+        branch_name: true
+      }
+    });
+
+    // Create a map of branch_code to branch_name
+    const branchNameMap = new Map(branchesData.map(b => [b.branch_code, b.branch_name]));
+
+    // Format branches with names from database
+    const formattedBranches = admins.map(admin => {
+      const branchName = branchNameMap.get(admin.branch_code || '') || admin.branch_code || 'Unknown';
+      return {
+        id: admin.id.toString(),
+        code: admin.branch_code || '',
+        name: admin.name,
+        shortName: branchName,
+        description: `Deploy employees to ${branchName} for attendance.`
+      };
+    });
 
     // Log branch list view
     await logView({
@@ -55,10 +63,10 @@ export const getBranches = async (
       userName: req.admin?.name || 'unknown',
       userRole: req.admin?.role || 'admin',
       entityType: 'BRANCH',
-      description: `Viewed all branches (${branches.length} branches)`,
+      description: `Viewed all branches (${admins.length} branches)`,
       ipAddress: req.ip,
       userAgent: req.headers['user-agent'],
-      metadata: { branchCount: branches.length },
+      metadata: { branchCount: admins.length },
     });
 
     res.json({

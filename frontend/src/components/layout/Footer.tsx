@@ -2,25 +2,27 @@
 
 import { useAppStore, useBranchCode } from '@/store/appStore';
 import { useTheme } from '@/hooks/useTheme';
+import { useQuery } from '@tanstack/react-query';
+import { branchApi } from '@/lib/api';
 import { MapPin, Server, Shield } from 'lucide-react';
-
-const branchNames: Record<string, string> = {
-  'A': 'Sto. Rosario',
-  'B': 'BCDA',
-  'C': 'Sundara',
-  'D': 'Panicsican',
-  'E': 'Main Office',
-  'F': 'Capitol',
-  'G': 'MAINTENANCE',
-  'H': 'Testing Branch',
-};
 
 export default function Footer() {
   const { sidebarOpen, theme, user } = useAppStore();
   const { classes } = useTheme();
   const branchCode = useBranchCode();
-  const branchName = branchNames[branchCode] || branchCode;
   const isBranchUser = user?.role === 'branch' || /^branch-[a-h]$/i.test(user?.username || '');
+
+  // Fetch branch name from API
+  const { data: branchesData } = useQuery({
+    queryKey: ['branches'],
+    queryFn: async () => {
+      const response = await branchApi.getAll();
+      return response.data?.data || [];
+    },
+    enabled: isBranchUser,
+  });
+
+  const branchName = branchesData?.find((b: any) => b.code === branchCode)?.shortName || branchCode;
   const isDark = theme === 'dark';
   
   return (

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { attendanceApi, branchApi, BranchEmployee } from '@/lib/api';
@@ -15,20 +15,6 @@ interface User {
   email: string;
   role: string;
   branch_code?: string;
-}
-
-function getBranchName(code: string): string {
-  const branches: Record<string, string> = {
-    'A': 'Sto. Rosario',
-    'B': 'BCDA',
-    'C': 'Sundara',
-    'D': 'Panicsican',
-    'E': 'Main Office',
-    'F': 'Capitol',
-    'G': 'MAINTENANCE',
-    'H': 'Testing Branch'
-  };
-  return branches[code] || code;
 }
 
 export default function BranchQRScannerPage() {
@@ -364,8 +350,21 @@ export default function BranchQRScannerPage() {
   };
 
   const branchCode = user?.branch_code || user?.username?.split('-')[1]?.toUpperCase() || 'A';
-  const branchName = getBranchName(branchCode);
   const todayDate = new Date().toISOString().split('T')[0];
+
+  // Fetch branch name from API
+  const { data: branchesData } = useQuery({
+    queryKey: ['branches'],
+    queryFn: async () => {
+      const response = await branchApi.getAll();
+      return response.data?.data || [];
+    },
+    enabled: !!branchCode,
+  });
+
+  const branchName = useMemo(() => {
+    return branchesData?.find((b: any) => b.code === branchCode)?.shortName || branchCode;
+  }, [branchesData, branchCode]);
 
   const { data: presentEmployeesData = [], refetch: refetchPresentEmployees } = useQuery({
     queryKey: ['branch-present-employees', branchCode, todayDate],
