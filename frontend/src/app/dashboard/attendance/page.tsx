@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
+import { useTheme } from '@/hooks/useTheme';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { branchApi, attendanceApi, employeeApi, Branch, BranchEmployee, Attendance, logsApi } from '@/lib/api';
 import { AxiosError } from 'axios';
@@ -90,15 +91,13 @@ interface DisplayEmployee {
 const filterTabs = ['Available', 'Summary', 'Present', 'Absent'];
 
 export default function AttendancePage() {
+  const { classes } = useTheme();
   const queryClient = useQueryClient();
   const [selectedBranch, setSelectedBranch] = useState<string>('');
   const [activeTab, setActiveTab] = useState('Available');
   const [searchQuery, setSearchQuery] = useState('');
   const [flashedEmployeeId, setFlashedEmployeeId] = useState<number | null>(null);
   const { isConnected, joinBranch, leaveBranch, on } = useWebSocket();
-  
-  // Mobile detection
-  const [isMobile, setIsMobile] = useState(false);
   
   // Mobile detail modal state
   const [selectedEmployeeForModal, setSelectedEmployeeForModal] = useState<BranchEmployee | null>(null);
@@ -113,13 +112,17 @@ export default function AttendancePage() {
   const [isAutoTransferModalOpen, setIsAutoTransferModalOpen] = useState(false);
   const [selectedEmployeeForAutoTransfer, setSelectedEmployeeForAutoTransfer] = useState<BranchEmployee | null>(null);
   
-  // Mobile detection effect
+  // Lock body scroll when mobile employee modal is open
   useEffect(() => {
-    const checkMobile = () => setIsMobile(window.innerWidth < 640);
-    checkMobile();
-    window.addEventListener('resize', checkMobile);
-    return () => window.removeEventListener('resize', checkMobile);
-  }, []);
+    if (selectedEmployeeForModal) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [selectedEmployeeForModal]);
   
   // Pagination for branches
   const [currentPage, setCurrentPage] = useState(1);
@@ -551,18 +554,18 @@ export default function AttendancePage() {
       {/* Welcome Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div className="flex items-center gap-3">
-          <h1 className="text-xl sm:text-2xl font-bold text-[#facc15]">
+          <h1 className={`text-xl sm:text-2xl font-bold ${classes.text}`}>
             Welcome! Please select a project to start!
           </h1>
           {/* Connection Status Indicator */}
           <div className="flex items-center gap-2">
             <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`} />
-            <span className="text-xs text-gray-500">
+            <span className={`text-xs ${classes.textMuted}`}>
               {isConnected ? 'Connected' : 'Disconnected (polling sync active)'}
             </span>
           </div>
         </div>
-        <div className="text-gray-400 text-sm">
+        <div className={`text-sm ${classes.textMuted}`}>
           {new Date().toLocaleDateString('en-US', { timeZone: 'Asia/Manila', year: 'numeric', month: 'long', day: 'numeric' })} {new Date().toLocaleTimeString('en-US', { timeZone: 'Asia/Manila', hour: '2-digit', minute: '2-digit', hour12: true })}
         </div>
       </div>
@@ -571,9 +574,9 @@ export default function AttendancePage() {
       {selectedBranch && <RecentActivity branchCode={selectedBranch} />}
 
       {/* Project Selection Section */}
-      <div className="bg-[#141414] rounded-xl border border-[#262626] p-4 sm:p-6">
+      <div className={`rounded-xl border ${classes.border} ${classes.bgCard} p-4 sm:p-6`}>
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
-          <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider">
+          <h2 className={`text-sm font-semibold ${classes.text} uppercase tracking-wider`}>
             Select Deployment Project
           </h2>
           <button className="flex items-center gap-2 px-4 py-2 bg-[#facc15] text-black text-sm font-medium rounded-lg hover:bg-yellow-400 transition-colors w-full sm:w-auto justify-center">
@@ -584,34 +587,34 @@ export default function AttendancePage() {
 
         {/* Search */}
         <div className="relative mb-4">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+          <Search className={`absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 ${classes.textMuted}`} />
           <input
             type="text"
             placeholder="Search projects..."
-            className="w-full pl-10 pr-4 py-2 bg-[#0a0a0a] border border-[#262626] rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-[#facc15]"
+            className={`w-full pl-10 pr-4 py-2 ${classes.bg} ${classes.border} border rounded-lg ${classes.text} placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-yellow-500/50`}
           />
         </div>
 
         {/* Pagination Controls */}
-        <div className="flex items-center justify-between mb-4">
-          <span className="text-sm text-gray-500">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+          <span className={`text-sm ${classes.textMuted}`}>
             Showing {indexOfFirstBranch + 1}-{Math.min(indexOfLastBranch, branches.length)} of {branches.length} branches
           </span>
           <div className="flex items-center gap-2">
             <button
               onClick={goToPrevPage}
               disabled={currentPage === 1}
-              className="p-2 rounded-lg bg-[#1a1a1a] border border-[#262626] text-gray-400 hover:border-[#facc15] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className={`p-2 rounded-lg ${classes.border} border ${classes.hover} ${classes.text} disabled:opacity-50 disabled:cursor-not-allowed transition-colors`}
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
-            <span className="text-sm text-gray-400 px-3">
+            <span className={`text-sm ${classes.text} px-3`}>
               Page {currentPage} of {totalPages}
             </span>
             <button
               onClick={goToNextPage}
               disabled={currentPage === totalPages}
-              className="p-2 rounded-lg bg-[#1a1a1a] border border-[#262626] text-gray-400 hover:border-[#facc15] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className={`p-2 rounded-lg ${classes.border} border ${classes.hover} ${classes.text} disabled:opacity-50 disabled:cursor-not-allowed transition-colors`}
             >
               <ChevronRight className="w-4 h-4" />
             </button>
@@ -627,7 +630,7 @@ export default function AttendancePage() {
               className={`relative p-4 rounded-lg border text-left transition-all ${
                 selectedBranch === branch.code
                   ? 'bg-[#facc15] border-[#facc15] text-black'
-                  : 'bg-[#1a1a1a] border-[#262626] text-gray-300 hover:border-[#404040]'
+                  : `${classes.bgCard} ${classes.border} ${classes.text} ${classes.hover} border`
               }`}
             >
               {selectedBranch === branch.code && (
@@ -639,13 +642,13 @@ export default function AttendancePage() {
                   <X className="w-3 h-3" />
                 </div>
               )}
-              <h3 className={`font-semibold text-sm mb-1 ${selectedBranch === branch.code ? 'text-black' : 'text-white'}`}>
+              <h3 className={`font-semibold text-sm mb-1 ${selectedBranch === branch.code ? 'text-black' : ''}`}>
                 {branch.shortName}
               </h3>
-              <p className={`text-xs font-mono mb-1 ${selectedBranch === branch.code ? 'text-black/70' : 'text-gray-500'}`}>
+              <p className={`text-xs font-mono mb-1 ${selectedBranch === branch.code ? 'text-black/70' : classes.textMuted}`}>
                 Code: {branch.code}
               </p>
-              <p className={`text-xs ${selectedBranch === branch.code ? 'text-black/70' : 'text-gray-500'}`}>
+              <p className={`text-xs ${selectedBranch === branch.code ? 'text-black/70' : classes.textMuted}`}>
                 {branch.description}
               </p>
             </button>
@@ -655,25 +658,25 @@ export default function AttendancePage() {
 
       {/* Stats Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
-        <div className="bg-[#141414] rounded-xl border border-[#262626] p-6">
-          <p className="text-gray-400 text-sm uppercase tracking-wider mb-2">Completed</p>
-          <p className="text-3xl font-bold text-blue-400">{completedCount}</p>
+        <div className={`rounded-xl border ${classes.border} ${classes.bgCard} p-6`}>
+          <p className={`text-sm uppercase tracking-wider mb-2 ${classes.textMuted}`}>Completed</p>
+          <p className="text-3xl font-bold text-blue-500">{completedCount}</p>
         </div>
-        <div className="bg-[#141414] rounded-xl border border-[#262626] p-6">
-          <p className="text-gray-400 text-sm uppercase tracking-wider mb-2">Present</p>
-          <p className="text-3xl font-bold text-green-400">{presentCount}</p>
+        <div className={`rounded-xl border ${classes.border} ${classes.bgCard} p-6`}>
+          <p className={`text-sm uppercase tracking-wider mb-2 ${classes.textMuted}`}>Present</p>
+          <p className="text-3xl font-bold text-green-500">{presentCount}</p>
         </div>
-        <div className="bg-[#141414] rounded-xl border border-[#262626] p-6">
-          <p className="text-gray-400 text-sm uppercase tracking-wider mb-2">Available</p>
-          <p className="text-3xl font-bold text-[#facc15]">{availableCount}</p>
+        <div className={`rounded-xl border ${classes.border} ${classes.bgCard} p-6`}>
+          <p className={`text-sm uppercase tracking-wider mb-2 ${classes.textMuted}`}>Available</p>
+          <p className={`text-3xl font-bold ${classes.textAccent}`}>{availableCount}</p>
         </div>
-        <div className="bg-[#141414] rounded-xl border border-[#262626] p-6">
-          <p className="text-gray-400 text-sm uppercase tracking-wider mb-2">Absent</p>
-          <p className="text-3xl font-bold text-red-400">{absentCount}</p>
+        <div className={`rounded-xl border ${classes.border} ${classes.bgCard} p-6`}>
+          <p className={`text-sm uppercase tracking-wider mb-2 ${classes.textMuted}`}>Absent</p>
+          <p className="text-3xl font-bold text-red-500">{absentCount}</p>
         </div>
-        <div className="bg-[#141414] rounded-xl border border-[#262626] p-6">
-          <p className="text-gray-400 text-sm uppercase tracking-wider mb-2">Total Workers</p>
-          <p className="text-3xl font-bold text-white">{totalWorkers}</p>
+        <div className={`rounded-xl border ${classes.border} ${classes.bgCard} p-6`}>
+          <p className={`text-sm uppercase tracking-wider mb-2 ${classes.textMuted}`}>Total Workers</p>
+          <p className={`text-3xl font-bold ${classes.text}`}>{totalWorkers}</p>
         </div>
       </div>
 
@@ -683,10 +686,10 @@ export default function AttendancePage() {
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
-            className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
+            className={`px-4 py-2 rounded-full text-sm font-medium transition-all border ${
               activeTab === tab
-                ? 'bg-[#facc15] text-black'
-                : 'bg-[#1a1a1a] text-gray-400 border border-[#262626] hover:border-[#404040]'
+                ? 'bg-[#facc15] border-[#facc15] text-black'
+                : `${classes.bgCard} ${classes.border} ${classes.text} ${classes.hover}`
             }`}
           >
             {tab}
@@ -697,18 +700,18 @@ export default function AttendancePage() {
       {/* Search and Actions */}
       <div className="flex flex-col sm:flex-row gap-4">
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+          <Search className={`absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 ${classes.textMuted}`} />
           <input
             type="text"
             placeholder="Search employees by name or ID..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-10 pr-4 py-3 bg-[#141414] border border-[#262626] rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-[#facc15]"
+            className={`w-full pl-10 pr-4 py-3 ${classes.bg} ${classes.border} border rounded-xl ${classes.text} placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-yellow-500/50`}
           />
         </div>
         <button 
           onClick={handleUndo}
-          className="flex items-center gap-2 px-4 py-3 bg-[#1a1a1a] border border-[#262626] text-gray-400 rounded-xl hover:border-[#404040] transition-colors"
+          className={`flex items-center gap-2 px-4 py-3 ${classes.border} border ${classes.bgCard} ${classes.text} rounded-xl ${classes.hover} transition-colors`}
         >
           <RotateCcw className="w-4 h-4" />
           Undo
@@ -716,409 +719,70 @@ export default function AttendancePage() {
       </div>
 
       {/* Employee Table */}
-      <div className="bg-[#141414] rounded-xl border border-[#262626] overflow-hidden">
-        {/* Mobile Card Layout */}
-        {isMobile && (
+      <div className={`rounded-xl border ${classes.border} ${classes.bgCard} overflow-hidden`}>
+        <div className="overflow-x-auto overflow-y-auto max-h-[calc(100dvh-320px)]">
           <div className="sm:hidden w-full overflow-hidden">
-            {filteredEmployees.length === 0 ? (
-              <div className="p-8 text-center text-gray-400">
-                {!selectedBranch ? (
-                  <div>
-                    <p className="text-lg mb-2">Select a branch to view employees</p>
-                    <p className="text-sm text-gray-500">Click on a project card above to load employees</p>
-                  </div>
-                ) : employeesLoading ? (
-                  <div>
-                    <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" />
-                    <p>Loading employees...</p>
-                  </div>
-                ) : employeesError ? (
-                  <div className="text-red-400">
-                    <p className="text-lg mb-2">Error loading employees</p>
-                    <p className="text-sm text-red-500">
-                      {String((employeesError as Error)?.message || 'Failed to fetch employees')}
-                    </p>
-                  </div>
-                ) : employees.length === 0 ? (
-                  <div>
-                    <p className="text-lg mb-2">No employees in this branch</p>
-                    <p className="text-sm text-gray-500">
-                      Branch: <span className="text-[#facc15]">{selectedBranch}</span> has no assigned employees
-                    </p>
-                  </div>
-                ) : (
-                  <div>
-                    <p className="text-lg mb-2">No employees match current filters</p>
-                    <p className="text-sm text-gray-500">
-                      Tab: <span className="text-[#facc15]">{activeTab}</span>
-                      {searchQuery && (
-                        <span> | Search: "<span className="text-[#facc15]">{searchQuery}</span>"</span>
-                      )}
-                    </p>
-                  </div>
-                )}
-              </div>
-            ) : (
-              currentEmployees.map((employee, index) => (
-                <div key={employee.id}>
-                  {activeTab === 'Available' ? (
-                    // Available tab: show action buttons directly on card
-                    <div
-                      className={`flex items-center gap-3 p-4 border-b border-[#262626] last:border-0 transition-all ${
-                        flashedEmployeeId === employee.id ? 'bg-[#facc15]/20' : ''
-                      }`}
-                    >
-                      <span className="text-gray-400 text-sm w-6">{indexOfFirstEmployee + index + 1}</span>
-                      <ProfileImage
-                        src={constructImageUrl(employee.profileImage)}
-                        name={employee.name}
-                        alt={employee.name}
-                        size="md"
-                      />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-white font-medium text-sm truncate">{employee.name}</p>
-                      </div>
-                      <div className="flex flex-col gap-2 flex-shrink-0">
-                        <button
-                          onClick={() => {
-                            // Check if employee's branch differs from selected branch
-                            if (employee.branchCode && employee.branchCode !== selectedBranch) {
-                              // Show auto-transfer confirmation modal
-                              setSelectedEmployeeForAutoTransfer(employee);
-                              setIsAutoTransferModalOpen(true);
-                            } else {
-                              // Same branch - normal clock-in
-                              clockInMutation.mutate({ employeeId: employee.id, branchCode: selectedBranch });
-                            }
-                          }}
-                          disabled={clockInMutation.isPending || clockInWithTransferMutation.isPending}
-                          className="inline-flex items-center gap-1 px-3 py-1.5 bg-green-500/20 text-green-400 text-xs font-medium rounded-full hover:bg-green-500/30 transition-colors disabled:opacity-50"
-                        >
-                          {(clockInMutation.isPending || clockInWithTransferMutation.isPending) ? (
-                            <Loader2 className="w-3 h-3 animate-spin" />
-                          ) : (
-                            <LogIn className="w-3 h-3" />
-                          )}
-                          Time In
-                        </button>
-                        <button
-                          onClick={() => {
-                            if (window.confirm(`Mark ${employee.name} as absent for today?`)) {
-                              markIndividualAbsentMutation.mutate(employee.id);
-                            }
-                          }}
-                          disabled={markIndividualAbsentMutation.isPending}
-                          className="inline-flex items-center gap-1 px-3 py-1.5 bg-red-500/20 text-red-400 text-xs font-medium rounded-full hover:bg-red-500/30 transition-colors disabled:opacity-50"
-                        >
-                          {markIndividualAbsentMutation.isPending ? (
-                            <Loader2 className="w-3 h-3 animate-spin" />
-                          ) : (
-                            <UserX className="w-3 h-3" />
-                          )}
-                          Absent
-                        </button>
-                        {/* Kebab menu for Available tab */}
-                        <div className="relative kebab-menu-container">
-                          <button
-                            onClick={() => setKebabMenuOpen(prev => ({ ...prev, [employee.id]: !prev[employee.id] }))}
-                            className="p-1.5 hover:bg-[#262626] rounded-lg transition-colors self-start"
-                          >
-                            <MoreVertical className="w-4 h-4 text-gray-400" />
-                          </button>
-                          {kebabMenuOpen[employee.id] && (
-                            <div className="absolute right-0 top-full mt-2 w-48 bg-[#1a1a1a] border border-[#262626] rounded-lg shadow-xl z-50">
-                              <button
-                                onClick={() => {
-                                  setKebabMenuOpen(prev => ({ ...prev, [employee.id]: false }));
-                                  setSelectedEmployeeForTransfer(employee);
-                                  setIsTransferModalOpen(true);
-                                }}
-                                className="w-full px-4 py-2 text-left text-sm text-gray-300 hover:bg-[#262626] hover:text-white transition-colors"
-                              >
-                                Transfer to another branch
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                      </div>
+              {filteredEmployees.length === 0 ? (
+                <div className={`p-8 text-center ${classes.text}`}>
+                  {!selectedBranch ? (
+                    <div>
+                      <p className="text-lg mb-2">Select a branch to view employees</p>
+                      <p className={`text-sm ${classes.textMuted}`}>Click on a project card above to load employees</p>
                     </div>
-                  ) : activeTab === 'Present' ? (
-                    // Present tab: Time Out button only, no status badge, no modal
-                    <div
-                      className={`flex items-center gap-3 p-4 border-b border-[#262626] last:border-0 transition-all ${
-                        flashedEmployeeId === employee.id ? 'bg-[#facc15]/20' : ''
-                      }`}
-                    >
-                      <span className="text-gray-400 text-sm w-6">{indexOfFirstEmployee + index + 1}</span>
-                      <ProfileImage
-                        src={constructImageUrl(employee.profileImage)}
-                        name={employee.name}
-                        alt={employee.name}
-                        size="md"
-                      />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-white font-medium text-sm truncate">{employee.name}</p>
-                      </div>
-                      <div className="flex-shrink-0">
-                        <button
-                          onClick={() => clockOutMutation.mutate(employee.id)}
-                          disabled={clockOutMutation.isPending}
-                          className="inline-flex items-center gap-1 px-3 py-1.5 bg-red-500/20 text-red-400 text-xs font-medium rounded-full hover:bg-red-500/30 transition-colors disabled:opacity-50"
-                        >
-                          {clockOutMutation.isPending ? (
-                            <Loader2 className="w-3 h-3 animate-spin" />
-                          ) : (
-                            <LogOut className="w-3 h-3" />
-                          )}
-                          Time Out
-                        </button>
-                        {/* Kebab menu for Present tab */}
-                        <div className="relative kebab-menu-container">
-                          <button
-                            onClick={() => setKebabMenuOpen(prev => ({ ...prev, [employee.id]: !prev[employee.id] }))}
-                            className="ml-2 p-1.5 hover:bg-[#262626] rounded-lg transition-colors"
-                          >
-                            <MoreVertical className="w-4 h-4 text-gray-400" />
-                          </button>
-                          {kebabMenuOpen[employee.id] && (
-                            <div className="absolute right-0 top-full mt-2 w-48 bg-[#1a1a1a] border border-[#262626] rounded-lg shadow-xl z-50">
-                              <button
-                                onClick={() => {
-                                  setKebabMenuOpen(prev => ({ ...prev, [employee.id]: false }));
-                                  setSelectedEmployeeForTransfer(employee);
-                                  setIsTransferModalOpen(true);
-                                }}
-                                className="w-full px-4 py-2 text-left text-sm text-gray-300 hover:bg-[#262626] hover:text-white transition-colors"
-                              >
-                                Transfer to another branch
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                      </div>
+                  ) : employeesLoading ? (
+                    <div>
+                      <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" />
+                      <p>Loading employees...</p>
                     </div>
-                  ) : activeTab === 'Absent' ? (
-                    // Absent tab: No actions available, no status badge, no modal
-                    <div
-                      className={`flex items-center gap-3 p-4 border-b border-[#262626] last:border-0 transition-all ${
-                        flashedEmployeeId === employee.id ? 'bg-[#facc15]/20' : ''
-                      }`}
-                    >
-                      <span className="text-gray-400 text-sm w-6">{indexOfFirstEmployee + index + 1}</span>
-                      <ProfileImage
-                        src={constructImageUrl(employee.profileImage)}
-                        name={employee.name}
-                        alt={employee.name}
-                        size="md"
-                      />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-white font-medium text-sm truncate">{employee.name}</p>
-                      </div>
-                      <div className="flex-shrink-0">
-                        <span className="text-gray-500 text-sm">No actions available</span>
-                      </div>
+                  ) : employeesError ? (
+                    <div className="text-red-500">
+                      <p className="text-lg mb-2">Error loading employees</p>
+                      <p className="text-sm text-red-600">
+                        {String((employeesError as Error)?.message || 'Failed to fetch employees')}
+                      </p>
+                    </div>
+                  ) : employees.length === 0 ? (
+                    <div>
+                      <p className="text-lg mb-2">No employees in this branch</p>
+                      <p className={`text-sm ${classes.textMuted}`}>
+                        Branch: <span className={classes.textAccent}>{selectedBranch}</span> has no assigned employees
+                      </p>
                     </div>
                   ) : (
-                    // Summary tab: Keep clickable card with status badge + modal
-                    <div
-                      onClick={() => setSelectedEmployeeForModal(employee)}
-                      className={`flex items-center gap-3 p-4 border-b border-[#262626] last:border-0 hover:bg-[#1a1a1a] transition-all cursor-pointer ${
-                        flashedEmployeeId === employee.id ? 'bg-[#facc15]/20' : ''
-                      }`}
-                    >
-                      <span className="text-gray-400 text-sm w-6">{indexOfFirstEmployee + index + 1}</span>
-                      <ProfileImage
-                        src={constructImageUrl(employee.profileImage)}
-                        name={employee.name}
-                        alt={employee.name}
-                        size="md"
-                      />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-white font-medium text-sm truncate">{employee.name}</p>
-                      </div>
-                      <div className="flex-shrink-0">
-                        {employee.timeIn !== null && employee.timeOut !== null ? (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-blue-500/20 text-blue-400 text-xs font-medium rounded-full">
-                            <CheckCircle className="w-3 h-3" />
-                            COMPLETED
-                          </span>
-                        ) : employee.timeIn !== null && employee.timeOut === null ? (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-green-500/20 text-green-400 text-xs font-medium rounded-full">
-                            <CheckCircle className="w-3 h-3" />
-                            PRESENT
-                          </span>
-                        ) : employee.status === 'absent' ? (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-red-500/20 text-red-400 text-xs font-medium rounded-full">
-                            <UserX className="w-3 h-3" />
-                            ABSENT
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-[#facc15]/20 text-[#facc15] text-xs font-medium rounded-full">
-                            <Clock className="w-3 h-3" />
-                            AVAILABLE
-                          </span>
+                    <div>
+                      <p className="text-lg mb-2">No employees match current filters</p>
+                      <p className={`text-sm ${classes.textMuted}`}>
+                        Tab: <span className={classes.textAccent}>{activeTab}</span>
+                        {searchQuery && (
+                          <span> | Search: &quot;<span className={classes.textAccent}>{searchQuery}</span>&quot;</span>
                         )}
-                      </div>
+                      </p>
                     </div>
                   )}
                 </div>
-              ))
-            )}
-          </div>
-        )}
-
-        {/* Desktop Table */}
-        <div className={`overflow-x-auto ${isMobile ? 'hidden' : ''}`}>
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-[#262626]">
-                <th className="px-4 py-4 text-left text-xs font-medium text-gray-400 uppercase tracking-wider hidden sm:table-cell">#</th>
-                <th className="px-4 py-4 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Employee</th>
-                <th className="px-4 py-4 text-left text-xs font-medium text-gray-400 uppercase tracking-wider hidden sm:table-cell">Time In</th>
-                <th className="px-4 py-4 text-left text-xs font-medium text-gray-400 uppercase tracking-wider hidden sm:table-cell">Time Out</th>
-                <th className="px-4 py-4 text-left text-xs font-medium text-gray-400 uppercase tracking-wider hidden sm:table-cell">Total Hours</th>
-                {activeTab === 'Summary' && (
-                  <th className="px-4 py-4 text-left text-xs font-medium text-gray-400 uppercase tracking-wider hidden sm:table-cell">Remarks</th>
-                )}
-                {/* Actions column - hide ONLY in Summary tab on mobile, visible in other tabs on mobile */}
-                {!(activeTab === 'Summary' && isMobile) && (
-                  <th className="px-4 py-4 text-left text-xs font-medium text-gray-400 uppercase tracking-wider hidden sm:table-cell">Actions</th>
-                )}
-              </tr>
-            </thead>
-            <tbody>
-              {filteredEmployees.length === 0 ? (
-                <tr>
-                  <td colSpan={isMobile ? 2 : (activeTab === 'Summary' ? 7 : 6)} className="px-4 py-8 text-center">
-                    {!selectedBranch ? (
-                      <div className="text-gray-400">
-                        <p className="text-lg mb-2">Select a branch to view employees</p>
-                        <p className="text-sm text-gray-500">Click on a project card above to load employees</p>
-                      </div>
-                    ) : employeesLoading ? (
-                      <div className="text-gray-400">
-                        <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" />
-                        <p>Loading employees...</p>
-                      </div>
-                    ) : employeesError ? (
-                      <div className="text-red-400">
-                        <p className="text-lg mb-2">Error loading employees</p>
-                        <p className="text-sm text-red-500">
-                          {String((employeesError as Error)?.message || 'Failed to fetch employees')}
-                        </p>
-                        <button
-                          onClick={() => refetchEmployees()}
-                          className="mt-3 text-sm text-[#facc15] hover:underline"
-                        >
-                          Retry
-                        </button>
-                      </div>
-                    ) : employees.length === 0 ? (
-                      <div className="text-gray-400">
-                        <p className="text-lg mb-2">No employees in this branch</p>
-                        <p className="text-sm text-gray-500">
-                          Branch: <span className="text-[#facc15]">{selectedBranch}</span> has no assigned employees
-                        </p>
-                        <p className="text-xs text-gray-600 mt-2">
-                          (Check: 1) Employees have branchCode=&quot;{selectedBranch}&quot; in DB, 2) status=&quot;Active&quot;)
-                        </p>
-                      </div>
-                    ) : (
-                      <div className="text-gray-400">
-                        <p className="text-lg mb-2">No employees match current filters</p>
-                        <p className="text-sm text-gray-500">
-                          Tab: <span className="text-[#facc15]">{activeTab}</span>
-                          {searchQuery && (
-                            <span> | Search: &quot;<span className="text-[#facc15]">{searchQuery}</span>&quot;</span>
-                          )}
-                        </p>
-                        <button
-                          onClick={() => { setActiveTab('Summary'); setSearchQuery(''); }}
-                          className="mt-3 text-sm text-[#facc15] hover:underline"
-                        >
-                          Clear filters
-                        </button>
-                      </div>
-                    )}
-                  </td>
-                </tr>
               ) : (
                 currentEmployees.map((employee, index) => (
-                  <tr
-                    key={employee.id}
-                    className={`border-b border-[#262626] last:border-0 hover:bg-[#1a1a1a] transition-all ${
-                      flashedEmployeeId === employee.id ? 'bg-[#facc15]/20' : ''
-                    }`}
-                  >
-                    <td className="px-4 py-4 text-gray-400 hidden sm:table-cell">{indexOfFirstEmployee + index + 1}</td>
-                    <td className="px-4 py-4">
-                      <div className="flex items-center gap-3">
+                  <div key={employee.id}>
+                    {activeTab === 'Available' ? (
+                      // Available tab: show action buttons directly on card
+                      <div
+                        className={`flex items-center gap-3 p-4 border-b ${classes.border} last:border-0 transition-all ${classes.text} ${
+                          flashedEmployeeId === employee.id ? 'bg-[#facc15]/20' : ''
+                        }`}
+                      >
+                        <span className={`text-sm w-6 ${classes.textMuted}`}>{indexOfFirstEmployee + index + 1}</span>
                         <ProfileImage
                           src={constructImageUrl(employee.profileImage)}
                           name={employee.name}
                           alt={employee.name}
-                          size="sm"
+                          size="md"
                         />
-                        <div>
-                          <p className="text-white font-medium text-sm">{employee.name}</p>
+                        <div className="flex-1 min-w-0">
+                          <p className={`font-medium text-sm truncate ${classes.text}`}>{employee.name}</p>
                         </div>
-                      </div>
-                    </td>
-                    <td className="px-4 py-4 text-gray-400 hidden sm:table-cell">{employee.timeIn || '--'}</td>
-                    <td className="px-4 py-4 text-gray-400 hidden sm:table-cell">{employee.timeOut || '--'}</td>
-                    <td className="px-4 py-4 text-gray-400 hidden sm:table-cell">{employee.totalHours}</td>
-                    {activeTab === 'Summary' && (
-                      <td className="px-4 py-4 hidden sm:table-cell">
-                        {employee.timeIn !== null && employee.timeOut !== null ? (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-blue-500/20 text-blue-400 text-xs font-medium rounded-full">
-                            <CheckCircle className="w-3 h-3" />
-                            COMPLETED
-                          </span>
-                        ) : employee.timeIn !== null && employee.timeOut === null ? (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-green-500/20 text-green-400 text-xs font-medium rounded-full">
-                            <CheckCircle className="w-3 h-3" />
-                            PRESENT
-                          </span>
-                        ) : employee.status === 'absent' ? (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-red-500/20 text-red-400 text-xs font-medium rounded-full">
-                            <UserX className="w-3 h-3" />
-                            ABSENT
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-[#facc15]/20 text-[#facc15] text-xs font-medium rounded-full">
-                            <Clock className="w-3 h-3" />
-                            AVAILABLE
-                          </span>
-                        )}
-                      </td>
-                    )}
-                    {!(activeTab === 'Summary' && isMobile) && (
-                      <td className="px-4 py-4 hidden sm:table-cell">
-                      {employee.status === 'absent' ? (
-                        <span className="text-gray-500 text-sm">No actions available</span>
-                      ) : (
-                        <div className="flex items-center gap-2">
-                          {employee.timeIn !== null && employee.timeOut === null ? (
+                        <div className="flex flex-col gap-2 flex-shrink-0">
                           <button
                             onClick={() => {
-                              console.log('Clocking out employee:', employee.id);
-                              clockOutMutation.mutate(employee.id);
-                            }}
-                            disabled={clockOutMutation.isPending}
-                            className="inline-flex items-center gap-1 px-3 py-1.5 bg-red-500/20 text-red-400 text-xs font-medium rounded-full hover:bg-red-500/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                          >
-                            {clockOutMutation.isPending ? (
-                              <Loader2 className="w-3 h-3 animate-spin" />
-                            ) : (
-                              <LogOut className="w-3 h-3" />
-                            )}
-                            Time Out
-                          </button>
-                        ) : employee.timeIn !== null && employee.timeOut !== null ? (
-                          // Employee completed shift - allow re-clock in for different branch/task
-                          <button
-                            onClick={() => {
-                              console.log('Re-clocking in employee:', employee.id);
                               // Check if employee's branch differs from selected branch
                               if (employee.branchCode && employee.branchCode !== selectedBranch) {
                                 // Show auto-transfer confirmation modal
@@ -1129,160 +793,530 @@ export default function AttendancePage() {
                                 clockInMutation.mutate({ employeeId: employee.id, branchCode: selectedBranch });
                               }
                             }}
-                            disabled={clockInMutation.isPending}
-                            className="inline-flex items-center gap-1 px-3 py-1.5 bg-green-500/20 text-green-400 text-xs font-medium rounded-full hover:bg-green-500/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            disabled={clockInMutation.isPending || clockInWithTransferMutation.isPending}
+                            className="inline-flex items-center gap-1 px-3 py-1.5 bg-green-100 text-green-700 text-xs font-medium rounded-full hover:bg-green-200 transition-colors disabled:opacity-50"
                           >
-                            {clockInMutation.isPending ? (
+                            {(clockInMutation.isPending || clockInWithTransferMutation.isPending) ? (
                               <Loader2 className="w-3 h-3 animate-spin" />
                             ) : (
                               <LogIn className="w-3 h-3" />
                             )}
                             Time In
                           </button>
-                        ) : (
-                          <>
-                            <button
-                              onClick={() => {
-                                console.log('Clocking in employee:', employee.id);
-                                // Check if employee's branch differs from selected branch
-                                if (employee.branchCode && employee.branchCode !== selectedBranch) {
-                                  // Show auto-transfer confirmation modal
-                                  setSelectedEmployeeForAutoTransfer(employee);
-                                  setIsAutoTransferModalOpen(true);
-                                } else {
-                                  // Same branch - normal clock-in
-                                  clockInMutation.mutate({ employeeId: employee.id, branchCode: selectedBranch });
-                                }
-                              }}
-                              disabled={clockInMutation.isPending}
-                              className="inline-flex items-center gap-1 px-3 py-1.5 bg-green-500/20 text-green-400 text-xs font-medium rounded-full hover:bg-green-500/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                              {clockInMutation.isPending ? (
-                                <Loader2 className="w-3 h-3 animate-spin" />
-                              ) : (
-                                <LogIn className="w-3 h-3" />
-                              )}
-                              Time In
-                            </button>
-                          </>
-                        )}
-                        {/* Kebab menu - only in Available and Present tabs */}
-                        {(activeTab === 'Available' || activeTab === 'Present') && (
+                          <button
+                            onClick={() => {
+                              if (window.confirm(`Mark ${employee.name} as absent for today?`)) {
+                                markIndividualAbsentMutation.mutate(employee.id);
+                              }
+                            }}
+                            disabled={markIndividualAbsentMutation.isPending}
+                            className="inline-flex items-center gap-1 px-3 py-1.5 bg-red-100 text-red-700 text-xs font-medium rounded-full hover:bg-red-200 transition-colors disabled:opacity-50"
+                          >
+                            {markIndividualAbsentMutation.isPending ? (
+                              <Loader2 className="w-3 h-3 animate-spin" />
+                            ) : (
+                              <UserX className="w-3 h-3" />
+                            )}
+                            Absent
+                          </button>
+                          {/* Kebab menu for Available tab */}
                           <div className="relative kebab-menu-container">
                             <button
                               onClick={() => setKebabMenuOpen(prev => ({ ...prev, [employee.id]: !prev[employee.id] }))}
-                              className="p-1.5 hover:bg-[#262626] rounded-lg transition-colors"
+                              className={`p-1.5 rounded-lg transition-colors self-start ${classes.hover}`}
                             >
-                              <MoreVertical className="w-4 h-4 text-gray-400" />
+                              <MoreVertical className={`w-4 h-4 ${classes.textMuted}`} />
                             </button>
                             {kebabMenuOpen[employee.id] && (
-                              <div className="absolute right-0 top-full mt-2 w-48 bg-[#1a1a1a] border border-[#262626] rounded-lg shadow-xl z-50">
+                              <div className={`absolute right-0 top-full mt-2 w-48 border ${classes.border} ${classes.bgCard} rounded-lg shadow-xl z-50`}>
                                 <button
                                   onClick={() => {
                                     setKebabMenuOpen(prev => ({ ...prev, [employee.id]: false }));
                                     setSelectedEmployeeForTransfer(employee);
                                     setIsTransferModalOpen(true);
                                   }}
-                                  className="w-full px-4 py-2 text-left text-sm text-gray-300 hover:bg-[#262626] hover:text-white transition-colors"
+                                  className={`w-full px-4 py-2 text-left text-sm ${classes.text} ${classes.hover} transition-colors`}
                                 >
                                   Transfer to another branch
                                 </button>
                               </div>
                             )}
                           </div>
-                        )}
+                        </div>
                       </div>
-                      )}
-                    </td>
+                    ) : activeTab === 'Summary' ? (
+                      // Summary tab (mobile): show status + context actions
+                      <div
+                        className={`flex items-center gap-3 p-4 border-b ${classes.border} last:border-0 transition-all ${classes.text} ${
+                          flashedEmployeeId === employee.id ? 'bg-[#facc15]/20' : ''
+                        }`}
+                      >
+                        <span className={`text-sm w-6 ${classes.textMuted}`}>{indexOfFirstEmployee + index + 1}</span>
+                        <ProfileImage
+                          src={constructImageUrl(employee.profileImage)}
+                          name={employee.name}
+                          alt={employee.name}
+                          size="md"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <p className={`font-medium text-sm truncate ${classes.text}`}>{employee.name}</p>
+                          <div className="mt-1">
+                            {employee.timeIn !== null && employee.timeOut !== null ? (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-100 text-blue-700 text-[10px] font-medium rounded-full">
+                                <CheckCircle className="w-3 h-3" />
+                                COMPLETED
+                              </span>
+                            ) : employee.timeIn !== null && employee.timeOut === null ? (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-green-100 text-green-700 text-[10px] font-medium rounded-full">
+                                <CheckCircle className="w-3 h-3" />
+                                PRESENT
+                              </span>
+                            ) : employee.status === 'absent' ? (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-red-100 text-red-700 text-[10px] font-medium rounded-full">
+                                <UserX className="w-3 h-3" />
+                                ABSENT
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-yellow-100 text-yellow-700 text-[10px] font-medium rounded-full">
+                                <Clock className="w-3 h-3" />
+                                AVAILABLE
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex flex-col gap-2 flex-shrink-0 items-end">
+                          {employee.status === 'absent' ? (
+                            <span className={`text-xs ${classes.textMuted}`}>No actions</span>
+                          ) : employee.timeIn !== null && employee.timeOut === null ? (
+                            <button
+                              onClick={() => clockOutMutation.mutate(employee.id)}
+                              disabled={clockOutMutation.isPending}
+                              className="inline-flex items-center gap-1 px-3 py-1.5 bg-red-100 text-red-700 text-xs font-medium rounded-full hover:bg-red-200 transition-colors disabled:opacity-50"
+                            >
+                              {clockOutMutation.isPending ? (
+                                <Loader2 className="w-3 h-3 animate-spin" />
+                              ) : (
+                                <LogOut className="w-3 h-3" />
+                              )}
+                              Time Out
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => {
+                                if (employee.branchCode && employee.branchCode !== selectedBranch) {
+                                  setSelectedEmployeeForAutoTransfer(employee);
+                                  setIsAutoTransferModalOpen(true);
+                                } else {
+                                  clockInMutation.mutate({ employeeId: employee.id, branchCode: selectedBranch });
+                                }
+                              }}
+                              disabled={clockInMutation.isPending || clockInWithTransferMutation.isPending}
+                              className="inline-flex items-center gap-1 px-3 py-1.5 bg-green-100 text-green-700 text-xs font-medium rounded-full hover:bg-green-200 transition-colors disabled:opacity-50"
+                            >
+                              {(clockInMutation.isPending || clockInWithTransferMutation.isPending) ? (
+                                <Loader2 className="w-3 h-3 animate-spin" />
+                              ) : (
+                                <LogIn className="w-3 h-3" />
+                              )}
+                              Time In
+                            </button>
+                          )}
+                          {/* Kebab menu for Summary tab */}
+                          <div className="relative kebab-menu-container">
+                            <button
+                              onClick={() => setKebabMenuOpen(prev => ({ ...prev, [employee.id]: !prev[employee.id] }))}
+                              className={`p-1.5 rounded-lg transition-colors ${classes.hover}`}
+                            >
+                              <MoreVertical className={`w-4 h-4 ${classes.textMuted}`} />
+                            </button>
+                            {kebabMenuOpen[employee.id] && (
+                              <div className={`absolute right-0 top-full mt-2 w-48 border ${classes.border} ${classes.bgCard} rounded-lg shadow-xl z-50`}>
+                                <button
+                                  onClick={() => {
+                                    setKebabMenuOpen(prev => ({ ...prev, [employee.id]: false }));
+                                    setSelectedEmployeeForTransfer(employee);
+                                    setIsTransferModalOpen(true);
+                                  }}
+                                  className={`w-full px-4 py-2 text-left text-sm ${classes.text} ${classes.hover} transition-colors`}
+                                >
+                                  Transfer to another branch
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ) : activeTab === 'Present' ? (
+                      // Present tab: Time Out button only, no status badge, no modal
+                      <div
+                        className={`flex items-center gap-3 p-4 border-b ${classes.border} last:border-0 transition-all ${classes.text} ${
+                          flashedEmployeeId === employee.id ? 'bg-[#facc15]/20' : ''
+                        }`}
+                      >
+                        <span className={`text-sm w-6 ${classes.textMuted}`}>{indexOfFirstEmployee + index + 1}</span>
+                        <ProfileImage
+                          src={constructImageUrl(employee.profileImage)}
+                          name={employee.name}
+                          alt={employee.name}
+                          size="md"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <p className={`font-medium text-sm truncate ${classes.text}`}>{employee.name}</p>
+                        </div>
+                        <div className="flex-shrink-0">
+                          <button
+                            onClick={() => clockOutMutation.mutate(employee.id)}
+                            disabled={clockOutMutation.isPending}
+                            className="inline-flex items-center gap-1 px-3 py-1.5 bg-red-100 text-red-700 text-xs font-medium rounded-full hover:bg-red-200 transition-colors disabled:opacity-50"
+                          >
+                            {clockOutMutation.isPending ? (
+                              <Loader2 className="w-3 h-3 animate-spin" />
+                            ) : (
+                              <LogOut className="w-3 h-3" />
+                            )}
+                            Time Out
+                          </button>
+                          {/* Kebab menu for Present tab */}
+                          <div className="relative kebab-menu-container">
+                            <button
+                              onClick={() => setKebabMenuOpen(prev => ({ ...prev, [employee.id]: !prev[employee.id] }))}
+                              className={`ml-2 p-1.5 rounded-lg transition-colors ${classes.hover}`}
+                            >
+                              <MoreVertical className={`w-4 h-4 ${classes.textMuted}`} />
+                            </button>
+                            {kebabMenuOpen[employee.id] && (
+                              <div className={`absolute right-0 top-full mt-2 w-48 border ${classes.border} ${classes.bgCard} rounded-lg shadow-xl z-50`}>
+                                <button
+                                  onClick={() => {
+                                    setKebabMenuOpen(prev => ({ ...prev, [employee.id]: false }));
+                                    setSelectedEmployeeForTransfer(employee);
+                                    setIsTransferModalOpen(true);
+                                  }}
+                                  className={`w-full px-4 py-2 text-left text-sm ${classes.text} ${classes.hover} transition-colors`}
+                                >
+                                  Transfer to another branch
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ) : activeTab === 'Absent' ? (
+                      // Absent tab: No actions available, no status badge, no modal
+                      <div
+                        className={`flex items-center gap-3 p-4 border-b ${classes.border} last:border-0 transition-all ${classes.text} ${
+                          flashedEmployeeId === employee.id ? 'bg-[#facc15]/20' : ''
+                        }`}
+                      >
+                        <span className={`text-sm w-6 ${classes.textMuted}`}>{indexOfFirstEmployee + index + 1}</span>
+                        <ProfileImage
+                          src={constructImageUrl(employee.profileImage)}
+                          name={employee.name}
+                          alt={employee.name}
+                          size="md"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <p className={`font-medium text-sm truncate ${classes.text}`}>{employee.name}</p>
+                        </div>
+                        <div className="flex-shrink-0">
+                          <span className={`text-sm ${classes.textMuted}`}>No actions available</span>
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
+                )))}
+            </div>
+
+          <div className="hidden sm:block">
+            <table className="w-full min-w-[980px]">
+                <thead>
+                  <tr className={`border-b ${classes.border} ${classes.bg}`}>
+                    <th className={`px-4 py-4 text-left text-xs font-medium ${classes.textMuted} uppercase tracking-wider hidden sm:table-cell`}>#</th>
+                    <th className={`px-4 py-4 text-left text-xs font-medium ${classes.textMuted} uppercase tracking-wider`}>Employee</th>
+                    <th className={`px-4 py-4 text-left text-xs font-medium ${classes.textMuted} uppercase tracking-wider hidden md:table-cell`}>Code</th>
+                    <th className={`px-4 py-4 text-left text-xs font-medium ${classes.textMuted} uppercase tracking-wider hidden lg:table-cell`}>Branch</th>
+                    <th className={`px-4 py-4 text-left text-xs font-medium ${classes.textMuted} uppercase tracking-wider`}>Time In</th>
+                    <th className={`px-4 py-4 text-left text-xs font-medium ${classes.textMuted} uppercase tracking-wider`}>Time Out</th>
+                    <th className={`px-4 py-4 text-left text-xs font-medium ${classes.textMuted} uppercase tracking-wider`}>Hours</th>
+                    {activeTab === 'Summary' && (
+                      <th className={`px-4 py-4 text-left text-xs font-medium ${classes.textMuted} uppercase tracking-wider`}>Status</th>
                     )}
+                    <th className={`px-4 py-4 text-left text-xs font-medium ${classes.textMuted} uppercase tracking-wider`}>Actions</th>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+                </thead>
+                <tbody>
+                  {!selectedBranch ? (
+                    <tr>
+                      <td colSpan={activeTab === 'Summary' ? 9 : 8} className={`px-4 py-8 text-center ${classes.text}`}>
+                        <p className="text-lg mb-2">Select a branch to view employees</p>
+                        <p className={`text-sm ${classes.textMuted}`}>Click on a project card above to load employees</p>
+                      </td>
+                    </tr>
+                  ) : employeesLoading ? (
+                    <tr>
+                      <td colSpan={activeTab === 'Summary' ? 9 : 8} className={`px-4 py-8 text-center ${classes.text}`}>
+                        <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" />
+                        <p>Loading employees...</p>
+                      </td>
+                    </tr>
+                  ) : employeesError ? (
+                    <tr>
+                      <td colSpan={activeTab === 'Summary' ? 9 : 8} className={`px-4 py-8 text-center text-red-500`}>
+                        <p className="text-lg mb-2">Error loading employees</p>
+                        <p className="text-sm text-red-600">
+                          {String((employeesError as Error)?.message || 'Failed to fetch employees')}
+                        </p>
+                      </td>
+                    </tr>
+                  ) : employees.length === 0 ? (
+                    <tr>
+                      <td colSpan={activeTab === 'Summary' ? 9 : 8} className={`px-4 py-8 text-center ${classes.text}`}>
+                        <p className="text-lg mb-2">No employees in this branch</p>
+                        <p className={`text-sm ${classes.textMuted}`}>
+                          Branch: <span className={classes.textAccent}>{selectedBranch}</span> has no assigned employees
+                        </p>
+                      </td>
+                    </tr>
+                  ) : filteredEmployees.length === 0 ? (
+                    <tr>
+                      <td colSpan={activeTab === 'Summary' ? 9 : 8} className={`px-4 py-8 text-center ${classes.text}`}>
+                        <p className="text-lg mb-2">No employees match current filters</p>
+                        <p className={`text-sm ${classes.textMuted}`}>
+                          Tab: <span className={classes.textAccent}>{activeTab}</span>
+                          {searchQuery && (
+                            <span> | Search: &quot;<span className={classes.textAccent}>{searchQuery}</span>&quot;</span>
+                          )}
+                        </p>
+                        <button
+                          onClick={() => { setActiveTab('Summary'); setSearchQuery(''); }}
+                          className={`mt-3 text-sm ${classes.text} hover:underline`}
+                        >
+                          Clear filters
+                        </button>
+                      </td>
+                    </tr>
+                  ) : (
+                    currentEmployees.map((employee, index) => (
+                      <tr
+                        key={employee.id}
+                        className={`border-b ${classes.border} last:border-0 ${classes.hover} ${classes.text} transition-all ${
+                          flashedEmployeeId === employee.id ? 'bg-[#facc15]/20' : ''
+                        }`}
+                      >
+                        <td className={`px-4 py-4 ${classes.textMuted} hidden sm:table-cell`}>{indexOfFirstEmployee + index + 1}</td>
+                        <td className="px-4 py-4">
+                          <div className="flex items-center gap-3">
+                            <ProfileImage
+                              src={constructImageUrl(employee.profileImage)}
+                              name={employee.name}
+                              alt={employee.name}
+                              size="sm"
+                            />
+                            <div>
+                              <p className={`font-medium text-sm ${classes.text}`}>{employee.name}</p>
+                            </div>
+                          </div>
+                        </td>
+                        <td className={`px-4 py-4 ${classes.textMuted} hidden md:table-cell`}>{employee.employeeCode || '--'}</td>
+                        <td className={`px-4 py-4 ${classes.textMuted} hidden lg:table-cell`}>{employee.branchName || selectedBranchName || '--'}</td>
+                        <td className={`px-4 py-4 ${classes.textMuted}`}>{employee.timeIn || '--'}</td>
+                        <td className={`px-4 py-4 ${classes.textMuted}`}>{employee.timeOut || '--'}</td>
+                        <td className={`px-4 py-4 ${classes.textMuted}`}>{employee.totalHours}</td>
+                        {activeTab === 'Summary' && (
+                          <td className="px-4 py-4">
+                            {employee.timeIn !== null && employee.timeOut !== null ? (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-blue-100 text-blue-700 text-xs font-medium rounded-full">
+                                <CheckCircle className="w-3 h-3" />
+                                COMPLETED
+                              </span>
+                            ) : employee.timeIn !== null && employee.timeOut === null ? (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-green-100 text-green-700 text-xs font-medium rounded-full">
+                                <CheckCircle className="w-3 h-3" />
+                                PRESENT
+                              </span>
+                            ) : employee.status === 'absent' ? (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-red-100 text-red-700 text-xs font-medium rounded-full">
+                                <UserX className="w-3 h-3" />
+                                ABSENT
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-yellow-100 text-yellow-700 text-xs font-medium rounded-full">
+                                <Clock className="w-3 h-3" />
+                                AVAILABLE
+                              </span>
+                            )}
+                          </td>
+                        )}
+                        <td className="px-4 py-4">
+                            {employee.status === 'absent' ? (
+                              <span className={`text-sm ${classes.textMuted}`}>No actions available</span>
+                            ) : (
+                              <div className="flex items-center gap-2">
+                                {employee.timeIn !== null && employee.timeOut === null ? (
+                                  <button
+                                    onClick={() => {
+                                      console.log('Clocking out employee:', employee.id);
+                                      clockOutMutation.mutate(employee.id);
+                                    }}
+                                    disabled={clockOutMutation.isPending}
+                                    className="inline-flex items-center gap-1 px-3 py-1.5 bg-red-100 text-red-700 text-xs font-medium rounded-full hover:bg-red-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                  >
+                                    {clockOutMutation.isPending ? (
+                                      <Loader2 className="w-3 h-3 animate-spin" />
+                                    ) : (
+                                      <LogOut className="w-3 h-3" />
+                                    )}
+                                    Time Out
+                                  </button>
+                                ) : employee.timeIn !== null && employee.timeOut !== null ? (
+                                  // Employee completed shift - allow re-clock in for different branch/task
+                                  <button
+                                    onClick={() => {
+                                      console.log('Re-clocking in employee:', employee.id);
+                                      // Check if employee's branch differs from selected branch
+                                      if (employee.branchCode && employee.branchCode !== selectedBranch) {
+                                        // Show auto-transfer confirmation modal
+                                        setSelectedEmployeeForAutoTransfer(employee);
+                                        setIsAutoTransferModalOpen(true);
+                                      } else {
+                                        // Same branch - normal clock-in
+                                        clockInMutation.mutate({ employeeId: employee.id, branchCode: selectedBranch });
+                                      }
+                                    }}
+                                    disabled={clockInMutation.isPending}
+                                    className="inline-flex items-center gap-1 px-3 py-1.5 bg-green-100 text-green-700 text-xs font-medium rounded-full hover:bg-green-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                  >
+                                    {clockInMutation.isPending ? (
+                                      <Loader2 className="w-3 h-3 animate-spin" />
+                                    ) : (
+                                      <LogIn className="w-3 h-3" />
+                                    )}
+                                    Time In
+                                  </button>
+                                ) : (
+                                  <>
+                                    <button
+                                      onClick={() => {
+                                        console.log('Clocking in employee:', employee.id);
+                                        // Check if employee's branch differs from selected branch
+                                        if (employee.branchCode && employee.branchCode !== selectedBranch) {
+                                          // Show auto-transfer confirmation modal
+                                          setSelectedEmployeeForAutoTransfer(employee);
+                                          setIsAutoTransferModalOpen(true);
+                                        } else {
+                                          // Same branch - normal clock-in
+                                          clockInMutation.mutate({ employeeId: employee.id, branchCode: selectedBranch });
+                                        }
+                                      }}
+                                      disabled={clockInMutation.isPending}
+                                      className="inline-flex items-center gap-1 px-3 py-1.5 bg-green-100 text-green-700 text-xs font-medium rounded-full hover:bg-green-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
+                                      {clockInMutation.isPending ? (
+                                        <Loader2 className="w-3 h-3 animate-spin" />
+                                      ) : (
+                                        <LogIn className="w-3 h-3" />
+                                      )}
+                                      Time In
+                                    </button>
+                                  </>
+                                )}
+                                {/* Kebab menu - only in Available and Present tabs */}
+                                {(activeTab === 'Available' || activeTab === 'Present') && (
+                                  <div className="relative kebab-menu-container">
+                                    <button
+                                      onClick={() => setKebabMenuOpen(prev => ({ ...prev, [employee.id]: !prev[employee.id] }))}
+                                      className={`p-1.5 rounded-lg transition-colors ${classes.hover}`}
+                                    >
+                                      <MoreVertical className={`w-4 h-4 ${classes.textMuted}`} />
+                                    </button>
+                                    {kebabMenuOpen[employee.id] && (
+                                      <div className={`absolute right-0 top-full mt-2 w-48 border ${classes.border} ${classes.bgCard} rounded-lg shadow-xl z-50`}>
+                                        <button
+                                          onClick={() => {
+                                            setKebabMenuOpen(prev => ({ ...prev, [employee.id]: false }));
+                                            setSelectedEmployeeForTransfer(employee);
+                                            setIsTransferModalOpen(true);
+                                          }}
+                                          className={`w-full px-4 py-2 text-left text-sm ${classes.text} ${classes.hover} transition-colors`}
+                                        >
+                                          Transfer to another branch
+                                        </button>
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+          </div>
         </div>
       </div>
 
       {/* Mobile Employee Detail Modal */}
-      {selectedEmployeeForModal && isMobile && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
-          <div className="bg-[#141414] rounded-xl border border-[#262626] w-full max-w-sm">
-            <div className="p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-white">Employee Details</h3>
-                <button
-                  onClick={() => setSelectedEmployeeForModal(null)}
-                  className="text-gray-400 hover:text-white"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-
-              <div className="flex items-center gap-4 mb-6">
-                <ProfileImage
-                  src={constructImageUrl(selectedEmployeeForModal.profileImage)}
-                  name={selectedEmployeeForModal.name}
-                  alt={selectedEmployeeForModal.name}
-                  size="xl"
-                />
-                <div>
-                  <p className="text-white font-semibold text-lg">{selectedEmployeeForModal.name}</p>
-                  <p className="text-gray-400 text-sm">ID: {selectedEmployeeForModal.id}</p>
+      {selectedEmployeeForModal && (
+        <div className="fixed inset-0 bg-black/80 z-[9999] flex items-start justify-center pt-20">
+          <div className={`relative w-full max-w-sm max-h-[70vh] overflow-y-auto rounded-xl border ${classes.border} ${classes.bgCard} mx-4`}>
+              <div className="p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className={`text-lg font-semibold ${classes.text}`}>Employee Details</h3>
+                  <button
+                    onClick={() => setSelectedEmployeeForModal(null)}
+                    className={`${classes.textMuted} ${classes.hover} p-1 rounded-lg transition-colors`}
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
                 </div>
-              </div>
-
-              {/* Status Badge */}
-              <div className="mb-6">
-                {selectedEmployeeForModal.timeIn !== null && selectedEmployeeForModal.timeOut !== null ? (
-                  <span className="inline-flex items-center gap-1 px-3 py-1.5 bg-blue-500/20 text-blue-400 text-sm font-medium rounded-full">
-                    <CheckCircle className="w-4 h-4" />
-                    COMPLETED
-                  </span>
-                ) : selectedEmployeeForModal.timeIn !== null && selectedEmployeeForModal.timeOut === null ? (
-                  <span className="inline-flex items-center gap-1 px-3 py-1.5 bg-green-500/20 text-green-400 text-sm font-medium rounded-full">
-                    <CheckCircle className="w-4 h-4" />
-                    PRESENT
-                  </span>
-                ) : selectedEmployeeForModal.status === 'absent' ? (
-                  <span className="inline-flex items-center gap-1 px-3 py-1.5 bg-red-500/20 text-red-400 text-sm font-medium rounded-full">
-                    <UserX className="w-4 h-4" />
-                    ABSENT
-                  </span>
-                ) : (
-                  <span className="inline-flex items-center gap-1 px-3 py-1.5 bg-[#facc15]/20 text-[#facc15] text-sm font-medium rounded-full">
-                    <Clock className="w-4 h-4" />
-                    AVAILABLE
-                  </span>
-                )}
-              </div>
-
-              {/* Time Details */}
-              <div className="space-y-3 mb-6">
-                <div className="flex justify-between">
-                  <span className="text-gray-400 text-sm">Time In:</span>
-                  <span className="text-white text-sm">{selectedEmployeeForModal.timeIn || '--'}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-400 text-sm">Time Out:</span>
-                  <span className="text-white text-sm">{selectedEmployeeForModal.timeOut || '--'}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-400 text-sm">Total Hours:</span>
-                  <span className="text-white text-sm">{selectedEmployeeForModal.totalHours}</span>
-                </div>
-              </div>
-
-              {/* Action Buttons */}
-              {selectedEmployeeForModal.status !== 'absent' && (
-                <div className="flex flex-col gap-3">
-                  {selectedEmployeeForModal.timeIn !== null && selectedEmployeeForModal.timeOut === null ? (
+                
+                <div className="space-y-4">
+                  <div className="flex items-center gap-4">
+                    <ProfileImage
+                      src={constructImageUrl(selectedEmployeeForModal?.profileImage)}
+                      name={selectedEmployeeForModal?.name || ''}
+                      alt={selectedEmployeeForModal?.name || ''}
+                      size="lg"
+                    />
+                    <div>
+                      <p className={`font-semibold text-lg ${classes.text}`}>{selectedEmployeeForModal?.name}</p>
+                      <p className={`${classes.textMuted} text-sm`}>ID: {selectedEmployeeForModal?.employeeCode || '--'}</p>
+                    </div>
+                  </div>
+                  
+                  <div className={`grid grid-cols-2 gap-4 ${classes.bg} rounded-lg p-4`}>
+                    <div>
+                      <p className={`text-sm ${classes.textMuted} mb-1`}>Time In</p>
+                      <p className={`font-medium ${classes.text}`}>{selectedEmployeeForModal?.timeIn || '--'}</p>
+                    </div>
+                    <div>
+                      <p className={`text-sm ${classes.textMuted} mb-1`}>Time Out</p>
+                      <p className={`font-medium ${classes.text}`}>{selectedEmployeeForModal?.timeOut || '--'}</p>
+                    </div>
+                    <div>
+                      <p className={`text-sm ${classes.textMuted} mb-1`}>Total Hours</p>
+                      <p className={`font-medium ${classes.text}`}>{selectedEmployeeForModal?.totalHours || '0.00'}</p>
+                    </div>
+                    <div>
+                      <p className={`text-sm ${classes.textMuted} mb-1`}>Status</p>
+                      <p className={`font-medium ${classes.text}`}>
+                        {selectedEmployeeForModal?.timeIn !== null && selectedEmployeeForModal?.timeOut !== null ? 'Completed' :
+                         selectedEmployeeForModal?.timeIn !== null && selectedEmployeeForModal?.timeOut === null ? 'Present' :
+                         selectedEmployeeForModal?.status === 'absent' ? 'Absent' : 'Available'}
+                      </p>
+                    </div>
+                  </div>
+                  
+                  {selectedEmployeeForModal?.timeIn !== null && selectedEmployeeForModal?.timeOut === null && (
                     <button
                       onClick={() => {
-                        clockOutMutation.mutate(selectedEmployeeForModal.id);
+                        clockOutMutation.mutate(selectedEmployeeForModal?.id || 0);
                         setSelectedEmployeeForModal(null);
                       }}
                       disabled={clockOutMutation.isPending}
-                      className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 bg-red-500/20 text-red-400 text-sm font-medium rounded-lg hover:bg-red-500/30 transition-colors disabled:opacity-50"
+                      className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors disabled:opacity-50"
                     >
                       {clockOutMutation.isPending ? (
                         <Loader2 className="w-4 h-4 animate-spin" />
@@ -1291,112 +1325,42 @@ export default function AttendancePage() {
                       )}
                       Time Out
                     </button>
-                  ) : selectedEmployeeForModal.timeIn !== null && selectedEmployeeForModal.timeOut !== null ? (
-                    <button
-                      onClick={() => {
-                        // Check if employee's branch differs from selected branch
-                        if (selectedEmployeeForModal.branchCode && selectedEmployeeForModal.branchCode !== selectedBranch) {
-                          // Show auto-transfer confirmation modal
-                          setSelectedEmployeeForAutoTransfer(selectedEmployeeForModal);
-                          setIsAutoTransferModalOpen(true);
-                          setSelectedEmployeeForModal(null);
-                        } else {
-                          // Same branch - normal clock-in
-                          clockInMutation.mutate({ employeeId: selectedEmployeeForModal.id, branchCode: selectedBranch });
-                          setSelectedEmployeeForModal(null);
-                        }
-                      }}
-                      disabled={clockInMutation.isPending}
-                      className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 bg-green-500/20 text-green-400 text-sm font-medium rounded-lg hover:bg-green-500/30 transition-colors disabled:opacity-50"
-                    >
-                      {clockInMutation.isPending ? (
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                      ) : (
-                        <LogIn className="w-4 h-4" />
-                      )}
-                      Time In
-                    </button>
-                  ) : (
-                    <>
-                      <button
-                        onClick={() => {
-                          // Check if employee's branch differs from selected branch
-                          if (selectedEmployeeForModal.branchCode && selectedEmployeeForModal.branchCode !== selectedBranch) {
-                            // Show auto-transfer confirmation modal
-                            setSelectedEmployeeForAutoTransfer(selectedEmployeeForModal);
-                            setIsAutoTransferModalOpen(true);
-                            setSelectedEmployeeForModal(null);
-                          } else {
-                            // Same branch - normal clock-in
-                            clockInMutation.mutate({ employeeId: selectedEmployeeForModal.id, branchCode: selectedBranch });
-                            setSelectedEmployeeForModal(null);
-                          }
-                        }}
-                        disabled={clockInMutation.isPending}
-                        className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 bg-green-500/20 text-green-400 text-sm font-medium rounded-lg hover:bg-green-500/30 transition-colors disabled:opacity-50"
-                      >
-                        {clockInMutation.isPending ? (
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                        ) : (
-                          <LogIn className="w-4 h-4" />
-                        )}
-                        Time In
-                      </button>
-                      <button
-                        onClick={() => {
-                          if (window.confirm(`Mark ${selectedEmployeeForModal.name} as absent for today?`)) {
-                            markIndividualAbsentMutation.mutate(selectedEmployeeForModal.id);
-                            setSelectedEmployeeForModal(null);
-                          }
-                        }}
-                        disabled={markIndividualAbsentMutation.isPending}
-                        className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 bg-red-500/20 text-red-400 text-sm font-medium rounded-lg hover:bg-red-500/30 transition-colors disabled:opacity-50"
-                      >
-                        {markIndividualAbsentMutation.isPending ? (
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                        ) : (
-                          <UserX className="w-4 h-4" />
-                        )}
-                        Mark Absent
-                      </button>
-                    </>
                   )}
                 </div>
-              )}
+              </div>
             </div>
           </div>
-        </div>
       )}
 
       {/* Employee Pagination Controls - Mobile Simplified */}
       {filteredEmployees.length > employeesPerPage && (
-        <div className="flex flex-col sm:flex-row items-center justify-between px-4 py-4 border-t border-[#262626] gap-4">
-          <span className="text-sm text-gray-500">
+        <div className={`flex flex-col sm:flex-row items-center justify-between px-4 py-4 border-t ${classes.border} gap-4`}>
+          <span className={`text-sm ${classes.textMuted}`}>
             {indexOfFirstEmployee + 1}-{Math.min(indexOfLastEmployee, filteredEmployees.length)} of {filteredEmployees.length}
           </span>
           <div className="flex items-center gap-2">
             <button
               onClick={() => setEmployeeCurrentPage(prev => Math.max(1, prev - 1))}
               disabled={employeeCurrentPage === 1}
-              className="p-2 rounded-lg bg-[#1a1a1a] border border-[#262626] text-gray-400 hover:border-[#facc15] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className={`p-2 rounded-lg ${classes.border} border ${classes.hover} ${classes.text} disabled:opacity-50 disabled:cursor-not-allowed transition-colors`}
               title="Previous page (Arrow Left)"
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
-            <span className="text-sm text-gray-400 px-2">
+            <span className={`text-sm ${classes.text} px-2`}>
               {employeeCurrentPage}/{employeeTotalPages}
             </span>
             <button
               onClick={() => setEmployeeCurrentPage(prev => Math.min(employeeTotalPages, prev + 1))}
               disabled={employeeCurrentPage === employeeTotalPages}
-              className="p-2 rounded-lg bg-[#1a1a1a] border border-[#262626] text-gray-400 hover:border-[#facc15] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className={`p-2 rounded-lg ${classes.border} border ${classes.hover} ${classes.text} disabled:opacity-50 disabled:cursor-not-allowed transition-colors`}
               title="Next page (Arrow Right)"
             >
               <ChevronRight className="w-4 h-4" />
             </button>
           </div>
           <div className="flex items-center gap-2">
-            <span className="text-sm text-gray-500">Go to:</span>
+            <span className={`text-sm ${classes.textMuted}`}>Go to:</span>
             <input
               type="number"
               min="1"
@@ -1408,12 +1372,12 @@ export default function AttendancePage() {
                   setEmployeeCurrentPage(page);
                 }
               }}
-              className="w-16 bg-[#1a1a1a] border border-[#262626] rounded-lg px-2 py-1.5 text-sm text-gray-400 focus:outline-none focus:border-[#facc15]"
+              className={`w-16 ${classes.border} border rounded-lg px-2 py-1.5 text-sm ${classes.bg} ${classes.text} focus:outline-none focus:ring-2 focus:ring-yellow-500/50`}
               placeholder="1"
             />
           </div>
           <div className="flex items-center gap-2">
-            <span className="text-sm text-gray-500">Show:</span>
+            <span className={`text-sm ${classes.textMuted}`}>Show:</span>
             <select
               value={employeesPerPage}
               onChange={(e) => {
@@ -1422,7 +1386,7 @@ export default function AttendancePage() {
                 localStorage.setItem('employeesPerPage', newSize.toString());
                 setEmployeeCurrentPage(1);
               }}
-              className="bg-[#1a1a1a] border border-[#262626] rounded-lg px-2 py-1 text-sm text-gray-400 focus:outline-none focus:border-[#facc15]"
+              className={`${classes.border} border rounded-lg px-2 py-1 text-sm ${classes.bg} ${classes.text} focus:outline-none focus:ring-2 focus:ring-yellow-500/50`}
             >
               <option value={10}>10</option>
               <option value={20}>20</option>
@@ -1434,23 +1398,23 @@ export default function AttendancePage() {
       )}
 
       {/* Quick Tips */}
-      <div className="bg-[#141414] rounded-xl border border-[#262626] p-4 sm:p-6">
+      <div className={`rounded-xl border ${classes.border} ${classes.bgCard} p-4 sm:p-6`}>
         <div className="flex items-center gap-2 mb-4">
-          <Lightbulb className="w-5 h-5 text-[#facc15]" />
-          <h3 className="text-[#facc15] font-semibold">Quick Tips</h3>
+          <Lightbulb className={`w-5 h-5 ${classes.textAccent}`} />
+          <h3 className={`font-semibold ${classes.text}`}>Quick Tips</h3>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
-          <div className="text-gray-400">
-            <span className="text-[#facc15] font-medium">Select a Project:</span> You must select a deployment project first to view and manage its employees.
+        <div className={`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-sm ${classes.text}`}>
+          <div>
+            <span className={`font-medium ${classes.textAccent}`}>Select a Project:</span> You must select a deployment project first to view and manage its employees.
           </div>
-          <div className="text-gray-400">
-            <span className="text-[#facc15] font-medium">Marking Attendance:</span> Use the <span className="text-green-400">Time In</span> and <span className="text-red-400">Mark Absent</span> buttons to record daily attendance.
+          <div>
+            <span className={`font-medium ${classes.textAccent}`}>Marking Attendance:</span> Use the <span className="text-green-600 font-medium">Time In</span> and <span className="text-red-600 font-medium">Mark Absent</span> buttons to record daily attendance.
           </div>
-          <div className="text-gray-400">
-            <span className="text-[#facc15] font-medium">Search:</span> You can search for specific employees within the selected project by name or ID.
+          <div>
+            <span className={`font-medium ${classes.textAccent}`}>Search:</span> You can search for specific employees within the selected project by name or ID.
           </div>
-          <div className="text-gray-400">
-            <span className="text-[#facc15] font-medium">Undo:</span> If you make a mistake, look for the &quot;Undo&quot; button to revert the last action.
+          <div>
+            <span className={`font-medium ${classes.textAccent}`}>Undo:</span> If you make a mistake, look for the &quot;Undo&quot; button to revert the last action.
           </div>
         </div>
       </div>
@@ -1458,15 +1422,15 @@ export default function AttendancePage() {
       {/* Transfer Modal */}
       {isTransferModalOpen && selectedEmployeeForTransfer && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-          <div className="w-full max-w-md bg-[#141414] rounded-2xl border border-[#262626] shadow-2xl overflow-hidden">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-[#262626]">
+          <div className={`w-full max-w-md rounded-2xl border ${classes.border} ${classes.bgCard} shadow-2xl overflow-hidden`}>
+            <div className={`flex items-center justify-between px-6 py-4 border-b ${classes.border}`}>
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-[#facc15]/20 flex items-center justify-center">
-                  <UserCheck className="w-5 h-5 text-[#facc15]" />
+                <div className="w-10 h-10 rounded-full bg-yellow-100 flex items-center justify-center">
+                  <UserCheck className={`w-5 h-5 ${classes.textAccent}`} />
                 </div>
                 <div>
-                  <h2 className="text-xl font-bold text-white">Transfer Employee</h2>
-                  <p className="text-sm text-gray-400">{selectedEmployeeForTransfer.name}</p>
+                  <h2 className={`text-xl font-bold ${classes.text}`}>Transfer Employee</h2>
+                  <p className={`text-sm ${classes.textMuted}`}>{selectedEmployeeForTransfer.name}</p>
                 </div>
               </div>
               <button
@@ -1474,7 +1438,7 @@ export default function AttendancePage() {
                   setIsTransferModalOpen(false);
                   setSelectedEmployeeForTransfer(null);
                 }}
-                className="p-2 hover:bg-red-500/20 text-gray-400 hover:text-red-400 rounded-lg transition-colors"
+                className={`p-2 hover:bg-red-100 hover:text-red-600 rounded-lg transition-colors ${classes.textMuted}`}
               >
                 <X className="w-5 h-5" />
               </button>
@@ -1482,17 +1446,17 @@ export default function AttendancePage() {
 
             <div className="p-6 space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-400 mb-2">Current Branch</label>
-                <div className="px-4 py-3 bg-[#1a1a1a] border border-[#262626] rounded-lg text-white">
+                <label className={`block text-sm font-medium ${classes.text} mb-2`}>Current Branch</label>
+                <div className={`px-4 py-3 ${classes.bg} border ${classes.border} rounded-lg ${classes.textMuted}`}>
                   {selectedEmployeeForTransfer.branchName || 'Not assigned'}
                 </div>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-400 mb-2">Destination Branch</label>
+                <label className={`block text-sm font-medium ${classes.text} mb-2`}>Destination Branch</label>
                 <select
                   id="destinationBranch"
-                  className="w-full px-4 py-3 bg-[#1a1a1a] border border-[#262626] rounded-lg text-white focus:outline-none focus:border-[#facc15]"
+                  className={`w-full px-4 py-3 ${classes.bg} border ${classes.border} rounded-lg ${classes.text} focus:outline-none focus:ring-2 focus:ring-yellow-500/50`}
                   defaultValue=""
                 >
                   <option value="">Select a branch...</option>
@@ -1507,23 +1471,23 @@ export default function AttendancePage() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-400 mb-2">Transfer Reason (Optional)</label>
+                <label className={`block text-sm font-medium ${classes.text} mb-2`}>Transfer Reason (Optional)</label>
                 <textarea
                   id="transferReason"
                   rows={3}
                   placeholder="Why is this employee being transferred?"
-                  className="w-full px-4 py-3 bg-[#1a1a1a] border border-[#262626] rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-[#facc15] resize-none"
+                  className={`w-full px-4 py-3 ${classes.bg} border ${classes.border} rounded-lg ${classes.text} placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-yellow-500/50 resize-none`}
                 />
               </div>
             </div>
 
-            <div className="flex items-center gap-3 px-6 py-4 border-t border-[#262626]">
+            <div className={`flex items-center gap-3 px-6 py-4 border-t ${classes.border}`}>
               <button
                 onClick={() => {
                   setIsTransferModalOpen(false);
                   setSelectedEmployeeForTransfer(null);
                 }}
-                className="flex-1 px-4 py-3 bg-[#1a1a1a] border border-[#262626] text-gray-400 rounded-lg hover:border-[#404040] transition-colors"
+                className={`flex-1 px-4 py-3 border ${classes.border} ${classes.text} rounded-lg ${classes.hover} transition-colors`}
               >
                 Cancel
               </button>
@@ -1565,15 +1529,15 @@ export default function AttendancePage() {
       {/* Auto-Transfer Confirmation Modal */}
       {isAutoTransferModalOpen && selectedEmployeeForAutoTransfer && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-          <div className="w-full max-w-md bg-[#141414] rounded-2xl border border-[#262626] shadow-2xl overflow-hidden">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-[#262626]">
+          <div className={`w-full max-w-md rounded-2xl border ${classes.border} ${classes.bgCard} shadow-2xl overflow-hidden`}>
+            <div className={`flex items-center justify-between px-6 py-4 border-b ${classes.border}`}>
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-[#facc15]/20 flex items-center justify-center">
-                  <UserCheck className="w-5 h-5 text-[#facc15]" />
+                <div className="w-10 h-10 rounded-full bg-yellow-100 flex items-center justify-center">
+                  <UserCheck className={`w-5 h-5 ${classes.textAccent}`} />
                 </div>
                 <div>
-                  <h2 className="text-xl font-bold text-white">Transfer Employee</h2>
-                  <p className="text-sm text-gray-400">{selectedEmployeeForAutoTransfer.name}</p>
+                  <h2 className={`text-xl font-bold ${classes.text}`}>Transfer Employee</h2>
+                  <p className={`text-sm ${classes.textMuted}`}>{selectedEmployeeForAutoTransfer.name}</p>
                 </div>
               </div>
               <button
@@ -1581,7 +1545,7 @@ export default function AttendancePage() {
                   setIsAutoTransferModalOpen(false);
                   setSelectedEmployeeForAutoTransfer(null);
                 }}
-                className="p-2 hover:bg-red-500/20 text-gray-400 hover:text-red-400 rounded-lg transition-colors"
+                className={`p-2 hover:bg-red-100 hover:text-red-600 rounded-lg transition-colors ${classes.textMuted}`}
               >
                 <X className="w-5 h-5" />
               </button>
@@ -1589,25 +1553,25 @@ export default function AttendancePage() {
 
             <div className="p-6 space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-400 mb-2">Current Branch</label>
-                <div className="px-4 py-3 bg-[#1a1a1a] border border-[#262626] rounded-lg text-white">
+                <label className={`block text-sm font-medium ${classes.text} mb-2`}>Current Branch</label>
+                <div className={`px-4 py-3 ${classes.bg} border ${classes.border} rounded-lg ${classes.textMuted}`}>
                   {selectedEmployeeForAutoTransfer.branchName || 'Not assigned'}
                 </div>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-400 mb-2">Target Branch</label>
-                <div className="px-4 py-3 bg-[#1a1a1a] border border-[#262626] rounded-lg text-white">
+                <label className={`block text-sm font-medium ${classes.text} mb-2`}>Target Branch</label>
+                <div className={`px-4 py-3 ${classes.bg} border ${classes.border} rounded-lg ${classes.textMuted}`}>
                   {branches.find(b => b.code === selectedBranch)?.shortName || selectedBranch}
                 </div>
               </div>
 
-              <p className="text-sm text-gray-400">
+              <p className={`text-sm ${classes.textMuted}`}>
                 This employee will be clocked in and transferred to the target branch.
               </p>
             </div>
 
-            <div className="flex items-center gap-3 px-6 py-4 border-t border-[#262626]">
+            <div className={`flex items-center gap-3 px-6 py-4 border-t ${classes.border}`}>
               <button
                 onClick={() => {
                   setIsAutoTransferModalOpen(false);
@@ -1615,7 +1579,7 @@ export default function AttendancePage() {
                   // Show error message directing to clock in at assigned branch
                   alert(`please click ${selectedEmployeeForAutoTransfer.branchName || 'assigned branch'} to clock in ${selectedEmployeeForAutoTransfer.name}`);
                 }}
-                className="flex-1 px-4 py-3 bg-[#1a1a1a] border border-[#262626] text-gray-400 rounded-lg hover:border-[#404040] transition-colors"
+                className={`flex-1 px-4 py-3 border ${classes.border} ${classes.text} rounded-lg ${classes.hover} transition-colors`}
               >
                 Cancel
               </button>

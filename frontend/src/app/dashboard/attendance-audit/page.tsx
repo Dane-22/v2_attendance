@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
+import { useTheme } from '@/hooks/useTheme';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { createPortal } from 'react-dom';
 import { attendanceApi, branchApi, Attendance } from '@/lib/api';
@@ -282,9 +283,9 @@ function EmployeeAttendanceModal({
   const getStatusColor = (status: string | null | undefined) => {
     switch (status) {
       case 'present': return 'bg-green-500/30 border-green-500/50';
-      case 'late': return 'bg-[#facc15]/30 border-[#facc15]/50';
+      case 'late': return 'bg-[#facc15]/30 /50';
       case 'absent': return 'bg-red-500/30 border-red-500/50';
-      default: return 'bg-[#1a1a1a] border-[#262626]';
+      default: return ' ';
     }
   };
   
@@ -299,16 +300,16 @@ function EmployeeAttendanceModal({
   
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-      <div className="w-full max-w-4xl bg-[#141414] rounded-2xl border border-[#262626] shadow-2xl overflow-hidden">
+      <div className="w-full max-w-4xl  rounded-2xl border  shadow-2xl overflow-hidden">
         {/* Modal Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[#262626]">
+        <div className="flex items-center justify-between px-6 py-4 border-b ">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-full bg-[#facc15]/20 flex items-center justify-center">
-              <User className="w-5 h-5 text-[#facc15]" />
+              <User className="w-5 h-5 " />
             </div>
             <div>
-              <h2 className="text-xl font-bold text-white">{employee.name}</h2>
-              <span className="inline-flex items-center px-2 py-0.5 bg-[#facc15]/20 text-[#facc15] text-xs font-medium rounded">
+              <h2 className="text-xl font-bold ">{employee.name}</h2>
+              <span className="inline-flex items-center px-2 py-0.5 bg-[#facc15]/20  text-xs font-medium rounded">
                 WORKER
               </span>
             </div>
@@ -320,21 +321,21 @@ function EmployeeAttendanceModal({
                 onClick={() => navigateMonth('prev')}
                 className="p-2 hover:bg-[#262626] rounded-lg transition-colors"
               >
-                <ChevronLeft className="w-5 h-5 text-gray-400" />
+                <ChevronLeft className="w-5 h-5 " />
               </button>
-              <span className="text-white font-medium min-w-[120px] text-center">
+              <span className=" font-medium min-w-[120px] text-center">
                 {monthNames[modalMonth]} {modalYear}
               </span>
               <button 
                 onClick={() => navigateMonth('next')}
                 className="p-2 hover:bg-[#262626] rounded-lg transition-colors"
               >
-                <ChevronRight className="w-5 h-5 text-gray-400" />
+                <ChevronRight className="w-5 h-5 " />
               </button>
             </div>
             <button 
               onClick={onClose}
-              className="p-2 hover:bg-red-500/20 text-gray-400 hover:text-red-400 rounded-lg transition-colors"
+              className="p-2 hover:bg-red-500/20  hover:text-red-400 rounded-lg transition-colors"
             >
               <X className="w-5 h-5" />
             </button>
@@ -345,7 +346,7 @@ function EmployeeAttendanceModal({
         <div className="p-6">
           <div className="grid grid-cols-7 gap-2 mb-2">
             {['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'].map(day => (
-              <div key={day} className="text-center text-xs text-gray-500 py-2 font-medium">
+              <div key={day} className="text-center text-xs  py-2 font-medium">
                 {day}
               </div>
             ))}
@@ -358,8 +359,8 @@ function EmployeeAttendanceModal({
                   item.prevMonth || item.nextMonth
                     ? 'bg-transparent border-transparent text-gray-600'
                     : item.record?.records && item.record.records.length > 0
-                    ? `${getStatusColor(item.record.records[0].status)} text-white`
-                    : 'bg-[#1a1a1a] border-[#262626] text-gray-500'
+                    ? `${getStatusColor(item.record.records[0].status)} `
+                    : '  '
                 }`}
               >
                 <div className="flex flex-col h-full justify-between">
@@ -368,15 +369,15 @@ function EmployeeAttendanceModal({
                     <div className="text-[9px] leading-tight">
                       {/* Show first record */}
                       <div className="text-gray-300">{item.record.records[0].timeIn}</div>
-                      <div className="text-gray-400">{item.record.records[0].timeOut}</div>
-                      <div className="flex items-center gap-0.5 mt-0.5 text-gray-500">
+                      <div className="">{item.record.records[0].timeOut}</div>
+                      <div className="flex items-center gap-0.5 mt-0.5 ">
                         <MapPin className="w-2 h-2" />
                         <span className="truncate">{item.record.records[0].location}</span>
                       </div>
                       {/* Show count if multiple records - clickable */}
                       {item.record.records.length > 1 && (
                         <div 
-                          className="text-[#facc15] mt-0.5 cursor-pointer hover:text-yellow-400 hover:underline"
+                          className=" mt-0.5 cursor-pointer hover:text-yellow-400 hover:underline"
                           onClick={(e) => {
                             e.stopPropagation();
                             setSelectedDay(item.day);
@@ -387,16 +388,16 @@ function EmployeeAttendanceModal({
                       )}
                       <div className={`mt-1 font-medium ${
                         item.record.records[0].status === 'present' ? 'text-green-400' :
-                        item.record.records[0].status === 'late' ? 'text-[#facc15]' :
-                        item.record.records[0].status === 'absent' ? 'text-red-400' : 'text-gray-400'
+                        item.record.records[0].status === 'late' ? '' :
+                        item.record.records[0].status === 'absent' ? 'text-red-400' : ''
                       }`}>
                         {getStatusText(item.record.records[0].status)}
                       </div>
                       {/* Summary if multiple records with different statuses */}
                       {(item.record.summary.present > 0 || item.record.summary.late > 0 || item.record.summary.absent > 0) && (
-                        <div className="mt-1 pt-1 border-t border-[#262626] flex gap-1 text-[8px]">
+                        <div className="mt-1 pt-1 border-t  flex gap-1 text-[8px]">
                           {item.record.summary.present > 0 && <span className="text-green-400">{item.record.summary.present}P</span>}
-                          {item.record.summary.late > 0 && <span className="text-[#facc15]">{item.record.summary.late}L</span>}
+                          {item.record.summary.late > 0 && <span className="">{item.record.summary.late}L</span>}
                           {item.record.summary.absent > 0 && <span className="text-red-400">{item.record.summary.absent}A</span>}
                         </div>
                       )}
@@ -414,36 +415,36 @@ function EmployeeAttendanceModal({
         {/* Selected Day Details */}
         {selectedDay && attendanceHistory[selectedDay] && (
           <div className="px-6 pb-4">
-            <div className="bg-[#1a1a1a] rounded-lg border border-[#262626] p-4">
+            <div className=" rounded-lg border  p-4">
               <div className="flex items-center justify-between mb-3">
-                <h3 className="text-white font-medium">
+                <h3 className=" font-medium">
                   {monthNames[modalMonth]} {selectedDay}, {modalYear} - All Records ({attendanceHistory[selectedDay].records.length})
                 </h3>
                 <button 
                   onClick={() => setSelectedDay(null)}
-                  className="p-1 hover:bg-red-500/20 text-gray-400 hover:text-red-400 rounded transition-colors"
+                  className="p-1 hover:bg-red-500/20  hover:text-red-400 rounded transition-colors"
                 >
                   <X className="w-4 h-4" />
                 </button>
               </div>
               <div className="space-y-2 max-h-[200px] overflow-y-auto">
                 {attendanceHistory[selectedDay].records.map((record, ridx) => (
-                  <div key={ridx} className="flex items-center justify-between py-2 px-3 bg-[#141414] rounded border border-[#262626]">
+                  <div key={ridx} className="flex items-center justify-between py-2 px-3  rounded border ">
                     <div className="flex items-center gap-3">
                       <span className={`text-xs px-2 py-0.5 rounded border ${
                         record.status === 'present' ? 'text-green-400 border-green-500/30 bg-green-500/10' :
-                        record.status === 'late' ? 'text-[#facc15] border-[#facc15]/30 bg-[#facc15]/10' :
+                        record.status === 'late' ? '  ' :
                         record.status === 'absent' ? 'text-red-400 border-red-500/30 bg-red-500/10' :
-                        'text-gray-400 border-gray-500/30 bg-gray-500/10'
+                        ' border-gray-500/30 bg-gray-500/10'
                       }`}>
                         {record.status || 'No Record'}
                       </span>
-                      <div className="flex items-center gap-1 text-gray-500">
+                      <div className="flex items-center gap-1 ">
                         <MapPin className="w-3 h-3" />
                         <span className="text-xs">{record.location}</span>
                       </div>
                     </div>
-                    <div className="text-xs text-gray-400">
+                    <div className="text-xs ">
                       {record.timeIn} - {record.timeOut}
                     </div>
                   </div>
@@ -454,22 +455,22 @@ function EmployeeAttendanceModal({
         )}
 
         {/* Legend */}
-        <div className="flex items-center justify-center gap-6 px-6 py-4 border-t border-[#262626] text-xs">
+        <div className="flex items-center justify-center gap-6 px-6 py-4 border-t  text-xs">
           <div className="flex items-center gap-2">
             <div className="w-4 h-4 rounded bg-green-500/30 border border-green-500/50" />
-            <span className="text-gray-400">Present</span>
+            <span className="">Present</span>
           </div>
           <div className="flex items-center gap-2">
-            <div className="w-4 h-4 rounded bg-[#facc15]/30 border border-[#facc15]/50" />
-            <span className="text-gray-400">Late</span>
+            <div className="w-4 h-4 rounded bg-[#facc15]/30 border /50" />
+            <span className="">Late</span>
           </div>
           <div className="flex items-center gap-2">
             <div className="w-4 h-4 rounded bg-red-500/30 border border-red-500/50" />
-            <span className="text-gray-400">Absent</span>
+            <span className="">Absent</span>
           </div>
           <div className="flex items-center gap-2">
-            <div className="w-4 h-4 rounded bg-[#1a1a1a] border border-[#262626]" />
-            <span className="text-gray-400">No Record</span>
+            <div className="w-4 h-4 rounded  border " />
+            <span className="">No Record</span>
           </div>
         </div>
       </div>
@@ -651,24 +652,24 @@ function BranchAttendanceModal({
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'present': return 'text-green-400';
-      case 'late': return 'text-[#facc15]';
+      case 'late': return '';
       case 'absent': return 'text-red-400';
-      default: return 'text-gray-400';
+      default: return '';
     }
   };
 
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-      <div className="w-full max-w-7xl bg-[#141414] rounded-2xl border border-[#262626] shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
+      <div className="w-full max-w-7xl  rounded-2xl border  shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
         {/* Modal Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[#262626]">
+        <div className="flex items-center justify-between px-6 py-4 border-b ">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-full bg-[#facc15]/20 flex items-center justify-center">
-              <Building2 className="w-5 h-5 text-[#facc15]" />
+              <Building2 className="w-5 h-5 " />
             </div>
             <div>
-              <h2 className="text-xl font-bold text-white">{branch}</h2>
-              <span className="inline-flex items-center px-2 py-0.5 bg-[#facc15]/20 text-[#facc15] text-xs font-medium rounded">
+              <h2 className="text-xl font-bold ">{branch}</h2>
+              <span className="inline-flex items-center px-2 py-0.5 bg-[#facc15]/20  text-xs font-medium rounded">
                 ALL EMPLOYEES
               </span>
             </div>
@@ -679,21 +680,21 @@ function BranchAttendanceModal({
                 onClick={() => navigateMonth('prev')}
                 className="p-2 hover:bg-[#262626] rounded-lg transition-colors"
               >
-                <ChevronLeft className="w-5 h-5 text-gray-400" />
+                <ChevronLeft className="w-5 h-5 " />
               </button>
-              <span className="text-white font-medium min-w-[120px] text-center">
+              <span className=" font-medium min-w-[120px] text-center">
                 {monthNames[modalMonth]} {modalYear}
               </span>
               <button
                 onClick={() => navigateMonth('next')}
                 className="p-2 hover:bg-[#262626] rounded-lg transition-colors"
               >
-                <ChevronRight className="w-5 h-5 text-gray-400" />
+                <ChevronRight className="w-5 h-5 " />
               </button>
             </div>
             <button
               onClick={onClose}
-              className="p-2 hover:bg-red-500/20 text-gray-400 hover:text-red-400 rounded-lg transition-colors"
+              className="p-2 hover:bg-red-500/20  hover:text-red-400 rounded-lg transition-colors"
             >
               <X className="w-5 h-5" />
             </button>
@@ -704,7 +705,7 @@ function BranchAttendanceModal({
         <div className="p-6 overflow-y-auto">
           <div className="grid grid-cols-7 gap-2 mb-2">
             {['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'].map(day => (
-              <div key={day} className="text-center text-xs text-gray-500 py-2 font-medium bg-[#1a1a1a] rounded">
+              <div key={day} className="text-center text-xs  py-2 font-medium  rounded">
                 {day}
               </div>
             ))}
@@ -719,14 +720,14 @@ function BranchAttendanceModal({
                     item.prevMonth || item.nextMonth
                       ? 'bg-transparent border-transparent'
                       : selectedDay === item.day
-                      ? 'bg-[#facc15]/10 border-[#facc15]'
-                      : 'bg-[#1a1a1a] border-[#262626] hover:border-[#404040]'
+                      ? ' '
+                      : '  hover:'
                   }`}
                   onClick={() => item.isCurrentMonth && setSelectedDay(item.day)}
                 >
                   {item.isCurrentMonth && (
                     <div className="flex flex-col h-full">
-                      <span className="text-sm font-medium text-white mb-2">{item.day}</span>
+                      <span className="text-sm font-medium  mb-2">{item.day}</span>
                       {dayData && dayData.summary.total > 0 && (
                         <div className="flex-1 space-y-1 overflow-hidden">
                           {dayData.records.slice(0, 4).map((record, ridx) => (
@@ -736,7 +737,7 @@ function BranchAttendanceModal({
                           ))}
                           {dayData.records.length > 4 && (
                             <div 
-                              className="text-[10px] text-[#facc15] hover:text-yellow-400 cursor-pointer"
+                              className="text-[10px]  hover:text-yellow-400 cursor-pointer"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 setSelectedDay(item.day);
@@ -748,9 +749,9 @@ function BranchAttendanceModal({
                         </div>
                       )}
                       {dayData && dayData.summary.total > 0 && (
-                        <div className="mt-1 pt-1 border-t border-[#262626] text-[9px] text-gray-500 flex justify-between">
+                        <div className="mt-1 pt-1 border-t  text-[9px]  flex justify-between">
                           <span className="text-green-400">{dayData.summary.present} P</span>
-                          <span className="text-[#facc15]">{dayData.summary.late} L</span>
+                          <span className="">{dayData.summary.late} L</span>
                           <span className="text-red-400">{dayData.summary.absent} A</span>
                         </div>
                       )}
@@ -763,14 +764,14 @@ function BranchAttendanceModal({
 
           {/* Selected Day Details */}
           {selectedDay && (
-            <div className="mt-4 p-4 bg-[#1a1a1a] rounded-lg border border-[#262626]">
+            <div className="mt-4 p-4  rounded-lg border ">
               <div className="flex items-center justify-between mb-3">
-                <h3 className="text-white font-medium">
+                <h3 className=" font-medium">
                   {monthNames[modalMonth]} {selectedDay}, {modalYear} - All Records
                 </h3>
                 <button 
                   onClick={() => setSelectedDay(null)}
-                  className="p-1 hover:bg-red-500/20 text-gray-400 hover:text-red-400 rounded transition-colors"
+                  className="p-1 hover:bg-red-500/20  hover:text-red-400 rounded transition-colors"
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -780,21 +781,21 @@ function BranchAttendanceModal({
                 return dayData.records.length > 0 ? (
                   <div className="space-y-2 max-h-[300px] overflow-y-auto">
                     {dayData.records.map((record, ridx) => (
-                      <div key={ridx} className="flex items-center justify-between py-2 px-3 bg-[#141414] rounded border border-[#262626]">
+                      <div key={ridx} className="flex items-center justify-between py-2 px-3  rounded border ">
                         <div className="flex items-center gap-3">
                           <span className={getStatusColor(record.status || '')}>{record.name}</span>
                           <span className={`text-[10px] px-2 py-0.5 rounded border ${getStatusColor(record.status || '')}`}>
                             {record.status || 'No Record'}
                           </span>
                         </div>
-                        <div className="text-[10px] text-gray-400">
+                        <div className="text-[10px] ">
                           {record.timeIn} - {record.timeOut}
                         </div>
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <p className="text-gray-500 text-sm">No records for this day</p>
+                  <p className=" text-sm">No records for this day</p>
                 );
               })()}
             </div>
@@ -802,18 +803,18 @@ function BranchAttendanceModal({
         </div>
 
         {/* Legend */}
-        <div className="flex items-center justify-center gap-6 px-6 py-4 border-t border-[#262626] text-xs">
+        <div className="flex items-center justify-center gap-6 px-6 py-4 border-t  text-xs">
           <div className="flex items-center gap-2">
             <div className="w-4 h-4 rounded bg-green-500/30 border border-green-500/50" />
-            <span className="text-gray-400">Present</span>
+            <span className="">Present</span>
           </div>
           <div className="flex items-center gap-2">
-            <div className="w-4 h-4 rounded bg-[#facc15]/30 border border-[#facc15]/50" />
-            <span className="text-gray-400">Late</span>
+            <div className="w-4 h-4 rounded bg-[#facc15]/30 border /50" />
+            <span className="">Late</span>
           </div>
           <div className="flex items-center gap-2">
             <div className="w-4 h-4 rounded bg-red-500/30 border border-red-500/50" />
-            <span className="text-gray-400">Absent</span>
+            <span className="">Absent</span>
           </div>
         </div>
       </div>
@@ -878,38 +879,38 @@ function DayDetailsModal({
   const getStatusColor = (status: string | null) => {
     switch (status) {
       case 'present': return 'text-green-400';
-      case 'late': return 'text-[#facc15]';
+      case 'late': return '';
       case 'absent': return 'text-red-400';
-      default: return 'text-gray-400';
+      default: return '';
     }
   };
 
   const getStatusBg = (status: string | null) => {
     switch (status) {
       case 'present': return 'bg-green-500/20 border-green-500/30';
-      case 'late': return 'bg-[#facc15]/20 border-[#facc15]/30';
+      case 'late': return 'bg-[#facc15]/20 ';
       case 'absent': return 'bg-red-500/20 border-red-500/30';
-      default: return 'bg-[#1a1a1a] border-[#262626]';
+      default: return ' ';
     }
   };
 
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-      <div className="w-full max-w-4xl bg-[#141414] rounded-2xl border border-[#262626] shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
+      <div className="w-full max-w-4xl  rounded-2xl border  shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
         {/* Modal Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[#262626]">
+        <div className="flex items-center justify-between px-6 py-4 border-b ">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-full bg-[#facc15]/20 flex items-center justify-center">
-              <FileText className="w-5 h-5 text-[#facc15]" />
+              <FileText className="w-5 h-5 " />
             </div>
             <div>
-              <h2 className="text-xl font-bold text-white">{displayDate}</h2>
-              <span className="text-sm text-gray-400">{dayRecords.length} records</span>
+              <h2 className="text-xl font-bold ">{displayDate}</h2>
+              <span className="text-sm ">{dayRecords.length} records</span>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-2 hover:bg-red-500/20 text-gray-400 hover:text-red-400 rounded-lg transition-colors"
+            className="p-2 hover:bg-red-500/20  hover:text-red-400 rounded-lg transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
@@ -919,33 +920,33 @@ function DayDetailsModal({
         <div className="p-6 overflow-y-auto flex-1">
           {dayRecords.length === 0 ? (
             <div className="text-center py-12">
-              <p className="text-gray-500">No records found for this date</p>
+              <p className="">No records found for this date</p>
             </div>
           ) : (
             <div className="space-y-3">
               {dayRecords.map((record: Attendance) => (
-                <div key={record.id} className="bg-[#1a1a1a] rounded-lg border border-[#262626] p-4">
+                <div key={record.id} className=" rounded-lg border  p-4">
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-2">
-                        <span className="text-white font-medium">Employee ID: {record.employeeId}</span>
+                        <span className=" font-medium">Employee ID: {record.employeeId}</span>
                         <span className={`px-2 py-0.5 rounded text-xs font-medium border ${getStatusBg(record.status)} ${getStatusColor(record.status)}`}>
                           {record.status || 'No Record'}
                         </span>
                       </div>
                       <div className="grid grid-cols-3 gap-4 text-sm">
                         <div>
-                          <span className="text-gray-500">Branch:</span>
+                          <span className="">Branch:</span>
                           <span className="text-gray-300 ml-2">{record.branch_code || '-'}</span>
                         </div>
                         <div>
-                          <span className="text-gray-500">Check In:</span>
+                          <span className="">Check In:</span>
                           <span className="text-gray-300 ml-2">
                             {record.check_in ? new Date(record.check_in).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : '-'}
                           </span>
                         </div>
                         <div>
-                          <span className="text-gray-500">Check Out:</span>
+                          <span className="">Check Out:</span>
                           <span className="text-gray-300 ml-2">
                             {record.check_out ? new Date(record.check_out).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : '-'}
                           </span>
@@ -960,18 +961,18 @@ function DayDetailsModal({
         </div>
 
         {/* Legend */}
-        <div className="flex items-center justify-center gap-6 px-6 py-4 border-t border-[#262626] text-xs">
+        <div className="flex items-center justify-center gap-6 px-6 py-4 border-t  text-xs">
           <div className="flex items-center gap-2">
             <div className="w-4 h-4 rounded bg-green-500/20 border border-green-500/30" />
-            <span className="text-gray-400">Present</span>
+            <span className="">Present</span>
           </div>
           <div className="flex items-center gap-2">
-            <div className="w-4 h-4 rounded bg-[#facc15]/20 border border-[#facc15]/30" />
-            <span className="text-gray-400">Late</span>
+            <div className="w-4 h-4 rounded bg-[#facc15]/20 border " />
+            <span className="">Late</span>
           </div>
           <div className="flex items-center gap-2">
             <div className="w-4 h-4 rounded bg-red-500/20 border border-red-500/30" />
-            <span className="text-gray-400">Absent</span>
+            <span className="">Absent</span>
           </div>
         </div>
       </div>
@@ -990,6 +991,8 @@ function ScheduleModal({
   isOpen: boolean;
   onClose: () => void;
 }) {
+  const [currentWeek, setCurrentWeek] = useState(20); // Week starting April 20
+
   // Prevent body scroll when modal is open
   useEffect(() => {
     if (isOpen) {
@@ -1002,9 +1005,13 @@ function ScheduleModal({
     };
   }, [isOpen]);
 
-  if (!isOpen || !employee) return null;
+  useEffect(() => {
+    if (isOpen) {
+      setCurrentWeek(20);
+    }
+  }, [isOpen, employee?.id]);
 
-  const [currentWeek, setCurrentWeek] = useState(20); // Week starting April 20
+  if (!isOpen || !employee) return null;
 
   // Generate week days (Sun-Sat)
   const weekDays = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
@@ -1051,10 +1058,10 @@ function ScheduleModal({
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'present': return 'bg-green-500/20 text-green-400 border-green-500/30';
-      case 'late': return 'bg-[#facc15]/20 text-[#facc15] border-[#facc15]/30';
+      case 'late': return 'bg-[#facc15]/20  ';
       case 'absent': return 'bg-red-500/20 text-red-400 border-red-500/30';
-      case 'restday': return 'bg-gray-500/10 text-gray-500 border-gray-500/20';
-      default: return 'bg-[#1a1a1a] text-gray-400 border-[#262626]';
+      case 'restday': return 'bg-gray-500/10  border-gray-500/20';
+      default: return '  ';
     }
   };
 
@@ -1070,42 +1077,42 @@ function ScheduleModal({
 
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-      <div className="w-full max-w-6xl bg-[#141414] rounded-2xl border border-[#262626] shadow-2xl overflow-hidden">
+      <div className="w-full max-w-6xl rounded-2xl border shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
         {/* Modal Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[#262626]">
-          <div className="flex items-center gap-3">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 px-4 sm:px-6 py-4 border-b">
+          <div className="flex items-center gap-3 min-w-0">
             <div className="w-10 h-10 rounded-full bg-[#facc15]/20 flex items-center justify-center">
-              <CalendarDays className="w-5 h-5 text-[#facc15]" />
+              <CalendarDays className="w-5 h-5" />
             </div>
-            <div>
-              <h2 className="text-xl font-bold text-white">{employee.name}</h2>
-              <div className="flex items-center gap-2 text-sm text-gray-400">
+            <div className="min-w-0">
+              <h2 className="text-xl font-bold truncate">{employee.name}</h2>
+              <div className="flex items-center gap-2 text-sm">
                 <Briefcase className="w-3 h-3" />
-                <span>Worker • {employee.code} • {employee.branch}</span>
+                <span className="truncate">Worker • {employee.code} • {employee.branch}</span>
               </div>
             </div>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center justify-between sm:justify-end gap-2 sm:gap-4">
             <div className="flex items-center gap-2">
               <button
                 onClick={() => setCurrentWeek(w => w - 7)}
                 className="p-2 hover:bg-[#262626] rounded-lg transition-colors"
               >
-                <ChevronLeft className="w-5 h-5 text-gray-400" />
+                <ChevronLeft className="w-5 h-5" />
               </button>
-              <span className="text-white font-medium">
+              <span className="font-medium text-sm sm:text-base">
                 Week of April {currentWeek}, 2026
               </span>
               <button
                 onClick={() => setCurrentWeek(w => w + 7)}
                 className="p-2 hover:bg-[#262626] rounded-lg transition-colors"
               >
-                <ChevronRight className="w-5 h-5 text-gray-400" />
+                <ChevronRight className="w-5 h-5" />
               </button>
             </div>
             <button
               onClick={onClose}
-              className="p-2 hover:bg-red-500/20 text-gray-400 hover:text-red-400 rounded-lg transition-colors"
+              className="p-2 hover:bg-red-500/20 hover:text-red-400 rounded-lg transition-colors"
             >
               <X className="w-5 h-5" />
             </button>
@@ -1113,17 +1120,73 @@ function ScheduleModal({
         </div>
 
         {/* Week Schedule Grid */}
-        <div className="p-6">
-          <div className="grid grid-cols-7 gap-3">
+        <div className="p-4 sm:p-6 overflow-y-auto">
+          <div className="md:hidden -mx-1 px-1 flex gap-3 overflow-x-auto snap-x snap-mandatory pb-2">
             {weekDays.map((day, idx) => {
               const date = weekDates[idx];
               const data = scheduleData[date];
               return (
-                <div key={day} className="bg-[#1a1a1a] rounded-xl border border-[#262626] overflow-hidden">
+                <div key={day} className="snap-start shrink-0 w-[170px] rounded-xl border overflow-hidden">
+                  <div className="bg-[#262626] px-3 py-2 text-center">
+                    <div className="text-xs font-medium">{day}</div>
+                    <div className="text-lg font-bold">{date}</div>
+                  </div>
+                  <div className="p-3 space-y-3">
+                    <div className={`p-2 rounded-lg border text-center ${getStatusColor(data.status)}`}>
+                      <div className="text-xs font-medium">{getStatusText(data.status)}</div>
+                    </div>
+                    {data.status !== 'restday' && data.status !== 'absent' && (
+                      <>
+                        <div className="space-y-1">
+                          <div className="flex items-center justify-between text-xs">
+                            <span>In:</span>
+                            <span className="font-medium">{data.timeIn}</span>
+                          </div>
+                          <div className="flex items-center justify-between text-xs">
+                            <span>Out:</span>
+                            <span className="font-medium">{data.timeOut}</span>
+                          </div>
+                        </div>
+                        <div className="pt-2 border-t">
+                          <div className="flex items-center gap-1.5">
+                            <Clock className="w-3 h-3" />
+                            <span className="text-xs">{data.notes}</span>
+                          </div>
+                        </div>
+                      </>
+                    )}
+                    {data.status === 'absent' && (
+                      <div className="pt-2 border-t">
+                        <div className="flex items-center gap-1.5">
+                          <AlertCircle className="w-3 h-3 text-red-400" />
+                          <span className="text-xs text-red-400">{data.notes}</span>
+                        </div>
+                      </div>
+                    )}
+                    {data.status === 'restday' && (
+                      <div className="pt-2 border-t">
+                        <div className="flex items-center gap-1.5">
+                          <CheckCircle className="w-3 h-3" />
+                          <span className="text-xs">{data.notes}</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="hidden md:grid md:grid-cols-7 gap-3">
+            {weekDays.map((day, idx) => {
+              const date = weekDates[idx];
+              const data = scheduleData[date];
+              return (
+                <div key={day} className="rounded-xl border overflow-hidden">
                   {/* Day Header */}
                   <div className="bg-[#262626] px-3 py-2 text-center">
-                    <div className="text-xs text-gray-500 font-medium">{day}</div>
-                    <div className="text-lg font-bold text-white">{date}</div>
+                    <div className="text-xs font-medium">{day}</div>
+                    <div className="text-lg font-bold">{date}</div>
                   </div>
                   
                   {/* Day Content */}
@@ -1136,26 +1199,26 @@ function ScheduleModal({
                       <>
                         <div className="space-y-1">
                           <div className="flex items-center justify-between text-xs">
-                            <span className="text-gray-500">In:</span>
-                            <span className="text-white font-medium">{data.timeIn}</span>
+                            <span className="">In:</span>
+                            <span className=" font-medium">{data.timeIn}</span>
                           </div>
                           <div className="flex items-center justify-between text-xs">
-                            <span className="text-gray-500">Out:</span>
-                            <span className="text-white font-medium">{data.timeOut}</span>
+                            <span className="">Out:</span>
+                            <span className=" font-medium">{data.timeOut}</span>
                           </div>
                         </div>
                         
-                        <div className="pt-2 border-t border-[#262626]">
+                        <div className="pt-2 border-t ">
                           <div className="flex items-center gap-1.5">
-                            <Clock className="w-3 h-3 text-gray-500" />
-                            <span className="text-xs text-gray-400">{data.notes}</span>
+                            <Clock className="w-3 h-3 " />
+                            <span className="text-xs ">{data.notes}</span>
                           </div>
                         </div>
                       </>
                     )}
                     
                     {data.status === 'absent' && (
-                      <div className="pt-2 border-t border-[#262626]">
+                      <div className="pt-2 border-t ">
                         <div className="flex items-center gap-1.5">
                           <AlertCircle className="w-3 h-3 text-red-400" />
                           <span className="text-xs text-red-400">{data.notes}</span>
@@ -1164,10 +1227,10 @@ function ScheduleModal({
                     )}
                     
                     {data.status === 'restday' && (
-                      <div className="pt-2 border-t border-[#262626]">
+                      <div className="pt-2 border-t ">
                         <div className="flex items-center gap-1.5">
-                          <CheckCircle className="w-3 h-3 text-gray-500" />
-                          <span className="text-xs text-gray-500">{data.notes}</span>
+                          <CheckCircle className="w-3 h-3 " />
+                          <span className="text-xs ">{data.notes}</span>
                         </div>
                       </div>
                     )}
@@ -1179,22 +1242,22 @@ function ScheduleModal({
         </div>
 
         {/* Legend */}
-        <div className="flex items-center justify-center gap-6 px-6 py-4 border-t border-[#262626] text-xs">
+        <div className="flex flex-wrap items-center justify-center gap-4 sm:gap-6 px-4 sm:px-6 py-4 border-t text-xs">
           <div className="flex items-center gap-2">
             <div className="w-4 h-4 rounded bg-green-500/30 border border-green-500/50" />
-            <span className="text-gray-400">Present</span>
+            <span className="">Present</span>
           </div>
           <div className="flex items-center gap-2">
-            <div className="w-4 h-4 rounded bg-[#facc15]/30 border border-[#facc15]/50" />
-            <span className="text-gray-400">Late</span>
+            <div className="w-4 h-4 rounded bg-[#facc15]/30 border /50" />
+            <span className="">Late</span>
           </div>
           <div className="flex items-center gap-2">
             <div className="w-4 h-4 rounded bg-red-500/30 border border-red-500/50" />
-            <span className="text-gray-400">Absent</span>
+            <span className="">Absent</span>
           </div>
           <div className="flex items-center gap-2">
             <div className="w-4 h-4 rounded bg-gray-500/30 border border-gray-500/50" />
-            <span className="text-gray-400">Rest Day</span>
+            <span className="">Rest Day</span>
           </div>
         </div>
       </div>
@@ -1218,6 +1281,7 @@ interface AuditRecord {
 }
 
 export default function AttendanceAuditPage() {
+  const { classes } = useTheme();
   const queryClient = useQueryClient();
   const [activeFilter, setActiveFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -1447,32 +1511,32 @@ export default function AttendanceAuditPage() {
       {/* Header */}
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
         <div>
-          <h1 className="text-2xl lg:text-3xl font-bold text-white">
-            Attendance <span className="text-[#facc15]">Audit</span>
+          <h1 className={`text-2xl lg:text-3xl font-bold ${classes.text}`}>
+            Attendance <span className={classes.textAccent}>Audit</span>
           </h1>
-          <p className="text-gray-400 mt-1">Review daily attendance records by selecting a date</p>
+          <p className={`${classes.textMuted} mt-1`}>Review daily attendance records by selecting a date</p>
           <div className="flex items-center gap-3 mt-2 text-xs">
             <span className={`px-2 py-1 rounded-full border ${
               hasSyncError
-                ? 'text-red-400 border-red-500/40 bg-red-500/10'
+                ? 'text-red-600 border-red-300 bg-red-50'
                 : isSyncing
-                ? 'text-[#facc15] border-[#facc15]/40 bg-[#facc15]/10'
-                : 'text-green-400 border-green-500/40 bg-green-500/10'
+                ? `${classes.textAccent} ${classes.borderAccent} ${classes.bgCardHover}`
+                : 'text-green-600 border-green-300 bg-green-50'
             }`}>
               {syncStateLabel}
             </span>
-            <span className="text-gray-500">Last synced: {formatSyncTime(lastSyncedAt)}</span>
+            <span className={classes.textMuted}>Last synced: {formatSyncTime(lastSyncedAt)}</span>
           </div>
         </div>
       </div>
 
       {hasSyncError && (
-        <div className="bg-red-500/10 border border-red-500/30 rounded-lg px-4 py-3 flex items-center justify-between gap-3">
-          <p className="text-red-300 text-sm">Unable to sync attendance data. Please retry.</p>
+        <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 flex items-center justify-between gap-3">
+          <p className="text-red-600 text-sm">Unable to sync attendance data. Please retry.</p>
           <button
             onClick={handleManualRefresh}
             disabled={isSyncing}
-            className="inline-flex items-center gap-2 px-3 py-1.5 bg-red-500/20 hover:bg-red-500/30 text-red-200 rounded-md text-sm transition-colors disabled:opacity-60"
+            className="inline-flex items-center gap-2 px-3 py-1.5 bg-red-100 hover:bg-red-200 text-red-700 rounded-md text-sm transition-colors disabled:opacity-60"
           >
             <RefreshCw className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} />
             Retry sync
@@ -1483,23 +1547,23 @@ export default function AttendanceAuditPage() {
       {/* Search and Filters Bar */}
       <div className="flex flex-col lg:flex-row gap-4">
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+          <Search className={`absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 ${classes.textMuted}`} />
           <input
             type="text"
             placeholder="Search employees, codes, or branches..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-10 pr-4 py-2.5 bg-[#141414] border border-[#262626] rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-[#facc15]"
+            className={`w-full pl-10 pr-4 py-2.5 border ${classes.border} rounded-lg ${classes.bg} ${classes.text} placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-yellow-500/50`}
           />
         </div>
         
         {/* Branch Filter Dropdown */}
-        <div className="flex items-center gap-2">
-          <Building2 className="w-4 h-4 text-gray-500" />
+        <div className="flex items-center gap-2 w-full sm:w-auto">
+          <Building2 className={`w-4 h-4 ${classes.textMuted}`} />
           <select 
             value={selectedBranchFilter}
             onChange={(e) => setSelectedBranchFilter(e.target.value)}
-            className="px-4 py-2.5 bg-[#141414] border border-[#262626] rounded-lg text-white focus:outline-none focus:border-[#facc15] min-w-[180px]"
+            className={`w-full sm:w-auto px-4 py-2.5 border ${classes.border} rounded-lg ${classes.bg} ${classes.text} focus:outline-none focus:ring-2 focus:ring-yellow-500/50 min-w-0 sm:min-w-[180px]`}
           >
             {branches.map((branch) => (
               <option key={branch.code} value={branch.code}>
@@ -1509,19 +1573,21 @@ export default function AttendanceAuditPage() {
           </select>
         </div>
         
-        <div className="flex items-center gap-2 text-gray-400 text-sm">
-          <span>Search By</span>
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2 w-full lg:w-auto">
+          <div className={`flex items-center gap-2 ${classes.text} text-sm`}>
+            <span>Search By</span>
+          </div>
+          <select className={`w-full sm:w-auto px-4 py-2.5 border ${classes.border} rounded-lg ${classes.bg} ${classes.text} focus:outline-none focus:ring-2 focus:ring-yellow-500/50`}>
+            <option>All Fields</option>
+            <option>Employee Name</option>
+            <option>Code</option>
+            <option>Branch</option>
+          </select>
+          <button className="flex items-center justify-center gap-2 px-4 py-2.5 bg-[#facc15] text-black font-medium rounded-lg hover:bg-yellow-400 transition-colors w-full sm:w-auto">
+            <Search className="w-4 h-4" />
+            Search
+          </button>
         </div>
-        <select className="px-4 py-2.5 bg-[#141414] border border-[#262626] rounded-lg text-white focus:outline-none focus:border-[#facc15]">
-          <option>All Fields</option>
-          <option>Employee Name</option>
-          <option>Code</option>
-          <option>Branch</option>
-        </select>
-        <button className="flex items-center gap-2 px-4 py-2.5 bg-[#facc15] text-black font-medium rounded-lg hover:bg-yellow-400 transition-colors">
-          <Search className="w-4 h-4" />
-          Search
-        </button>
       </div>
 
       {/* Action Buttons */}
@@ -1529,32 +1595,32 @@ export default function AttendanceAuditPage() {
         <button
           onClick={handleManualRefresh}
           disabled={isSyncing}
-          className="flex items-center gap-2 px-4 py-2 bg-[#1a1a1a] border border-[#262626] text-gray-300 rounded-lg hover:border-[#facc15] transition-colors disabled:opacity-60"
+          className={`flex items-center justify-center gap-2 px-4 py-2 border ${classes.border} ${classes.text} rounded-lg ${classes.hover} transition-colors disabled:opacity-60 w-full sm:w-auto`}
         >
           <RefreshCw className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} />
           Refresh
         </button>
-        <button className="flex items-center gap-2 px-4 py-2 bg-[#1a1a1a] border border-[#262626] text-gray-300 rounded-lg hover:border-[#facc15] transition-colors">
+        <button className={`flex items-center justify-center gap-2 px-4 py-2 border ${classes.border} ${classes.text} rounded-lg ${classes.hover} transition-colors w-full sm:w-auto`}>
           <Calendar className="w-4 h-4" />
           This Week
         </button>
-        <button className="flex items-center gap-2 px-4 py-2 bg-[#1a1a1a] border border-[#262626] text-gray-300 rounded-lg hover:border-[#facc15] transition-colors">
+        <button className={`flex items-center justify-center gap-2 px-4 py-2 border ${classes.border} ${classes.text} rounded-lg ${classes.hover} transition-colors w-full sm:w-auto`}>
           <Calendar className="w-4 h-4" />
           This Month
         </button>
-        <button className="flex items-center gap-2 px-4 py-2 bg-[#facc15] text-black font-medium rounded-lg hover:bg-yellow-400 transition-colors">
+        <button className="flex items-center justify-center gap-2 px-4 py-2 bg-[#facc15] text-black font-medium rounded-lg hover:bg-yellow-400 transition-colors w-full sm:w-auto">
           <Calendar className="w-4 h-4" />
           Today
         </button>
-        <button className="flex items-center gap-2 px-4 py-2 bg-[#1a1a1a] border border-[#262626] text-gray-300 rounded-lg hover:border-[#facc15] transition-colors">
+        <button className={`flex items-center justify-center gap-2 px-4 py-2 border ${classes.border} ${classes.text} rounded-lg ${classes.hover} transition-colors w-full sm:w-auto`}>
           <FileText className="w-4 h-4" />
           Generate Report
         </button>
-        <button className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors">
+        <button className="flex items-center justify-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors w-full sm:w-auto">
           <Download className="w-4 h-4" />
           Export Excel
         </button>
-        <button className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+        <button className="flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors w-full sm:w-auto">
           <FileText className="w-4 h-4" />
           Individual Report
         </button>
@@ -1563,18 +1629,18 @@ export default function AttendanceAuditPage() {
       {/* Main Content Grid */}
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
         {/* Calendar Section */}
-        <div className="xl:col-span-1 bg-[#141414] rounded-xl border border-[#262626] p-6">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-lg font-semibold text-white">{monthNames[calendarMonth]} {calendarYear}</h2>
+        <div className={`xl:col-span-1 ${classes.bgCard} rounded-xl border ${classes.border} p-4 sm:p-6`}>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
+            <h2 className={`text-lg font-semibold ${classes.text}`}>{monthNames[calendarMonth]} {calendarYear}</h2>
             <div className="flex items-center gap-2">
-              <button onClick={() => navigateMonth('prev')} className="p-1 hover:bg-[#262626] rounded transition-colors">
-                <ChevronLeft className="w-5 h-5 text-gray-400" />
+              <button onClick={() => navigateMonth('prev')} className={`p-1 ${classes.hover} rounded transition-colors`}>
+                <ChevronLeft className={`w-5 h-5 ${classes.text}`} />
               </button>
               <button onClick={goToToday} className="px-3 py-1 bg-[#facc15] text-black text-sm font-medium rounded">
                 Today
               </button>
-              <button onClick={() => navigateMonth('next')} className="p-1 hover:bg-[#262626] rounded transition-colors">
-                <ChevronRight className="w-5 h-5 text-gray-400" />
+              <button onClick={() => navigateMonth('next')} className={`p-1 ${classes.hover} rounded transition-colors`}>
+                <ChevronRight className={`w-5 h-5 ${classes.text}`} />
               </button>
             </div>
           </div>
@@ -1582,7 +1648,7 @@ export default function AttendanceAuditPage() {
           {/* Calendar Grid */}
           <div className="grid grid-cols-7 gap-1">
             {['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'].map(day => (
-              <div key={day} className="text-center text-xs text-gray-500 py-2 font-medium">
+              <div key={day} className={`text-center text-[10px] sm:text-xs ${classes.textMuted} py-2 font-medium`}>
                 {day}
               </div>
             ))}
@@ -1590,20 +1656,20 @@ export default function AttendanceAuditPage() {
               <button
                 key={index}
                 onClick={() => !item.prevMonth && !item.nextMonth && setSelectedDate(item.day)}
-                className={`aspect-square p-2 rounded-lg text-sm transition-all ${
+                className={`aspect-square p-1 sm:p-2 rounded-lg text-xs sm:text-sm transition-all ${
                   item.prevMonth || item.nextMonth
-                    ? 'text-gray-600'
+                    ? 'text-gray-400'
                     : selectedDate === item.day
                     ? 'bg-[#facc15] text-black font-semibold'
                     : item.today
-                    ? 'bg-[#facc15]/20 text-[#facc15] border border-[#facc15]'
-                    : 'bg-[#1a1a1a] text-gray-300 hover:bg-[#262626]'
+                    ? 'bg-yellow-100 border border-yellow-300 text-yellow-800'
+                    : `${classes.text} ${classes.hover}`
                 }`}
               >
                 <div className="flex flex-col items-center">
                   <span>{item.day}</span>
                   {dailyRecordCounts[item.day] > 0 && !item.prevMonth && !item.nextMonth && (
-                    <span className={`text-[10px] mt-0.5 ${selectedDate === item.day ? 'text-black/70' : 'text-gray-500'}`}>
+                    <span className={`text-[10px] mt-0.5 ${selectedDate === item.day ? 'text-black/70' : classes.textMuted}`}>
                       {dailyRecordCounts[item.day]} rec
                     </span>
                   )}
@@ -1616,7 +1682,7 @@ export default function AttendanceAuditPage() {
           {dailyRecordCounts[selectedDate] > 0 && (
             <button
               onClick={() => setIsDayDetailsModalOpen(true)}
-              className="w-full mt-4 flex items-center justify-center gap-2 px-4 py-2 bg-[#1a1a1a] border border-[#262626] text-gray-300 rounded-lg hover:border-[#facc15] transition-colors"
+              className={`w-full mt-4 flex items-center justify-center gap-2 px-4 py-2 border ${classes.border} ${classes.text} rounded-lg ${classes.hover} transition-colors`}
             >
               <FileText className="w-4 h-4" />
               View Details for {displayDate.split(',')[0]}
@@ -1624,18 +1690,18 @@ export default function AttendanceAuditPage() {
           )}
 
           {/* Legend */}
-          <div className="flex items-center gap-4 mt-4 pt-4 border-t border-[#262626] text-xs">
+          <div className={`flex flex-wrap items-center gap-3 mt-4 pt-4 border-t ${classes.border} text-xs`}>
             <div className="flex items-center gap-1.5">
               <div className="w-3 h-3 rounded bg-[#facc15]" />
-              <span className="text-gray-400">Selected</span>
+              <span className={classes.textMuted}>Selected</span>
             </div>
             <div className="flex items-center gap-1.5">
-              <div className="w-3 h-3 rounded border border-[#facc15] bg-[#facc15]/20" />
-              <span className="text-gray-400">Today</span>
+              <div className="w-3 h-3 rounded border border-yellow-300 bg-yellow-100" />
+              <span className={classes.textMuted}>Today</span>
             </div>
             <div className="flex items-center gap-1.5">
-              <div className="w-3 h-3 rounded bg-[#1a1a1a]" />
-              <span className="text-gray-400">Has Records</span>
+              <div className={`w-3 h-3 rounded ${classes.bg}`} />
+              <span className={classes.textMuted}>Has Records</span>
             </div>
           </div>
         </div>
@@ -1644,33 +1710,33 @@ export default function AttendanceAuditPage() {
         <div className="xl:col-span-2 space-y-6">
           {/* Stats Cards */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="bg-[#141414] rounded-xl border border-[#262626] p-4">
-              <p className="text-gray-400 text-xs uppercase tracking-wider">Total Records</p>
-              <p className="text-2xl font-bold text-white mt-1">{stats.totalRecords}</p>
+            <div className={`${classes.bgCard} rounded-xl border ${classes.border} p-4`}>
+              <p className={`${classes.textMuted} text-xs uppercase tracking-wider`}>Total Records</p>
+              <p className={`text-2xl font-bold ${classes.text} mt-1`}>{stats.totalRecords}</p>
             </div>
-            <div className="bg-[#141414] rounded-xl border border-[#262626] p-4">
-              <p className="text-gray-400 text-xs uppercase tracking-wider">Currently Present</p>
-              <p className="text-2xl font-bold text-green-400 mt-1">{stats.currentlyPresent}</p>
+            <div className={`${classes.bgCard} rounded-xl border ${classes.border} p-4`}>
+              <p className={`${classes.textMuted} text-xs uppercase tracking-wider`}>Currently Present</p>
+              <p className="text-2xl font-bold text-green-500 mt-1">{stats.currentlyPresent}</p>
             </div>
-            <div className="bg-[#141414] rounded-xl border border-[#262626] p-4">
-              <p className="text-gray-400 text-xs uppercase tracking-wider">Completed Shifts</p>
-              <p className="text-2xl font-bold text-gray-500 mt-1">{stats.completedShifts}</p>
+            <div className={`${classes.bgCard} rounded-xl border ${classes.border} p-4`}>
+              <p className={`${classes.textMuted} text-xs uppercase tracking-wider`}>Completed Shifts</p>
+              <p className={`text-2xl font-bold ${classes.text} mt-1`}>{stats.completedShifts}</p>
             </div>
-            <div className="bg-[#141414] rounded-xl border border-[#262626] p-4">
-              <p className="text-gray-400 text-xs uppercase tracking-wider">Absent</p>
-              <p className="text-2xl font-bold text-red-400 mt-1">{stats.absent}</p>
+            <div className={`${classes.bgCard} rounded-xl border ${classes.border} p-4`}>
+              <p className={`${classes.textMuted} text-xs uppercase tracking-wider`}>Absent</p>
+              <p className="text-2xl font-bold text-red-500 mt-1">{stats.absent}</p>
             </div>
           </div>
 
           {/* Selected Date Info */}
-          <div className="bg-[#facc15]/10 border border-[#facc15]/30 rounded-xl p-4">
+          <div className={`border ${classes.border} rounded-xl p-4 ${classes.bgCard}`}>
             <div className="flex items-center gap-2 mb-2">
-              <Calendar className="w-5 h-5 text-[#facc15]" />
-              <h3 className="text-[#facc15] font-semibold">{displayDate}</h3>
+              <Calendar className={`w-5 h-5 ${classes.textAccent}`} />
+              <h3 className={`${classes.text} font-semibold`}>{displayDate}</h3>
             </div>
-            <div className="flex items-center gap-2 text-sm text-gray-400">
+            <div className={`flex items-center gap-2 text-sm ${classes.textMuted}`}>
               <AlertCircle className="w-4 h-4 text-yellow-500" />
-              <span>Auto-absent mode active. Employees without time-in records are shown as <span className="text-red-400">Absent (Auto)</span></span>
+              <span>Auto-absent mode active. Employees without time-in records are shown as <span className="text-red-500">Absent (Auto)</span></span>
             </div>
           </div>
 
@@ -1683,7 +1749,7 @@ export default function AttendanceAuditPage() {
                 className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
                   activeFilter === tab.id
                     ? 'bg-[#facc15] text-black'
-                    : 'bg-[#1a1a1a] text-gray-400 border border-[#262626] hover:border-[#404040]'
+                    : `${classes.border} border ${classes.hover} ${classes.text}`
                 }`}
               >
                 {tab.id === 'all' && <CheckCircle className="w-4 h-4" />}
@@ -1694,7 +1760,7 @@ export default function AttendanceAuditPage() {
                 {tab.id === 'voided' && <Ban className="w-4 h-4" />}
                 {tab.label}
                 {tab.count !== null && (
-                  <span className={`px-1.5 py-0.5 rounded text-xs ${activeFilter === tab.id ? 'bg-black/20' : 'bg-[#262626]'}`}>
+                  <span className={`px-1.5 py-0.5 rounded text-xs ${activeFilter === tab.id ? 'bg-black/20' : classes.bg}`}>
                     {tab.count}
                   </span>
                 )}
@@ -1703,35 +1769,112 @@ export default function AttendanceAuditPage() {
           </div>
 
           {/* Employee Table */}
-          <div className="bg-[#141414] rounded-xl border border-[#262626] overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full">
+          <div className={`${classes.bgCard} rounded-xl border ${classes.border} overflow-hidden`}>
+            {/* Mobile cards */}
+            <div className="sm:hidden">
+              {filteredData.length === 0 ? (
+                <div className={`px-4 py-8 text-center ${classes.textMuted}`}>No records found</div>
+              ) : (
+                filteredData.map((employee) => (
+                  <div key={employee.id} className={`p-4 border-b ${classes.border} last:border-0`}>
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className={`w-8 h-8 rounded-full ${classes.bg} flex items-center justify-center shrink-0`}>
+                          <User className={`w-4 h-4 ${classes.textMuted}`} />
+                        </div>
+                        <div className="min-w-0">
+                          <button
+                            onClick={() => {
+                              setSelectedEmployee(employee);
+                              setIsModalOpen(true);
+                            }}
+                            className={`${classes.text} font-medium text-sm hover:text-yellow-600 transition-colors text-left truncate w-full`}
+                          >
+                            {employee.name}
+                          </button>
+                          <p className={`${classes.textMuted} text-xs`}>{employee.code} • {employee.branch}</p>
+                        </div>
+                      </div>
+                      <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium shrink-0 ${
+                        employee.status === 'Present'
+                          ? 'bg-green-100 text-green-700'
+                          : employee.status === 'Absent'
+                          ? 'bg-red-100 text-red-700'
+                          : 'bg-gray-100 text-gray-700'
+                      }`}>
+                        {employee.status === 'Present' && <CheckCircle className="w-3 h-3" />}
+                        {employee.status === 'Absent' && <XCircle className="w-3 h-3" />}
+                        {employee.status}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2 mt-3 text-xs">
+                      <div>
+                        <p className={classes.textMuted}>Time In</p>
+                        <p className={classes.text}>{employee.timeIn}</p>
+                      </div>
+                      <div>
+                        <p className={classes.textMuted}>Time Out</p>
+                        <p className={classes.text}>{employee.timeOut}</p>
+                      </div>
+                      <div>
+                        <p className={classes.textMuted}>Hours</p>
+                        <p className={classes.text}>{employee.hours}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between mt-3">
+                      <button
+                        onClick={() => {
+                          setSelectedBranch(employee.branch);
+                          setIsBranchModalOpen(true);
+                        }}
+                        className={`${classes.textMuted} text-sm hover:text-yellow-600 transition-colors text-left`}
+                      >
+                        Branch: {employee.branch}
+                      </button>
+                      <button
+                        onClick={() => {
+                          setScheduleEmployee(employee);
+                          setIsScheduleModalOpen(true);
+                        }}
+                        className={`${classes.textAccent} hover:underline text-sm font-medium`}
+                      >
+                        View
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            {/* Desktop/tablet table */}
+            <div className="hidden sm:block overflow-x-auto">
+              <table className="w-full min-w-[900px]">
                 <thead>
-                  <tr className="border-b border-[#262626]">
-                    <th className="px-4 py-4 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Employee</th>
-                    <th className="px-4 py-4 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Code</th>
-                    <th className="px-4 py-4 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Branch</th>
-                    <th className="px-4 py-4 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Time In</th>
-                    <th className="px-4 py-4 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Time Out</th>
-                    <th className="px-4 py-4 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Hours</th>
-                    <th className="px-4 py-4 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Status</th>
-                    <th className="px-4 py-4 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Actions</th>
+                  <tr className={`border-b ${classes.border} ${classes.bg}`}>
+                    <th className={`px-4 py-4 text-left text-xs font-medium ${classes.textMuted} uppercase tracking-wider`}>Employee</th>
+                    <th className={`px-4 py-4 text-left text-xs font-medium ${classes.textMuted} uppercase tracking-wider hidden md:table-cell`}>Code</th>
+                    <th className={`px-4 py-4 text-left text-xs font-medium ${classes.textMuted} uppercase tracking-wider hidden lg:table-cell`}>Branch</th>
+                    <th className={`px-4 py-4 text-left text-xs font-medium ${classes.textMuted} uppercase tracking-wider`}>Time In</th>
+                    <th className={`px-4 py-4 text-left text-xs font-medium ${classes.textMuted} uppercase tracking-wider`}>Time Out</th>
+                    <th className={`px-4 py-4 text-left text-xs font-medium ${classes.textMuted} uppercase tracking-wider`}>Hours</th>
+                    <th className={`px-4 py-4 text-left text-xs font-medium ${classes.textMuted} uppercase tracking-wider`}>Status</th>
+                    <th className={`px-4 py-4 text-left text-xs font-medium ${classes.textMuted} uppercase tracking-wider`}>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {filteredData.length === 0 ? (
                     <tr>
-                      <td colSpan={8} className="px-4 py-8 text-center text-gray-500">
+                      <td colSpan={8} className={`px-4 py-8 text-center ${classes.textMuted}`}>
                         No records found
                       </td>
                     </tr>
                   ) : (
                     filteredData.map((employee) => (
-                      <tr key={employee.id} className="border-b border-[#262626] last:border-0 hover:bg-[#1a1a1a]">
+                      <tr key={employee.id} className={`border-b ${classes.border} last:border-0 ${classes.hover} transition-colors`}>
                         <td className="px-4 py-4">
                           <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-full bg-[#262626] flex items-center justify-center">
-                              <User className="w-4 h-4 text-gray-400" />
+                            <div className={`w-8 h-8 rounded-full ${classes.bg} flex items-center justify-center`}>
+                              <User className={`w-4 h-4 ${classes.textMuted}`} />
                             </div>
                             <div>
                               <button
@@ -1739,36 +1882,36 @@ export default function AttendanceAuditPage() {
                                   setSelectedEmployee(employee);
                                   setIsModalOpen(true);
                                 }}
-                                className="text-white font-medium text-sm hover:text-[#facc15] transition-colors text-left"
+                                className={`${classes.text} font-medium text-sm hover:text-yellow-600 transition-colors text-left`}
                               >
                                 {employee.name}
                               </button>
-                              <p className="text-gray-500 text-xs">Worker</p>
+                              <p className={`${classes.textMuted} text-xs`}>Worker</p>
                             </div>
                           </div>
                         </td>
-                        <td className="px-4 py-4 text-gray-400 font-mono text-sm">{employee.code}</td>
-                        <td className="px-4 py-4">
+                        <td className={`px-4 py-4 ${classes.textMuted} font-mono text-sm hidden md:table-cell`}>{employee.code}</td>
+                        <td className="px-4 py-4 hidden lg:table-cell">
                           <button
                             onClick={() => {
                               setSelectedBranch(employee.branch);
                               setIsBranchModalOpen(true);
                             }}
-                            className="text-gray-400 text-sm hover:text-[#facc15] transition-colors text-left"
+                            className={`${classes.textMuted} text-sm hover:text-yellow-600 transition-colors text-left`}
                           >
                             {employee.branch}
                           </button>
                         </td>
-                        <td className="px-4 py-4 text-gray-400 text-sm">{employee.timeIn}</td>
-                        <td className="px-4 py-4 text-gray-400 text-sm">{employee.timeOut}</td>
-                        <td className="px-4 py-4 text-gray-400 text-sm">{employee.hours}</td>
+                        <td className={`px-4 py-4 ${classes.textMuted} text-sm`}>{employee.timeIn}</td>
+                        <td className={`px-4 py-4 ${classes.textMuted} text-sm`}>{employee.timeOut}</td>
+                        <td className={`px-4 py-4 ${classes.textMuted} text-sm`}>{employee.hours}</td>
                         <td className="px-4 py-4">
                           <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium ${
                             employee.status === 'Present'
-                              ? 'bg-green-500/20 text-green-400'
+                              ? 'bg-green-100 text-green-700'
                               : employee.status === 'Absent'
-                              ? 'bg-red-500/20 text-red-400'
-                              : 'bg-gray-500/20 text-gray-400'
+                              ? 'bg-red-100 text-red-700'
+                              : 'bg-gray-100 text-gray-700'
                           }`}>
                             {employee.status === 'Present' && <CheckCircle className="w-3 h-3" />}
                             {employee.status === 'Absent' && <XCircle className="w-3 h-3" />}
@@ -1776,12 +1919,12 @@ export default function AttendanceAuditPage() {
                           </span>
                         </td>
                         <td className="px-4 py-4">
-                          <button 
+                          <button
                             onClick={() => {
                               setScheduleEmployee(employee);
                               setIsScheduleModalOpen(true);
                             }}
-                            className="text-[#facc15] hover:text-yellow-400 text-sm font-medium"
+                            className={`${classes.textAccent} hover:underline text-sm font-medium`}
                           >
                             View
                           </button>
