@@ -83,10 +83,21 @@ export const login = async (
 
     const { password: _, ...adminWithoutPassword } = admin;
 
-    // Update the user object with the correct role for branch users
+    // Fetch branch name if this is a branch user
+    let branchName = null;
+    if (isBranchUser && admin.branch_code) {
+      const branch = await prisma.branches.findUnique({
+        where: { branch_code: admin.branch_code },
+        select: { branch_name: true }
+      });
+      branchName = branch?.branch_name || null;
+    }
+
+    // Update the user object with the correct role and branch name for branch users
     const userWithCorrectRole = {
       ...adminWithoutPassword,
-      role: userRole
+      role: userRole,
+      branch_name: branchName
     };
 
     // Log successful login

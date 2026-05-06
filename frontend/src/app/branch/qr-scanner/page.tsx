@@ -25,6 +25,7 @@ function getBranchName(code: string): string {
     'D': 'Panicsican',
     'E': 'Main Office',
     'F': 'Capitol',
+    'G': 'MAINTENANCE',
     'H': 'Testing Branch'
   };
   return branches[code] || code;
