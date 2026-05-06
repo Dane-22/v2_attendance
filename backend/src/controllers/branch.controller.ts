@@ -15,6 +15,7 @@ const branchNames: Record<string, string> = {
   'D': 'Panicsican',
   'E': 'Main Office',
   'F': 'Capitol',
+  'G': 'MAINTENANCE',
   'H': 'Testing Branch',
 };
 
