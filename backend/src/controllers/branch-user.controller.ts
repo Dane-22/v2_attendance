@@ -227,7 +227,7 @@ export const createBranchUser = async (
         password: hashedPassword,
         name: autoName,
         email: `${autoUsername}@branch.local`,
-        role: 'admin',
+        role: null,
         branch_code: nextCode,
         permissions_enabled: false,
         permissions: '[]'
