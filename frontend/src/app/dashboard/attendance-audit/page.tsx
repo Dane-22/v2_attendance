@@ -6,6 +6,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { createPortal } from 'react-dom';
 import { attendanceApi, branchApi, Attendance } from '@/lib/api';
 import ProfileImage from '@/components/ProfileImage';
+import ImagePreview from '@/components/ImagePreview';
 import { 
   Search, 
   Calendar,
@@ -1318,6 +1319,7 @@ export default function AttendanceAuditPage() {
   const [selectedBranchFilter, setSelectedBranchFilter] = useState('ALL');
   const [isDayDetailsModalOpen, setIsDayDetailsModalOpen] = useState(false);
   const [isManualRefreshing, setIsManualRefreshing] = useState(false);
+  const [previewImage, setPreviewImage] = useState<{ src: string; alt: string } | null>(null);
 
   // Format date for API (YYYY-MM-DD) using calendar month/year
   const formattedDate = useMemo(() => {
@@ -1338,6 +1340,12 @@ export default function AttendanceAuditPage() {
     };
     return date.toLocaleDateString('en-US', options);
   }, [calendarYear, calendarMonth, selectedDate]);
+
+  const openImagePreview = (profileImage: string | null, name: string) => {
+    const src = constructImageUrl(profileImage);
+    if (!src) return;
+    setPreviewImage({ src, alt: `${name} profile image` });
+  };
 
   // Fetch attendance audit data
   const {
@@ -1794,13 +1802,21 @@ export default function AttendanceAuditPage() {
                   <div key={employee.id} className={`p-4 border-b ${classes.border} last:border-0`}>
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex items-center gap-3 min-w-0">
-                        <ProfileImage
-                          src={constructImageUrl(employee.profileImage)}
-                          name={employee.name}
-                          alt={employee.name}
-                          size="sm"
-                          className="shrink-0"
-                        />
+                        <button
+                          type="button"
+                          onClick={() => openImagePreview(employee.profileImage, employee.name)}
+                          className="rounded-full transition-opacity hover:opacity-90"
+                          disabled={!employee.profileImage}
+                          aria-label={employee.profileImage ? `View ${employee.name} profile image` : `${employee.name} has no profile image`}
+                        >
+                          <ProfileImage
+                            src={constructImageUrl(employee.profileImage)}
+                            name={employee.name}
+                            alt={employee.name}
+                            size="sm"
+                            className="shrink-0"
+                          />
+                        </button>
                         <div className="min-w-0">
                           <button
                             onClick={() => {
@@ -1892,12 +1908,20 @@ export default function AttendanceAuditPage() {
                       <tr key={employee.id} className={`border-b ${classes.border} last:border-0 ${classes.hover} transition-colors`}>
                         <td className="px-4 py-4">
                           <div className="flex items-center gap-3">
-                            <ProfileImage
-                              src={constructImageUrl(employee.profileImage)}
-                              name={employee.name}
-                              alt={employee.name}
-                              size="sm"
-                            />
+                            <button
+                              type="button"
+                              onClick={() => openImagePreview(employee.profileImage, employee.name)}
+                              className="rounded-full transition-opacity hover:opacity-90"
+                              disabled={!employee.profileImage}
+                              aria-label={employee.profileImage ? `View ${employee.name} profile image` : `${employee.name} has no profile image`}
+                            >
+                              <ProfileImage
+                                src={constructImageUrl(employee.profileImage)}
+                                name={employee.name}
+                                alt={employee.name}
+                                size="sm"
+                              />
+                            </button>
                             <div>
                               <button
                                 onClick={() => {
@@ -2005,6 +2029,14 @@ export default function AttendanceAuditPage() {
         calendarYear={calendarYear}
         monthlyAttendanceData={monthlyAttendanceData || []}
         selectedBranchFilter={selectedBranchFilter}
+      />
+
+      <ImagePreview
+        src={previewImage?.src || ''}
+        alt={previewImage?.alt || 'Profile image'}
+        isOpen={!!previewImage}
+        onClose={() => setPreviewImage(null)}
+        showRotate={false}
       />
     </div>
   );

@@ -9,6 +9,7 @@ import { Search, Plus, X, RotateCcw, Lightbulb, Clock, UserX, UserCheck, Chevron
 import { useWebSocket } from '@/hooks/useWebSocket';
 import RecentActivity from '@/components/RecentActivity';
 import ProfileImage from '@/components/ProfileImage';
+import ImagePreview from '@/components/ImagePreview';
 
 // Track recently updated images for cache busting
 const recentlyUpdatedImages = new Set<string>();
@@ -97,6 +98,7 @@ export default function AttendancePage() {
   const [activeTab, setActiveTab] = useState('Available');
   const [searchQuery, setSearchQuery] = useState('');
   const [flashedEmployeeId, setFlashedEmployeeId] = useState<number | null>(null);
+  const [previewImage, setPreviewImage] = useState<{ src: string; alt: string } | null>(null);
   const { isConnected, joinBranch, leaveBranch, on } = useWebSocket();
   
   // Mobile detail modal state
@@ -153,6 +155,12 @@ export default function AttendancePage() {
   const indexOfLastBranch = currentPage * branchesPerPage;
   const indexOfFirstBranch = indexOfLastBranch - branchesPerPage;
   const currentBranches = branches.slice(indexOfFirstBranch, indexOfLastBranch);
+
+  const openImagePreview = (profileImage: string | null, name: string) => {
+    const src = constructImageUrl(profileImage);
+    if (!src) return;
+    setPreviewImage({ src, alt: `${name} profile image` });
+  };
 
   // Fetch employees for selected branch
   const { data: employeesData, isLoading: employeesLoading, refetch: refetchEmployees, error: employeesError } = useQuery({
@@ -771,12 +779,20 @@ export default function AttendancePage() {
                         }`}
                       >
                         <span className={`text-sm w-6 ${classes.textMuted}`}>{indexOfFirstEmployee + index + 1}</span>
-                        <ProfileImage
-                          src={constructImageUrl(employee.profileImage)}
-                          name={employee.name}
-                          alt={employee.name}
-                          size="md"
-                        />
+                        <button
+                          type="button"
+                          onClick={() => openImagePreview(employee.profileImage, employee.name)}
+                          className="rounded-full transition-opacity hover:opacity-90"
+                          disabled={!employee.profileImage}
+                          aria-label={employee.profileImage ? `View ${employee.name} profile image` : `${employee.name} has no profile image`}
+                        >
+                          <ProfileImage
+                            src={constructImageUrl(employee.profileImage)}
+                            name={employee.name}
+                            alt={employee.name}
+                            size="md"
+                          />
+                        </button>
                         <div className="flex-1 min-w-0">
                           <p className={`font-medium text-sm truncate ${classes.text}`}>{employee.name}</p>
                         </div>
@@ -852,12 +868,20 @@ export default function AttendancePage() {
                         }`}
                       >
                         <span className={`text-sm w-6 ${classes.textMuted}`}>{indexOfFirstEmployee + index + 1}</span>
-                        <ProfileImage
-                          src={constructImageUrl(employee.profileImage)}
-                          name={employee.name}
-                          alt={employee.name}
-                          size="md"
-                        />
+                        <button
+                          type="button"
+                          onClick={() => openImagePreview(employee.profileImage, employee.name)}
+                          className="rounded-full transition-opacity hover:opacity-90"
+                          disabled={!employee.profileImage}
+                          aria-label={employee.profileImage ? `View ${employee.name} profile image` : `${employee.name} has no profile image`}
+                        >
+                          <ProfileImage
+                            src={constructImageUrl(employee.profileImage)}
+                            name={employee.name}
+                            alt={employee.name}
+                            size="md"
+                          />
+                        </button>
                         <div className="flex-1 min-w-0">
                           <p className={`font-medium text-sm truncate ${classes.text}`}>{employee.name}</p>
                           <div className="mt-1">
@@ -954,12 +978,20 @@ export default function AttendancePage() {
                         }`}
                       >
                         <span className={`text-sm w-6 ${classes.textMuted}`}>{indexOfFirstEmployee + index + 1}</span>
-                        <ProfileImage
-                          src={constructImageUrl(employee.profileImage)}
-                          name={employee.name}
-                          alt={employee.name}
-                          size="md"
-                        />
+                        <button
+                          type="button"
+                          onClick={() => openImagePreview(employee.profileImage, employee.name)}
+                          className="rounded-full transition-opacity hover:opacity-90"
+                          disabled={!employee.profileImage}
+                          aria-label={employee.profileImage ? `View ${employee.name} profile image` : `${employee.name} has no profile image`}
+                        >
+                          <ProfileImage
+                            src={constructImageUrl(employee.profileImage)}
+                            name={employee.name}
+                            alt={employee.name}
+                            size="md"
+                          />
+                        </button>
                         <div className="flex-1 min-w-0">
                           <p className={`font-medium text-sm truncate ${classes.text}`}>{employee.name}</p>
                         </div>
@@ -1009,12 +1041,20 @@ export default function AttendancePage() {
                         }`}
                       >
                         <span className={`text-sm w-6 ${classes.textMuted}`}>{indexOfFirstEmployee + index + 1}</span>
-                        <ProfileImage
-                          src={constructImageUrl(employee.profileImage)}
-                          name={employee.name}
-                          alt={employee.name}
-                          size="md"
-                        />
+                        <button
+                          type="button"
+                          onClick={() => openImagePreview(employee.profileImage, employee.name)}
+                          className="rounded-full transition-opacity hover:opacity-90"
+                          disabled={!employee.profileImage}
+                          aria-label={employee.profileImage ? `View ${employee.name} profile image` : `${employee.name} has no profile image`}
+                        >
+                          <ProfileImage
+                            src={constructImageUrl(employee.profileImage)}
+                            name={employee.name}
+                            alt={employee.name}
+                            size="md"
+                          />
+                        </button>
                         <div className="flex-1 min-w-0">
                           <p className={`font-medium text-sm truncate ${classes.text}`}>{employee.name}</p>
                         </div>
@@ -1106,12 +1146,20 @@ export default function AttendancePage() {
                         <td className={`px-4 py-4 ${classes.textMuted} hidden sm:table-cell`}>{indexOfFirstEmployee + index + 1}</td>
                         <td className="px-4 py-4">
                           <div className="flex items-center gap-3">
-                            <ProfileImage
-                              src={constructImageUrl(employee.profileImage)}
-                              name={employee.name}
-                              alt={employee.name}
-                              size="sm"
-                            />
+                            <button
+                              type="button"
+                              onClick={() => openImagePreview(employee.profileImage, employee.name)}
+                              className="rounded-full transition-opacity hover:opacity-90"
+                              disabled={!employee.profileImage}
+                              aria-label={employee.profileImage ? `View ${employee.name} profile image` : `${employee.name} has no profile image`}
+                            >
+                              <ProfileImage
+                                src={constructImageUrl(employee.profileImage)}
+                                name={employee.name}
+                                alt={employee.name}
+                                size="sm"
+                              />
+                            </button>
                             <div>
                               <p className={`font-medium text-sm ${classes.text}`}>{employee.name}</p>
                             </div>
@@ -1603,6 +1651,14 @@ export default function AttendancePage() {
           </div>
         </div>
       )}
+
+      <ImagePreview
+        src={previewImage?.src || ''}
+        alt={previewImage?.alt || 'Profile image'}
+        isOpen={!!previewImage}
+        onClose={() => setPreviewImage(null)}
+        showRotate={false}
+      />
     </div>
   );
 }
