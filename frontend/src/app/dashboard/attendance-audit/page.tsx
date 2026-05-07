@@ -132,17 +132,6 @@ const generateCalendarDays = (branchFilter: string, currentDay: number, month: n
   return days;
 };
 
-// Branch data based on database schema (branches table: branch_code, branch_name)
-const branches = [
-  { code: 'ALL', name: 'All Branches' },
-  { code: 'A', name: 'Sto. Rosario' },
-  { code: 'B', name: 'BCDA' },
-  { code: 'C', name: 'Sundara' },
-  { code: 'D', name: 'Panicsican' },
-  { code: 'E', name: 'Main Office' },
-  { code: 'F', name: 'Capitol' },
-  { code: 'H', name: 'Testing Branch' },
-] as const;
 
 // Modal Calendar Component
 function EmployeeAttendanceModal({ 
@@ -1393,6 +1382,29 @@ export default function AttendanceAuditPage() {
     const daysInMonth = new Date(calendarYear, calendarMonth + 1, 0).getDate();
     return `${calendarYear}-${String(calendarMonth + 1).padStart(2, '0')}-${String(daysInMonth).padStart(2, '0')}`;
   }, [calendarMonth, calendarYear]);
+
+  // Fetch branches from database
+  const { data: branchesData, isLoading: isLoadingBranches } = useQuery({
+    queryKey: ['branches'],
+    queryFn: async () => {
+      const response = await branchApi.getAll();
+      return response.data.data || [];
+    },
+    staleTime: 300000, // 5 minutes
+    gcTime: 600000 // 10 minutes
+  });
+
+  // Transform branches data to include "All Branches" option
+  const branches = useMemo(() => {
+    const dbBranches = branchesData || [];
+    return [
+      { code: 'ALL', name: 'All Branches' },
+      ...dbBranches.map((branch: any) => ({
+        code: branch.code,
+        name: branch.shortName || branch.name // Use shortName (branch_name from database) as display name
+      }))
+    ];
+  }, [branchesData]);
 
   // Fetch monthly attendance data for calendar counts
   const {
