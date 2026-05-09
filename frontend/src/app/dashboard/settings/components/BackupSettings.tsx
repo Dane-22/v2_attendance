@@ -198,8 +198,37 @@ export default function BackupSettings() {
     }
   };
 
-  const handleDownloadBackup = (backupId: number, filename: string) => {
-    window.open(`${BACKUP_API_URL}/backup/download/${backupId}?token=${localStorage.getItem('token')}`, '_blank');
+  const handleDownloadBackup = async (backupId: number, filename: string) => {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        alert('Authentication required. Please log in again.');
+        return;
+      }
+
+      const response = await fetch(`${BACKUP_API_URL}/backup/download/${backupId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`Download failed: ${response.statusText}`);
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (error) {
+      console.error('Download error:', error);
+      alert('Failed to download backup. Please try again.');
+    }
   };
 
   const handleRestoreBackup = (backup: BackupRecord) => {
