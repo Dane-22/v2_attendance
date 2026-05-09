@@ -30,7 +30,7 @@ model Employee {
   branchCode           String?   @map("branch_code") @db.VarChar(10)
   // pinHash              String?   @map("pin_hash") @db.VarChar(255)
   // pinSalt              String?   @map("pin_salt") @db.VarChar(255)
-
+  
   @@index([branchName], map: "idx_employee_branch")
   @@index([branchCode], map: "idx_employee_branch_code")
   @@map("employees")
@@ -198,6 +198,7 @@ enum attendance_status {
   late
   half_day
   leave
+  voided
 }
 
 enum payroll_records_status {
