@@ -81,7 +81,7 @@ export interface Attendance {
   date: Date;
   check_in: Date | null;
   check_out: Date | null;
-  status: 'present' | 'absent' | 'late' | 'half_day' | 'leave' | null;
+  status: 'present' | 'absent' | 'late' | 'half_day' | 'leave' | 'voided' | null;
   notes: string | null;
   createdAt: Date | null;
   updatedAt: Date | null;
@@ -181,6 +181,13 @@ export interface AuthResponse {
 export const authApi = {
   login: (credentials: LoginCredentials) =>
     api.post<ApiResponse<AuthResponse>>('/auth/login', credentials),
+  changePassword: (data: { currentPassword: string; newPassword: string; confirmPassword: string }) =>
+    api.post<ApiResponse<null>>('/auth/change-password', data),
+};
+
+export const settingsApi = {
+  get: () => api.get<ApiResponse<any>>('/settings'),
+  update: (data: any) => api.put<ApiResponse<any>>('/settings', data),
 };
 
 export const employeeApi = {
@@ -434,6 +441,7 @@ export interface EmployeeSummary {
   branchName: string | null;
   branchCode: string | null;
   status: string | null;
+  profileImage: string | null;
   documentCount: number;
 }
 
