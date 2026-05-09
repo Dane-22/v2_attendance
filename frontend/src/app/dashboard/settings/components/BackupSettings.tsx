@@ -52,20 +52,17 @@ export default function BackupSettings() {
     emailDelivery: {
       enabled: true,
       recipients: [],
-      subject: '',
-      message: ''
     },
     cloudStorage: {
       enabled: false,
-      provider: 'GOOGLE_DRIVE',
-      config: {}
+      provider: 'AWS_S3',
     },
     schedule: {
-      type: 'DATABASE',
-      cron: '0 2 * * *', // Daily at 2 AM
       enabled: false,
-      retentionDays: 30
-    }
+      type: 'DATABASE',
+      cron: '0 23 * * *', // Daily at 11 PM
+      retentionDays: 30,
+    },
   });
 
   const [isCreatingBackup, setIsCreatingBackup] = useState(false);
@@ -187,6 +184,28 @@ export default function BackupSettings() {
     }
   });
 
+  // Schedule backup mutation
+  const scheduleBackupMutation = useMutation({
+    mutationFn: async (scheduleData: any) => {
+      const response = await fetch(`${BACKUP_API_URL}/backup/schedule`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: JSON.stringify(scheduleData)
+      });
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['backupStats'] });
+      alert('Backup schedule updated successfully');
+    },
+    onError: (error: any) => {
+      alert(`Failed to update schedule: ${error.message}`);
+    }
+  });
+
   const handleCreateBackup = (type: 'DATABASE' | 'FILES' | 'FULL') => {
     setIsCreatingBackup(true);
     createBackupMutation.mutate({ type, description: backupDescription });
@@ -240,6 +259,19 @@ export default function BackupSettings() {
     if (selectedBackup) {
       restoreBackupMutation.mutate(selectedBackup.id);
     }
+  };
+
+  const handleUpdateSchedule = () => {
+    scheduleBackupMutation.mutate({
+      type: backupSettings.schedule.type,
+      schedule: backupSettings.schedule.cron,
+      enabled: backupSettings.schedule.enabled,
+      retentionDays: backupSettings.schedule.retentionDays,
+      emailDelivery: {
+        enabled: backupSettings.emailDelivery.enabled,
+        recipients: backupSettings.emailDelivery.recipients
+      }
+    });
   };
 
   const formatFileSize = (bytes: number) => {
@@ -358,15 +390,125 @@ export default function BackupSettings() {
         </div>
       </div>
 
-      {/* Email Delivery Settings */}
-      <div className={`${classes.bgCard} rounded-xl ${classes.border} p-6`}>
+      {/* Automatic Backup Schedule */}
+      <div className={`${classes.bgCard} rounded-xl ${classes.border} p-6 mb-6`}>
+        <div className="flex items-center gap-3 mb-6">
+          <div className={`w-10 h-10 rounded-lg ${classes.hoverAccent} ${classes.borderAccent} flex items-center justify-center`}>
+            <Calendar className={`w-5 h-5 ${classes.textAccent}`} />
+          </div>
+          <div>
+            <h3 className={`text-lg font-semibold ${classes.text}`}>Automatic Backup</h3>
+            <p className={`text-sm ${classes.textMuted}`}>Schedule automatic backups</p>
+          </div>
+        </div>
+
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <label className={`text-sm font-medium ${classes.text}`}>Enable Automatic Backup</label>
+            <button
+              onClick={() => setBackupSettings(prev => ({
+                ...prev,
+                schedule: { ...prev.schedule, enabled: !prev.schedule.enabled }
+              }))}
+              className={`w-12 h-6 rounded-full transition-colors ${
+                backupSettings.schedule.enabled 
+                  ? 'bg-blue-500' 
+                  : 'bg-gray-300'
+              }`}
+            >
+              <div className={`w-5 h-5 rounded-full bg-white transition-transform ${
+                backupSettings.schedule.enabled ? 'translate-x-6' : 'translate-x-0'
+              }`} />
+            </button>
+          </div>
+
+          {backupSettings.schedule.enabled && (
+            <>
+              <div>
+                <label className={`block text-sm font-medium ${classes.text} mb-2`}>
+                  Backup Type
+                </label>
+                <select
+                  value={backupSettings.schedule.type}
+                  onChange={(e) => setBackupSettings(prev => ({
+                    ...prev,
+                    schedule: { ...prev.schedule, type: e.target.value as 'DATABASE' | 'FILES' | 'FULL' }
+                  }))}
+                  className={`w-full px-3 py-2 ${classes.bgCard} ${classes.border} rounded-lg ${classes.text}`}
+                >
+                  <option value="DATABASE">Database Only</option>
+                  <option value="FILES">Files Only</option>
+                  <option value="FULL">Full System</option>
+                </select>
+              </div>
+
+              <div>
+                <label className={`block text-sm font-medium ${classes.text} mb-2`}>
+                  Schedule (Cron Format)
+                </label>
+                <input
+                  type="text"
+                  value={backupSettings.schedule.cron}
+                  onChange={(e) => setBackupSettings(prev => ({
+                    ...prev,
+                    schedule: { ...prev.schedule, cron: e.target.value }
+                  }))}
+                  className={`w-full px-3 py-2 ${classes.bgCard} ${classes.border} rounded-lg ${classes.text}`}
+                  placeholder="0 23 * * *"
+                />
+                <p className={`text-xs ${classes.textMuted} mt-1`}>
+                  Examples: "0 23 * * *" (11 PM daily), "0 2 * * 0" (2 AM Sundays)
+                </p>
+              </div>
+
+              <div>
+                <label className={`block text-sm font-medium ${classes.text} mb-2`}>
+                  Retention Days
+                </label>
+                <input
+                  type="number"
+                  value={backupSettings.schedule.retentionDays}
+                  onChange={(e) => setBackupSettings(prev => ({
+                    ...prev,
+                    schedule: {
+                      ...prev.schedule,
+                      retentionDays: parseInt(e.target.value) || 30
+                    }
+                  }))}
+                  className={`w-full px-3 py-2 ${classes.bgCard} ${classes.border} rounded-lg ${classes.text}`}
+                  min="1"
+                  max="365"
+                />
+                <p className={`text-xs ${classes.textMuted} mt-1`}>
+                  Keep backups for this many days
+                </p>
+              </div>
+
+              <button
+                onClick={handleUpdateSchedule}
+                disabled={scheduleBackupMutation.isPending}
+                className={`w-full py-2 px-4 rounded-lg font-medium transition-colors ${
+                  scheduleBackupMutation.isPending
+                    ? 'bg-gray-500 cursor-not-allowed'
+                    : 'bg-blue-500 hover:bg-blue-600'
+                } text-white`}
+              >
+                {scheduleBackupMutation.isPending ? 'Updating...' : 'Update Schedule'}
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* Email Settings */}
+      <div className={`${classes.bgCard} rounded-xl ${classes.border} p-6 mb-6`}>
         <div className="flex items-center gap-3 mb-6">
           <div className={`w-10 h-10 rounded-lg ${classes.hoverAccent} ${classes.borderAccent} flex items-center justify-center`}>
             <Mail className={`w-5 h-5 ${classes.textAccent}`} />
           </div>
           <div>
-            <h3 className={`text-lg font-semibold ${classes.text}`}>Email Delivery</h3>
-            <p className={`text-sm ${classes.textMuted}`}>Configure automatic email delivery of backups</p>
+            <h3 className={`text-lg font-semibold ${classes.text}`}>Email Notifications</h3>
+            <p className={`text-sm ${classes.textMuted}`}>Configure backup email delivery</p>
           </div>
         </div>
 
