@@ -28,8 +28,6 @@ model Employee {
   hasDeduction         Boolean?  @default(true) @map("has_deduction")
   branchId             Int?      @map("branch_id")
   branchCode           String?   @map("branch_code") @db.VarChar(10)
-  faceConsentGiven     Boolean?  @default(false) @map("face_consent_given")
-  faceDataVersion      String?   @default("1") @map("face_data_version") @db.VarChar(10)
   // pinHash              String?   @map("pin_hash") @db.VarChar(255)
   // pinSalt              String?   @map("pin_salt") @db.VarChar(255)
 
