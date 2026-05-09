@@ -27,11 +27,31 @@ const execAsync = (command: string, options?: any): Promise<{ stdout: string; st
   });
 };
 
+interface DatabaseConnectionConfig {
+  hostname: string;
+  port?: string;
+  username: string;
+  password: string;
+  database: string;
+}
+
+const parseDatabaseConnection = (databaseUrl: string): DatabaseConnectionConfig => {
+  const url = new URL(databaseUrl);
+
+  return {
+    hostname: url.hostname,
+    port: url.port || undefined,
+    username: decodeURIComponent(url.username),
+    password: decodeURIComponent(url.password),
+    database: url.pathname.replace(/^\/+/, '')
+  };
+};
+
 // Helper function to run mysqldump using spawn (more reliable on Windows)
 const runMysqldump = async (args: string[], outputFile: string): Promise<void> => {
   return new Promise((resolve, reject) => {
     const mysqldumpPath = process.env.MYSQLDUMP_PATH || 'mysqldump';
-    const child = spawn(mysqldumpPath, [...args, '-r', outputFile], { shell: true });
+    const child = spawn(mysqldumpPath, [...args, '-r', outputFile], { shell: false });
     
     let stderr = '';
     child.stderr.on('data', (data) => {
@@ -238,18 +258,19 @@ export class BackupService {
         throw new Error('DATABASE_URL not configured');
       }
 
-      // Parse database URL to get connection details
-      const url = new URL(databaseUrl);
-      const dbName = url.pathname.slice(1);
-      
-      // Create database dump using mysqldump
-      const mysqldumpPath = process.env.MYSQLDUMP_PATH || 'mysqldump';
-      const passwordPart = url.password ? `-p${url.password}` : '';
-      const cmd = `"${mysqldumpPath}" -h ${url.hostname} -u ${url.username} ${passwordPart} ${dbName} -r "${filePath}"`;
-      console.log('Running mysqldump:', cmd);
-      
+      const connection = parseDatabaseConnection(databaseUrl);
+      const dumpArgs = ['-h', connection.hostname];
+      if (connection.port) {
+        dumpArgs.push('-P', connection.port);
+      }
+      dumpArgs.push('-u', connection.username);
+      if (connection.password) {
+        dumpArgs.push(`-p${connection.password}`);
+      }
+      dumpArgs.push(connection.database);
+
       try {
-        await execAsync(cmd);
+        await runMysqldump(dumpArgs, filePath);
       } catch (dumpErr: any) {
         console.error('mysqldump error:', dumpErr.message);
         throw dumpErr;
@@ -423,8 +444,7 @@ export class BackupService {
       throw new Error('DATABASE_URL not configured');
     }
 
-    const url = new URL(databaseUrl);
-    const dbName = url.pathname.slice(1);
+    const connection = parseDatabaseConnection(databaseUrl);
     
     // Create current backup before restore
     await this.createDatabaseBackup({
@@ -433,11 +453,15 @@ export class BackupService {
     });
 
     // Restore database (environment-aware)
-    const args = ['-h', url.hostname, '-u', url.username];
-    if (url.password) {
-      args.push(`-p${url.password}`);
+    const args = ['-h', connection.hostname];
+    if (connection.port) {
+      args.push('-P', connection.port);
     }
-    args.push(dbName);
+    args.push('-u', connection.username);
+    if (connection.password) {
+      args.push(`-p${connection.password}`);
+    }
+    args.push(connection.database);
     await runMysql(args);
 
     return { success: true, message: 'Database restored successfully' };
