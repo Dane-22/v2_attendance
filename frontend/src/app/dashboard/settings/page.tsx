@@ -7,6 +7,8 @@ import AppearanceSettings from './components/AppearanceSettings';
 import NotificationSettings from './components/NotificationSettings';
 import SecuritySettings from './components/SecuritySettings';
 import SystemSettings from './components/SystemSettings';
+import BackupSettings from './components/BackupSettings';
+import { useTheme } from '@/hooks/useTheme';
 import { 
   Building2, 
   Palette, 
@@ -24,11 +26,13 @@ const tabs: { id: SettingsTab; label: string; icon: React.ElementType; descripti
   { id: 'notifications', label: 'Notifications', icon: Bell, description: 'Alerts & email settings' },
   { id: 'security', label: 'Security', icon: Shield, description: 'Password & 2FA settings' },
   { id: 'system', label: 'System', icon: Globe, description: 'Regional & system preferences' },
+  { id: 'backup', label: 'Backup', icon: Save, description: 'Backup & restore settings' },
 ];
 
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState<SettingsTab>('general');
   const [isSavingAll, setIsSavingAll] = useState(false);
+  const { classes } = useTheme();
 
   const handleSaveAll = () => {
     setIsSavingAll(true);
@@ -49,6 +53,8 @@ export default function SettingsPage() {
         return <SecuritySettings />;
       case 'system':
         return <SystemSettings />;
+      case 'backup':
+        return <BackupSettings />;
       default:
         return <GeneralSettings />;
     }
@@ -59,10 +65,10 @@ export default function SettingsPage() {
       {/* Header */}
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
         <div>
-          <h1 className="text-2xl lg:text-3xl font-bold text-white">
-            Settings <span className="text-[#facc15]">& Configuration</span>
+          <h1 className={`text-2xl lg:text-3xl font-bold ${classes.text}`}>
+            Settings <span className={classes.textAccent}>& Configuration</span>
           </h1>
-          <p className="text-gray-400 mt-1">
+          <p className={`${classes.textMuted} mt-1`}>
             Manage your application preferences and system settings
           </p>
         </div>
@@ -70,7 +76,7 @@ export default function SettingsPage() {
         <div className="flex items-center gap-3">
           <button
             onClick={() => window.location.reload()}
-            className="flex items-center gap-2 px-4 py-2 bg-[#141414] border border-[#262626] rounded-lg text-white hover:border-[#404040] transition-colors"
+            className={`flex items-center gap-2 px-4 py-2 ${classes.bgCard} ${classes.border} rounded-lg ${classes.text} hover:${classes.borderHover} transition-colors`}
           >
             <RotateCcw className="w-4 h-4" />
             <span className="hidden sm:inline">Reset</span>
@@ -99,15 +105,15 @@ export default function SettingsPage() {
       <div className="flex flex-col lg:flex-row gap-6">
         {/* Sidebar Tabs */}
         <div className="lg:w-72 flex-shrink-0">
-          <div className="bg-[#141414] rounded-xl border border-[#262626] overflow-hidden sticky top-6">
-            <div className="p-4 border-b border-[#262626]">
+          <div className={`${classes.bgCard} rounded-xl ${classes.border} overflow-hidden sticky top-6`}>
+            <div className={`p-4 border-b ${classes.border}`}>
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-[#facc15]/10 border border-[#facc15]/30 flex items-center justify-center">
-                  <Settings className="w-5 h-5 text-[#facc15]" />
+                <div className={`w-10 h-10 rounded-lg ${classes.hoverAccent} ${classes.borderAccent} flex items-center justify-center`}>
+                  <Settings className={`w-5 h-5 ${classes.textAccent}`} />
                 </div>
                 <div>
-                  <h3 className="text-white font-semibold">Settings</h3>
-                  <p className="text-xs text-gray-400">Configure your app</p>
+                  <h3 className={`${classes.text} font-semibold`}>Settings</h3>
+                  <p className={`text-xs ${classes.textMuted}`}>Configure your app</p>
                 </div>
               </div>
             </div>
@@ -123,16 +129,16 @@ export default function SettingsPage() {
                     onClick={() => setActiveTab(tab.id)}
                     className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-left transition-all mb-1 ${
                       isActive
-                        ? 'bg-[#facc15]/10 text-[#facc15] border-l-2 border-[#facc15]'
-                        : 'text-gray-400 hover:bg-[#1a1a1a] hover:text-white'
+                        ? `${classes.hoverAccent} ${classes.textAccent} border-l-2 ${classes.borderAccent}`
+                        : `${classes.textMuted} hover:${classes.bgCardHover} hover:${classes.text}`
                     }`}
                   >
-                    <Icon className={`w-5 h-5 ${isActive ? 'text-[#facc15]' : ''}`} />
+                    <Icon className={`w-5 h-5 ${isActive ? classes.textAccent : ''}`} />
                     <div className="flex-1">
-                      <p className={`font-medium ${isActive ? 'text-[#facc15]' : 'text-white'}`}>
+                      <p className={`font-medium ${isActive ? classes.textAccent : classes.text}`}>
                         {tab.label}
                       </p>
-                      <p className="text-xs text-gray-500">{tab.description}</p>
+                      <p className={`text-xs ${classes.textMuted}`}>{tab.description}</p>
                     </div>
                   </button>
                 );
@@ -143,19 +149,19 @@ export default function SettingsPage() {
 
         {/* Tab Content */}
         <div className="flex-1 min-w-0">
-          <div className="bg-[#141414] rounded-xl border border-[#262626] p-6">
-            <div className="flex items-center gap-3 mb-6 pb-4 border-b border-[#262626]">
+          <div className={`${classes.bgCard} rounded-xl ${classes.border} p-6`}>
+            <div className={`flex items-center gap-3 mb-6 pb-4 border-b ${classes.border}`}>
               {(() => {
                 const currentTab = tabs.find(t => t.id === activeTab);
                 const Icon = currentTab?.icon || Settings;
                 return (
                   <>
-                    <div className="w-10 h-10 rounded-lg bg-[#facc15]/10 border border-[#facc15]/30 flex items-center justify-center">
-                      <Icon className="w-5 h-5 text-[#facc15]" />
+                    <div className={`w-10 h-10 rounded-lg ${classes.hoverAccent} ${classes.borderAccent} flex items-center justify-center`}>
+                      <Icon className={`w-5 h-5 ${classes.textAccent}`} />
                     </div>
                     <div>
-                      <h2 className="text-xl font-semibold text-white">{currentTab?.label}</h2>
-                      <p className="text-sm text-gray-400">{currentTab?.description}</p>
+                      <h2 className={`text-xl font-semibold ${classes.text}`}>{currentTab?.label}</h2>
+                      <p className={`text-sm ${classes.textMuted}`}>{currentTab?.description}</p>
                     </div>
                   </>
                 );
@@ -168,7 +174,7 @@ export default function SettingsPage() {
       </div>
 
       {/* Footer */}
-      <div className="text-center text-sm text-gray-500 pt-4 border-t border-[#262626]">
+      <div className={`text-center text-sm ${classes.textMuted} pt-4 border-t ${classes.border}`}>
         <p>JAJR Construction Management System v2.0 • Settings are saved automatically per section</p>
       </div>
     </div>

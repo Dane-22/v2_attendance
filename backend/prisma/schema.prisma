@@ -28,6 +28,8 @@ model Employee {
   hasDeduction         Boolean?  @default(true) @map("has_deduction")
   branchId             Int?      @map("branch_id")
   branchCode           String?   @map("branch_code") @db.VarChar(10)
+  faceConsentGiven     Boolean?  @default(false) @map("face_consent_given")
+  faceDataVersion      String?   @default("1") @map("face_data_version") @db.VarChar(10)
   // pinHash              String?   @map("pin_hash") @db.VarChar(255)
   // pinSalt              String?   @map("pin_salt") @db.VarChar(255)
 
@@ -126,7 +128,7 @@ model notifications {
   created_at     DateTime?                    @default(now()) @db.Timestamp(0)
   read_at        DateTime?                    @db.Timestamp(0)
 
-  @@index([created_at(sort: Desc)], map: "idx_created")
+  @@index([created_at], map: "idx_created")
   @@index([recipient_type, recipient_id], map: "idx_recipient")
   @@index([recipient_type, recipient_id, is_read], map: "idx_unread")
 }
@@ -277,11 +279,111 @@ model Task {
   totalTimeSpent  Int           @default(0) @map("total_time_spent")
   isTimerRunning  Boolean       @default(false) @map("is_timer_running")
   lastTimerStart  DateTime?     @map("last_timer_start")
-  createdAt       DateTime?     @default(now()) @map("created_at") @db.Timestamp(0)
+  createdAt       DateTime?     @map("created_at") @db.Timestamp(0)
   updatedAt       DateTime?     @default(now()) @updatedAt @map("updated_at") @db.Timestamp(0)
 
   @@index([employeeId], map: "idx_task_employee")
   @@index([status], map: "idx_task_status")
   @@index([createdAt], map: "idx_task_created")
   @@map("tasks")
+}
+
+model BackupRecord {
+  id          Int      @id @default(autoincrement())
+  filename    String   @db.VarChar(255)
+  type        backup_type @default(DATABASE)
+  size        BigInt
+  created_at  DateTime @default(now())
+  created_by  Int
+  description String?  @db.Text
+  is_auto     Boolean  @default(false)
+  status      backup_status @default(COMPLETED)
+  cloud_url   String?  @db.VarChar(500)
+  cloud_provider String? @db.VarChar(50)
+  download_count Int @default(0)
+  last_downloaded DateTime?
+  
+  @@index([created_at], map: "idx_backup_created")
+  @@index([type], map: "idx_backup_type")
+  @@index([status], map: "idx_backup_status")
+  @@index([is_auto], map: "idx_backup_auto")
+  @@index([created_by], map: "idx_backup_creator")
+  @@index([created_at, type], map: "idx_backup_created_type")
+  @@map("backup_records")
+}
+
+enum backup_type {
+  DATABASE
+  FILES
+  FULL
+}
+
+enum backup_status {
+  COMPLETED
+  FAILED
+  PENDING
+  IN_PROGRESS
+}
+
+model BackupSchedule {
+  id             Int      @id @default(autoincrement())
+  type           backup_type @default(DATABASE)
+  schedule       String   @db.VarChar(100)  // cron expression
+  enabled        Boolean  @default(true)
+  retentionDays  Int      @default(30) @map("retention_days")
+  emailEnabled   Boolean  @default(true) @map("email_enabled")
+  emailRecipients String?  @db.Text @map("email_recipients") // comma-separated
+  emailSubject   String?  @db.VarChar(255) @map("email_subject")
+  cloudEnabled   Boolean  @default(false) @map("cloud_enabled")
+  cloudProvider  String?  @db.VarChar(50) @map("cloud_provider")
+  cloudConfig    Json?    @map("cloud_config")
+  created_by     Int
+  created_at     DateTime @default(now())
+  updated_at     DateTime @updatedAt
+  last_run_at    DateTime?
+  next_run_at    DateTime?
+
+  @@index([enabled], map: "idx_schedule_enabled")
+  @@index([type], map: "idx_schedule_type")
+  @@map("backup_schedules")
+}
+
+model Settings {
+  id                    Int       @id @default(autoincrement())
+  companyName           String?   @map("company_name") @db.VarChar(255)
+  address               String?   @db.Text
+  phone                 String?   @db.VarChar(50)
+  email                 String?   @db.VarChar(100)
+  website               String?   @db.VarChar(255)
+  taxId                 String?   @map("tax_id") @db.VarChar(100)
+  workStartTime         String?   @map("work_start_time") @db.VarChar(10)
+  workEndTime           String?   @map("work_end_time") @db.VarChar(10)
+  gracePeriod           Int?      @default(15) @map("grace_period")
+  overtimeThreshold     Int?      @default(30) @map("overtime_threshold")
+  payPeriod             String?   @map("pay_period") @db.VarChar(20)
+  payDay                Int?      @default(15) @map("pay_day")
+  defaultDailyRate      Decimal?  @map("default_daily_rate") @db.Decimal(10, 2)
+  overtimeMultiplier    Decimal?  @map("overtime_multiplier") @db.Decimal(5, 2)
+  holidayMultiplier     Decimal?  @map("holiday_multiplier") @db.Decimal(5, 2)
+  emailNotifications    Boolean?  @default(true) @map("email_notifications")
+  pushNotifications     Boolean?  @default(true) @map("push_notifications")
+  attendanceAlerts      Boolean?  @default(true) @map("attendance_alerts")
+  payrollAlerts         Boolean?  @default(true) @map("payroll_alerts")
+  systemUpdates         Boolean?  @default(true) @map("system_updates")
+  lowBalanceAlerts      Boolean?  @default(true) @map("low_balance_alerts")
+  twoFactorAuth         Boolean?  @default(false) @map("two_factor_auth")
+  passwordExpiryDays    Int?      @default(90) @map("password_expiry_days")
+  sessionTimeout        Int?      @default(30) @map("session_timeout")
+  loginAttempts         Int?      @default(5) @map("login_attempts")
+  requireStrongPasswords Boolean? @default(true) @map("require_strong_passwords")
+  timezone              String?   @default("Asia/Manila") @db.VarChar(50)
+  dateFormat            String?   @default("MM/DD/YYYY") @map("date_format") @db.VarChar(20)
+  currency              String?   @default("PHP") @db.VarChar(10)
+  language              String?   @default("en") @db.VarChar(10)
+  autoLogout            Boolean?  @default(true) @map("auto_logout")
+  dataRetention         Int?      @default(365) @map("data_retention")
+  createdAt             DateTime? @default(now()) @map("created_at") @db.Timestamp(0)
+  updatedAt             DateTime? @default(now()) @updatedAt @map("updated_at") @db.Timestamp(0)
+
+  @@map("settings")
 }

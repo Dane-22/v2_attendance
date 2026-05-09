@@ -49,10 +49,54 @@ export interface SystemSettings {
   dataRetention: number; // days
 }
 
+export interface BackupSettings {
+  emailDelivery: {
+    enabled: boolean;
+    recipients: string[];
+    subject?: string;
+    message?: string;
+  };
+  cloudStorage: {
+    enabled: boolean;
+    provider: 'AWS_S3' | 'GOOGLE_DRIVE' | 'DROPBOX';
+    config?: {
+      accessKeyId?: string;
+      secretAccessKey?: string;
+      region?: string;
+      bucket?: string;
+      credentials?: any;
+      folderId?: string;
+    };
+  };
+  schedule: {
+    type: 'DATABASE' | 'FILES' | 'FULL';
+    cron: string;
+    enabled: boolean;
+    retentionDays: number;
+  };
+}
+
+export interface BackupRecord {
+  id: number;
+  filename: string;
+  type: 'DATABASE' | 'FILES' | 'FULL';
+  size: number;
+  created_at: Date;
+  created_by: number;
+  description?: string;
+  is_auto: boolean;
+  status: 'COMPLETED' | 'FAILED' | 'PENDING' | 'IN_PROGRESS';
+  cloud_url?: string;
+  cloud_provider?: string;
+  download_count: number;
+  last_downloaded?: Date;
+}
+
 export type SettingsTab = 
   | 'general' 
   | 'appearance' 
   | 'notifications' 
   | 'security' 
   | 'system' 
-  | 'payroll';
+  | 'payroll'
+  | 'backup';

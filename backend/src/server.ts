@@ -21,6 +21,9 @@ import documentRoutes from './routes/document.routes';
 import adminRoutes from './routes/admin.routes';
 import branchUserRoutes from './routes/branch-user.routes';
 import faceRecognitionRoutes from './routes/faceRecognition.routes';
+import taskRoutes from './routes/task.routes';
+import backupRoutes from './routes/backup.routes';
+import settingsRoutes from './routes/settings.routes';
 import { errorHandler } from './middleware/error.middleware';
 import { logBufferService } from './services/logBuffer.service';
 import { scheduleLogMonitoring } from './services/logMonitoring.service';
@@ -155,6 +158,9 @@ app.use('/api/documents', documentRoutes);
 app.use('/api/admins', adminRoutes);
 app.use('/api/branch-users', branchUserRoutes);
 app.use('/api/face-recognition', faceRecognitionRoutes);
+app.use('/api/tasks', taskRoutes);
+app.use('/api/backup', backupRoutes);
+app.use('/api/settings', settingsRoutes);
 
 app.use(errorHandler);
 
