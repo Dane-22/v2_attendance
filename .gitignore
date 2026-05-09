@@ -12,6 +12,7 @@ build/
 .env
 .env.local
 .env.*.local
+.env.production
 
 # IDE
 .vscode/
@@ -35,3 +36,14 @@ npm-debug.log*
 # Uploads
 uploads/
 public/uploads/
+
+# Playwright
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+/playwright/.auth/
+
+# Tests (local only - not committed to GitHub)
+# /tests/  - Temporarily enabled for test creation
+# /backend/src/__tests__/  - Temporarily enabled for test creation
