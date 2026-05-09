@@ -4,7 +4,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { useTheme } from '@/hooks/useTheme';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { createPortal } from 'react-dom';
-import { attendanceApi, branchApi, Attendance } from '@/lib/api';
+import { attendanceApi, branchApi, employeeApi, Attendance, Branch, Employee } from '@/lib/api';
 import ProfileImage from '@/components/ProfileImage';
 import ImagePreview from '@/components/ImagePreview';
 import { 
@@ -1285,6 +1285,69 @@ interface AuditRecord {
   rawStatus: string;
 }
 
+type ReportPreset = 'day' | 'week' | 'month';
+
+interface ReportRow {
+  date: string;
+  employeeCode: string;
+  employeeName: string;
+  branch: string;
+  checkIn: string;
+  checkOut: string;
+  hoursWorked: string;
+  status: string;
+  notes: string;
+}
+
+interface ScopedAuditStats {
+  totalRecords: number;
+  currentlyPresent: number;
+  completedShifts: number;
+  absent: number;
+  present: number;
+  late: number;
+}
+
+const formatIsoDate = (date: Date): string => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const parseIsoDate = (value: string): Date => {
+  const [year, month, day] = value.split('-').map(Number);
+  return new Date(year, month - 1, day);
+};
+
+const getHoursWorked = (checkIn: Date | string | null, checkOut: Date | string | null): string => {
+  if (!checkIn || !checkOut) return '0.00';
+  const inDate = new Date(checkIn);
+  const outDate = new Date(checkOut);
+  if (Number.isNaN(inDate.getTime()) || Number.isNaN(outDate.getTime())) return '0.00';
+  const diffHours = (outDate.getTime() - inDate.getTime()) / (1000 * 60 * 60);
+  return Math.max(diffHours, 0).toFixed(2);
+};
+
+const formatTimeValue = (value: Date | string | null): string => {
+  if (!value) return '-';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '-';
+  return date.toLocaleTimeString('en-US', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true
+  });
+};
+
+const escapeHtml = (value: string): string =>
+  value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+
 export default function AttendanceAuditPage() {
   const { classes } = useTheme();
   const queryClient = useQueryClient();
@@ -1309,6 +1372,10 @@ export default function AttendanceAuditPage() {
   const [isDayDetailsModalOpen, setIsDayDetailsModalOpen] = useState(false);
   const [isManualRefreshing, setIsManualRefreshing] = useState(false);
   const [previewImage, setPreviewImage] = useState<{ src: string; alt: string } | null>(null);
+  const [reportPreset, setReportPreset] = useState<ReportPreset>('day');
+  const [isGeneratingReport, setIsGeneratingReport] = useState(false);
+  const [isExportingExcel, setIsExportingExcel] = useState(false);
+  const [actionMessage, setActionMessage] = useState<string | null>(null);
 
   // Format date for API (YYYY-MM-DD) using calendar month/year
   const formattedDate = useMemo(() => {
@@ -1361,17 +1428,6 @@ export default function AttendanceAuditPage() {
   });
 
   const records = auditData?.records || [];
-  const stats = auditData?.stats || { totalRecords: 0, currentlyPresent: 0, completedShifts: 0, absent: 0, present: 0, late: 0 };
-
-  // Dynamic filter tabs with counts from stats
-  const filterTabs = [
-    { id: 'all', label: 'All', count: stats.totalRecords },
-    { id: 'present', label: 'Present', count: stats.present },
-    { id: 'late', label: 'Late', count: stats.late },
-    { id: 'completed', label: 'Completed', count: stats.completedShifts },
-    { id: 'absent', label: 'Absent', count: stats.absent },
-    { id: 'voided', label: 'Voided', count: 0 },
-  ];
 
   // Calculate date range for monthly data
   const startDate = useMemo(() => {
@@ -1394,17 +1450,50 @@ export default function AttendanceAuditPage() {
     gcTime: 600000 // 10 minutes
   });
 
+  const { data: employeesData } = useQuery({
+    queryKey: ['employees-for-attendance-audit-report'],
+    queryFn: async () => {
+      const response = await employeeApi.getAll({ limit: 2000 });
+      return response.data.data || [];
+    },
+    staleTime: 300000,
+    gcTime: 600000
+  });
+
   // Transform branches data to include "All Branches" option
   const branches = useMemo(() => {
-    const dbBranches = branchesData || [];
+    const dbBranches = (branchesData || []) as Branch[];
     return [
       { code: 'ALL', name: 'All Branches' },
-      ...dbBranches.map((branch: any) => ({
+      ...dbBranches.map((branch) => ({
         code: branch.code,
         name: branch.shortName || branch.name // Use shortName (branch_name from database) as display name
       }))
     ];
   }, [branchesData]);
+
+  const employeeMap = useMemo(() => {
+    const employees = (employeesData || []) as Employee[];
+    return new Map(
+      employees.map((employee) => [
+        employee.id,
+        {
+          code: employee.employeeCode || `EMP-${employee.id}`,
+          name: [employee.firstName, employee.lastName].filter(Boolean).join(' ').trim() || `Employee ${employee.id}`,
+          branchCode: employee.branchCode || employee.branchName || '',
+          branchName: employee.branchName || employee.branchCode || ''
+        }
+      ])
+    );
+  }, [employeesData]);
+
+  const branchNameMap = useMemo(() => {
+    return new Map(
+      branches
+        .filter((branch) => branch.code !== 'ALL')
+        .map((branch) => [branch.code, branch.name])
+    );
+  }, [branches]);
 
   // Fetch monthly attendance data for calendar counts
   const {
@@ -1512,11 +1601,154 @@ export default function AttendanceAuditPage() {
     setSelectedDate(now.getDate());
   };
 
+  const reportRange = useMemo(() => {
+    const selected = new Date(calendarYear, calendarMonth, selectedDate);
+
+    if (reportPreset === 'week') {
+      const start = new Date(selected);
+      const day = start.getDay();
+      const diffToMonday = day === 0 ? -6 : 1 - day;
+      start.setDate(start.getDate() + diffToMonday);
+
+      const end = new Date(start);
+      end.setDate(start.getDate() + 6);
+
+      return {
+        label: 'This Week',
+        startDate: formatIsoDate(start),
+        endDate: formatIsoDate(end)
+      };
+    }
+
+    if (reportPreset === 'month') {
+      const start = new Date(calendarYear, calendarMonth, 1);
+      const end = new Date(calendarYear, calendarMonth + 1, 0);
+      return {
+        label: 'This Month',
+        startDate: formatIsoDate(start),
+        endDate: formatIsoDate(end)
+      };
+    }
+
+    return {
+      label: 'Selected Day',
+      startDate: formattedDate,
+      endDate: formattedDate
+    };
+  }, [calendarMonth, calendarYear, formattedDate, reportPreset, selectedDate]);
+
+  const highlightedCalendarDays = useMemo(() => {
+    if (reportPreset === 'day') {
+      return new Set<number>([selectedDate]);
+    }
+
+    const start = parseIsoDate(reportRange.startDate);
+    const end = parseIsoDate(reportRange.endDate);
+    const days = new Set<number>();
+
+    const cursor = new Date(start);
+    while (cursor <= end) {
+      if (cursor.getMonth() === calendarMonth && cursor.getFullYear() === calendarYear) {
+        days.add(cursor.getDate());
+      }
+      cursor.setDate(cursor.getDate() + 1);
+    }
+
+    return days;
+  }, [calendarMonth, calendarYear, reportPreset, reportRange.endDate, reportRange.startDate, selectedDate]);
+
+  const {
+    data: scopedAttendanceData,
+    isFetching: isScopedAttendanceFetching
+  } = useQuery({
+    queryKey: ['attendance-audit-scope', reportPreset, reportRange.startDate, reportRange.endDate, selectedBranchFilter],
+    queryFn: async () => {
+      if (reportPreset === 'day') {
+        return null;
+      }
+
+      const response = await attendanceApi.getAll({
+        startDate: reportRange.startDate,
+        endDate: reportRange.endDate,
+        limit: 5000,
+        branch_code: selectedBranchFilter === 'ALL' ? undefined : selectedBranchFilter
+      });
+
+      return response.data.data || [];
+    },
+    enabled: reportPreset !== 'day',
+    staleTime: 30000,
+    gcTime: 300000
+  });
+
+  const displayedRecords = useMemo(() => {
+    if (reportPreset === 'day') {
+      return records;
+    }
+
+    const scopedRecords = (scopedAttendanceData || []) as Attendance[];
+    return scopedRecords.map((record) => {
+      const employee = employeeMap.get(record.employeeId);
+      const branchCode = record.branch_code || employee?.branchCode || '';
+      const branchName = branchCode
+        ? `${branchCode}${branchNameMap.get(branchCode) ? ` - ${branchNameMap.get(branchCode)}` : ''}`
+        : employee?.branchName || '-';
+
+      let statusLabel = 'Present';
+      if (record.status === 'late') statusLabel = 'Late';
+      else if (record.status === 'absent' || !record.status) statusLabel = 'Absent';
+      else if (record.status === 'voided') statusLabel = 'Voided';
+
+      return {
+        id: record.id,
+        employeeId: record.employeeId,
+        name: employee?.name || `Employee ${record.employeeId}`,
+        code: employee?.code || `EMP-${record.employeeId}`,
+        profileImage: null,
+        branch: branchName,
+        timeIn: formatTimeValue(record.check_in),
+        timeOut: formatTimeValue(record.check_out),
+        hours: getHoursWorked(record.check_in, record.check_out),
+        status: statusLabel,
+        rawStatus: record.status || 'absent'
+      };
+    });
+  }, [branchNameMap, employeeMap, records, reportPreset, scopedAttendanceData]);
+
+  const displayedStats = useMemo<ScopedAuditStats>(() => {
+    if (reportPreset === 'day') {
+      return auditData?.stats || { totalRecords: 0, currentlyPresent: 0, completedShifts: 0, absent: 0, present: 0, late: 0 };
+    }
+
+    return displayedRecords.reduce<ScopedAuditStats>((accumulator, record) => {
+      accumulator.totalRecords += 1;
+
+      if (record.rawStatus === 'present') {
+        accumulator.present += 1;
+      }
+
+      if (record.rawStatus === 'late') {
+        accumulator.late += 1;
+      }
+
+      if (record.rawStatus === 'absent' || !record.rawStatus) {
+        accumulator.absent += 1;
+      }
+
+      if (record.timeOut !== '-') {
+        accumulator.completedShifts += 1;
+      } else if (record.rawStatus === 'present' || record.rawStatus === 'late') {
+        accumulator.currentlyPresent += 1;
+      }
+
+      return accumulator;
+    }, { totalRecords: 0, currentlyPresent: 0, completedShifts: 0, absent: 0, present: 0, late: 0 });
+  }, [auditData?.stats, displayedRecords, reportPreset]);
+
   // Filter data based on search query and active filter (client-side)
   const filteredData = useMemo(() => {
-    let data = records;
+    let data = displayedRecords;
     
-    // Apply search filter
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
       data = data.filter(emp => 
@@ -1526,7 +1758,6 @@ export default function AttendanceAuditPage() {
       );
     }
     
-    // Apply status filter (if not already filtered by API)
     if (activeFilter !== 'all') {
       data = data.filter(emp => {
         if (activeFilter === 'present') return emp.rawStatus === 'present';
@@ -1539,7 +1770,414 @@ export default function AttendanceAuditPage() {
     }
     
     return data;
-  }, [records, searchQuery, activeFilter]);
+  }, [displayedRecords, searchQuery, activeFilter]);
+
+  // Dynamic filter tabs with counts from stats
+  const filterTabs = [
+    { id: 'all', label: 'All', count: displayedStats.totalRecords },
+    { id: 'present', label: 'Present', count: displayedStats.present },
+    { id: 'late', label: 'Late', count: displayedStats.late },
+    { id: 'completed', label: 'Completed', count: displayedStats.completedShifts },
+    { id: 'absent', label: 'Absent', count: displayedStats.absent },
+    { id: 'voided', label: 'Voided', count: 0 },
+  ];
+
+  const fetchReportRows = async (): Promise<ReportRow[]> => {
+    const response = await attendanceApi.getAll({
+      startDate: reportRange.startDate,
+      endDate: reportRange.endDate,
+      limit: 5000,
+      branch_code: selectedBranchFilter === 'ALL' ? undefined : selectedBranchFilter
+    });
+
+    const sourceRows = response.data.data || [];
+
+    return sourceRows
+      .map((record) => {
+        const employee = employeeMap.get(record.employeeId);
+        const employeeName = employee?.name || `Employee ${record.employeeId}`;
+        const employeeCode = employee?.code || `EMP-${record.employeeId}`;
+        const branchCode = record.branch_code || employee?.branchCode || '';
+        const branchLabel = branchCode
+          ? `${branchCode}${branchNameMap.get(branchCode) ? ` - ${branchNameMap.get(branchCode)}` : ''}`
+          : employee?.branchName || '-';
+
+        return {
+          date: formatIsoDate(new Date(record.date)),
+          employeeCode,
+          employeeName,
+          branch: branchLabel,
+          checkIn: formatTimeValue(record.check_in),
+          checkOut: formatTimeValue(record.check_out),
+          hoursWorked: getHoursWorked(record.check_in, record.check_out),
+          status: record.status || 'no_record',
+          notes: record.notes || ''
+        };
+      })
+      .filter((row) => {
+        if (searchQuery) {
+          const query = searchQuery.toLowerCase();
+          const searchable = `${row.employeeName} ${row.employeeCode} ${row.branch}`.toLowerCase();
+          if (!searchable.includes(query)) {
+            return false;
+          }
+        }
+
+        if (activeFilter !== 'all') {
+          if (activeFilter === 'completed') {
+            return row.checkOut !== '-';
+          }
+
+          if (activeFilter === 'absent') {
+            return row.status === 'absent' || row.status === 'no_record';
+          }
+
+          if (activeFilter === 'voided') {
+            return row.status === 'voided';
+          }
+
+          return row.status === activeFilter;
+        }
+
+        return true;
+      })
+      .sort((left, right) => {
+        const dateDiff = right.date.localeCompare(left.date);
+        if (dateDiff !== 0) return dateDiff;
+        return left.employeeName.localeCompare(right.employeeName);
+      });
+  };
+
+  const handleGenerateReport = async () => {
+    setIsGeneratingReport(true);
+    setActionMessage(null);
+
+    const reportWindow = window.open('', '_blank', 'width=1200,height=800');
+    if (!reportWindow) {
+      setIsGeneratingReport(false);
+      setActionMessage('Popup blocked. Please allow popups to generate the report.');
+      return;
+    }
+
+    reportWindow.document.write(`
+      <html>
+        <head>
+          <title>Attendance Audit Report</title>
+          <style>
+            body { font-family: Arial, sans-serif; margin: 24px; color: #111827; }
+            .loading { display: flex; align-items: center; justify-content: center; min-height: 60vh; font-size: 18px; }
+          </style>
+        </head>
+        <body>
+          <div class="loading">Generating attendance report...</div>
+        </body>
+      </html>
+    `);
+    reportWindow.document.close();
+
+    try {
+      const rows = await fetchReportRows();
+      if (!rows.length) {
+        reportWindow.document.open();
+        reportWindow.document.write(`
+          <html>
+            <head>
+              <title>Attendance Audit Report</title>
+              <style>
+                body { font-family: Arial, sans-serif; margin: 24px; color: #111827; }
+              </style>
+            </head>
+            <body>
+              <h1>Attendance Audit Report</h1>
+              <p>No attendance records found for ${escapeHtml(reportRange.label.toLowerCase())}.</p>
+            </body>
+          </html>
+        `);
+        reportWindow.document.close();
+        setActionMessage(`No attendance records found for ${reportRange.label.toLowerCase()}.`);
+        return;
+      }
+
+      const totals = rows.reduce(
+        (accumulator, row) => {
+          accumulator.total += 1;
+          accumulator.hours += Number(row.hoursWorked);
+          if (row.status === 'present') accumulator.present += 1;
+          if (row.status === 'late') accumulator.late += 1;
+          if (row.status === 'absent' || row.status === 'no_record') accumulator.absent += 1;
+          return accumulator;
+        },
+        { total: 0, present: 0, late: 0, absent: 0, hours: 0 }
+      );
+
+      const uniqueEmployees = new Set(rows.map((row) => row.employeeCode)).size;
+      const onTimeCount = Math.max(totals.present - totals.late, 0);
+      const attendanceRate = totals.total > 0
+        ? (((totals.present + totals.late) / totals.total) * 100).toFixed(1)
+        : '0.0';
+      const averageHoursPerRecord = totals.total > 0
+        ? (totals.hours / totals.total).toFixed(2)
+        : '0.00';
+
+      const branchBreakdown = Array.from(
+        rows.reduce((map, row) => {
+          const current = map.get(row.branch) || { total: 0, present: 0, late: 0, absent: 0, hours: 0 };
+          current.total += 1;
+          current.hours += Number(row.hoursWorked);
+          if (row.status === 'present') current.present += 1;
+          if (row.status === 'late') current.late += 1;
+          if (row.status === 'absent' || row.status === 'no_record') current.absent += 1;
+          map.set(row.branch, current);
+          return map;
+        }, new Map<string, { total: number; present: number; late: number; absent: number; hours: number }>())
+      )
+        .sort((left, right) => right[1].total - left[1].total)
+        .map(([branch, values]) => `
+          <tr>
+            <td>${escapeHtml(branch)}</td>
+            <td>${values.total}</td>
+            <td>${values.present}</td>
+            <td>${values.late}</td>
+            <td>${values.absent}</td>
+            <td>${values.hours.toFixed(2)}</td>
+          </tr>
+        `)
+        .join('');
+
+      const topEmployees = Array.from(
+        rows.reduce((map, row) => {
+          const key = `${row.employeeCode}__${row.employeeName}`;
+          const current = map.get(key) || {
+            employeeCode: row.employeeCode,
+            employeeName: row.employeeName,
+            branch: row.branch,
+            total: 0,
+            late: 0,
+            hours: 0
+          };
+          current.total += 1;
+          current.hours += Number(row.hoursWorked);
+          if (row.status === 'late') current.late += 1;
+          map.set(key, current);
+          return map;
+        }, new Map<string, { employeeCode: string; employeeName: string; branch: string; total: number; late: number; hours: number }>())
+      )
+        .map(([, value]) => value)
+        .sort((left, right) => right.hours - left.hours)
+        .slice(0, 5)
+        .map((employee) => `
+          <tr>
+            <td>${escapeHtml(employee.employeeCode)}</td>
+            <td>${escapeHtml(employee.employeeName)}</td>
+            <td>${escapeHtml(employee.branch)}</td>
+            <td>${employee.total}</td>
+            <td>${employee.late}</td>
+            <td>${employee.hours.toFixed(2)}</td>
+          </tr>
+        `)
+        .join('');
+
+      const rowsHtml = rows.map((row) => `
+        <tr>
+          <td>${escapeHtml(row.date)}</td>
+          <td>${escapeHtml(row.employeeCode)}</td>
+          <td>${escapeHtml(row.employeeName)}</td>
+          <td>${escapeHtml(row.branch)}</td>
+          <td>${escapeHtml(row.checkIn)}</td>
+          <td>${escapeHtml(row.checkOut)}</td>
+          <td>${escapeHtml(row.hoursWorked)}</td>
+          <td>${escapeHtml(row.status)}</td>
+          <td>${escapeHtml(row.notes || '-')}</td>
+        </tr>
+      `).join('');
+
+      reportWindow.document.open();
+      reportWindow.document.write(`
+        <html>
+          <head>
+            <title>Attendance Audit Report</title>
+            <style>
+              body { font-family: Arial, sans-serif; margin: 24px; color: #111827; }
+              h1 { margin: 0 0 8px; font-size: 28px; }
+              h2 { margin: 28px 0 12px; font-size: 18px; }
+              p { margin: 4px 0; }
+              .meta { margin-bottom: 20px; }
+              .stats { display: flex; gap: 12px; flex-wrap: wrap; margin: 20px 0; }
+              .card { border: 1px solid #d1d5db; border-radius: 8px; padding: 12px 16px; min-width: 140px; }
+              .analytics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin: 20px 0; }
+              .analytics-card { border: 1px solid #d1d5db; border-radius: 8px; padding: 12px 16px; background: #fafafa; }
+              .analytics-label { font-size: 12px; color: #6b7280; text-transform: uppercase; letter-spacing: 0.04em; }
+              .analytics-value { margin-top: 8px; font-size: 24px; font-weight: 700; }
+              .section-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin: 18px 0 8px; }
+              table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+              th, td { border: 1px solid #d1d5db; padding: 8px; font-size: 12px; text-align: left; vertical-align: top; }
+              th { background: #f3f4f6; }
+              .section-table { margin-top: 0; }
+            </style>
+          </head>
+          <body>
+            <h1>Attendance Audit Report</h1>
+            <div class="meta">
+              <p><strong>Range:</strong> ${escapeHtml(reportRange.startDate)} to ${escapeHtml(reportRange.endDate)}</p>
+              <p><strong>Scope:</strong> ${escapeHtml(reportRange.label)}</p>
+              <p><strong>Branch:</strong> ${escapeHtml(selectedBranchFilter === 'ALL' ? 'All Branches' : selectedBranchFilter)}</p>
+              <p><strong>Status Filter:</strong> ${escapeHtml(activeFilter)}</p>
+              <p><strong>Generated:</strong> ${escapeHtml(new Date().toLocaleString('en-US', { timeZone: 'Asia/Manila' }))}</p>
+            </div>
+            <div class="stats">
+              <div class="card"><strong>Total Records</strong><br />${totals.total}</div>
+              <div class="card"><strong>Present</strong><br />${totals.present}</div>
+              <div class="card"><strong>Late</strong><br />${totals.late}</div>
+              <div class="card"><strong>Absent</strong><br />${totals.absent}</div>
+              <div class="card"><strong>Total Hours</strong><br />${totals.hours.toFixed(2)}</div>
+            </div>
+            <h2>Analytics</h2>
+            <div class="analytics">
+              <div class="analytics-card">
+                <div class="analytics-label">Unique Employees</div>
+                <div class="analytics-value">${uniqueEmployees}</div>
+              </div>
+              <div class="analytics-card">
+                <div class="analytics-label">Attendance Rate</div>
+                <div class="analytics-value">${attendanceRate}%</div>
+              </div>
+              <div class="analytics-card">
+                <div class="analytics-label">On-Time Records</div>
+                <div class="analytics-value">${onTimeCount}</div>
+              </div>
+              <div class="analytics-card">
+                <div class="analytics-label">Avg Hours / Record</div>
+                <div class="analytics-value">${averageHoursPerRecord}</div>
+              </div>
+            </div>
+            <div class="section-grid">
+              <div>
+                <h2>Branch Breakdown</h2>
+                <table class="section-table">
+                  <thead>
+                    <tr>
+                      <th>Branch</th>
+                      <th>Records</th>
+                      <th>Present</th>
+                      <th>Late</th>
+                      <th>Absent</th>
+                      <th>Hours</th>
+                    </tr>
+                  </thead>
+                  <tbody>${branchBreakdown || '<tr><td colspan="6">No branch data</td></tr>'}</tbody>
+                </table>
+              </div>
+              <div>
+                <h2>Top Employees By Hours</h2>
+                <table class="section-table">
+                  <thead>
+                    <tr>
+                      <th>Code</th>
+                      <th>Name</th>
+                      <th>Branch</th>
+                      <th>Records</th>
+                      <th>Late</th>
+                      <th>Hours</th>
+                    </tr>
+                  </thead>
+                  <tbody>${topEmployees || '<tr><td colspan="6">No employee data</td></tr>'}</tbody>
+                </table>
+              </div>
+            </div>
+            <h2>Detailed Records</h2>
+            <table>
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Code</th>
+                  <th>Name</th>
+                  <th>Branch</th>
+                  <th>Time In</th>
+                  <th>Time Out</th>
+                  <th>Hours</th>
+                  <th>Status</th>
+                  <th>Notes</th>
+                </tr>
+              </thead>
+              <tbody>${rowsHtml}</tbody>
+            </table>
+          </body>
+        </html>
+      `);
+      reportWindow.document.close();
+      setActionMessage(`Report generated for ${reportRange.startDate} to ${reportRange.endDate}.`);
+    } catch (error) {
+      console.error('Failed to generate attendance audit report', error);
+      reportWindow.document.open();
+      reportWindow.document.write(`
+        <html>
+          <head>
+            <title>Attendance Audit Report</title>
+            <style>
+              body { font-family: Arial, sans-serif; margin: 24px; color: #111827; }
+              .error { color: #b91c1c; }
+            </style>
+          </head>
+          <body>
+            <h1>Attendance Audit Report</h1>
+            <p class="error">Failed to generate the report. Please try again.</p>
+          </body>
+        </html>
+      `);
+      reportWindow.document.close();
+      setActionMessage('Failed to generate report. Please try again.');
+    } finally {
+      setIsGeneratingReport(false);
+    }
+  };
+
+  const handleExportExcel = async () => {
+    setIsExportingExcel(true);
+    setActionMessage(null);
+
+    try {
+      const rows = await fetchReportRows();
+      if (!rows.length) {
+        setActionMessage(`No attendance records found for ${reportRange.label.toLowerCase()}.`);
+        return;
+      }
+
+      const headers = ['Date', 'Employee Code', 'Employee Name', 'Branch', 'Check In', 'Check Out', 'Hours Worked', 'Status', 'Notes'];
+      const csvContent = [
+        headers.join(','),
+        ...rows.map((row) =>
+          [
+            row.date,
+            row.employeeCode,
+            row.employeeName,
+            row.branch,
+            row.checkIn,
+            row.checkOut,
+            row.hoursWorked,
+            row.status,
+            row.notes
+          ].map((value) => `"${String(value ?? '').replace(/"/g, '""')}"`).join(',')
+        )
+      ].join('\n');
+
+      const blob = new Blob([csvContent], { type: 'application/vnd.ms-excel;charset=utf-8;' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `attendance-audit-${reportRange.startDate}-to-${reportRange.endDate}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+
+      setActionMessage(`Excel export downloaded for ${reportRange.startDate} to ${reportRange.endDate}.`);
+    } catch (error) {
+      console.error('Failed to export attendance audit data', error);
+      setActionMessage('Failed to export Excel file. Please try again.');
+    } finally {
+      setIsExportingExcel(false);
+    }
+  };
 
   return (
     <div className="space-y-6 w-full">
@@ -1561,6 +2199,9 @@ export default function AttendanceAuditPage() {
               {syncStateLabel}
             </span>
             <span className={classes.textMuted}>Last synced: {formatSyncTime(lastSyncedAt)}</span>
+            {reportPreset !== 'day' && isScopedAttendanceFetching && (
+              <span className={classes.textMuted}>Loading scoped records...</span>
+            )}
           </div>
         </div>
       </div>
@@ -1635,30 +2276,84 @@ export default function AttendanceAuditPage() {
           <RefreshCw className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} />
           Refresh
         </button>
-        <button className={`flex items-center justify-center gap-2 px-4 py-2 border ${classes.border} ${classes.text} rounded-lg ${classes.hover} transition-colors w-full sm:w-auto`}>
+        <button
+          onClick={() => {
+            const now = new Date();
+            const day = now.getDay();
+            const diffToMonday = day === 0 ? -6 : 1 - day;
+            const monday = new Date(now);
+            monday.setDate(now.getDate() + diffToMonday);
+            setCalendarMonth(monday.getMonth());
+            setCalendarYear(monday.getFullYear());
+            setSelectedDate(monday.getDate());
+            setReportPreset('week');
+            setActionMessage(`Report scope set to this week: ${formatIsoDate(monday)}.`);
+          }}
+          className={`flex items-center justify-center gap-2 px-4 py-2 border rounded-lg transition-colors w-full sm:w-auto ${
+            reportPreset === 'week'
+              ? 'border-yellow-400 bg-yellow-100 text-yellow-900'
+              : `${classes.border} ${classes.text} ${classes.hover}`
+          }`}
+        >
           <Calendar className="w-4 h-4" />
           This Week
         </button>
-        <button className={`flex items-center justify-center gap-2 px-4 py-2 border ${classes.border} ${classes.text} rounded-lg ${classes.hover} transition-colors w-full sm:w-auto`}>
+        <button
+          onClick={() => {
+            const now = new Date();
+            setCalendarMonth(now.getMonth());
+            setCalendarYear(now.getFullYear());
+            setSelectedDate(1);
+            setReportPreset('month');
+            setActionMessage(`Report scope set to this month: ${formatIsoDate(new Date(now.getFullYear(), now.getMonth(), 1))}.`);
+          }}
+          className={`flex items-center justify-center gap-2 px-4 py-2 border rounded-lg transition-colors w-full sm:w-auto ${
+            reportPreset === 'month'
+              ? 'border-yellow-400 bg-yellow-100 text-yellow-900'
+              : `${classes.border} ${classes.text} ${classes.hover}`
+          }`}
+        >
           <Calendar className="w-4 h-4" />
           This Month
         </button>
-        <button className="flex items-center justify-center gap-2 px-4 py-2 bg-[#facc15] text-black font-medium rounded-lg hover:bg-yellow-400 transition-colors w-full sm:w-auto">
+        <button
+          onClick={() => {
+            goToToday();
+            setReportPreset('day');
+            setActionMessage(`Report scope set to selected day: ${getPhilippinesDateString()}.`);
+          }}
+          className="flex items-center justify-center gap-2 px-4 py-2 bg-[#facc15] text-black font-medium rounded-lg hover:bg-yellow-400 transition-colors w-full sm:w-auto"
+        >
           <Calendar className="w-4 h-4" />
           Today
         </button>
-        <button className={`flex items-center justify-center gap-2 px-4 py-2 border ${classes.border} ${classes.text} rounded-lg ${classes.hover} transition-colors w-full sm:w-auto`}>
-          <FileText className="w-4 h-4" />
+        <button
+          onClick={handleGenerateReport}
+          disabled={isGeneratingReport}
+          className={`flex items-center justify-center gap-2 px-4 py-2 border ${classes.border} ${classes.text} rounded-lg ${classes.hover} transition-colors w-full sm:w-auto disabled:opacity-60`}
+        >
+          {isGeneratingReport ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
           Generate Report
         </button>
-        <button className="flex items-center justify-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors w-full sm:w-auto">
-          <Download className="w-4 h-4" />
+        <button
+          onClick={handleExportExcel}
+          disabled={isExportingExcel}
+          className="flex items-center justify-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors w-full sm:w-auto disabled:opacity-60"
+        >
+          {isExportingExcel ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
           Export Excel
         </button>
-        <button className="flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors w-full sm:w-auto">
+        <button className={`flex items-center justify-center gap-2 px-4 py-2 border ${classes.border} ${classes.text} rounded-lg ${classes.hover} transition-colors w-full sm:w-auto`}>
           <FileText className="w-4 h-4" />
           Individual Report
         </button>
+      </div>
+
+      <div className={`flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 text-sm ${classes.textMuted}`}>
+        <span>
+          Active report scope: <span className={classes.text}>{reportRange.label}</span> from <span className={classes.text}>{reportRange.startDate}</span> to <span className={classes.text}>{reportRange.endDate}</span>
+        </span>
+        {actionMessage && <span className={classes.text}>{actionMessage}</span>}
       </div>
 
       {/* Main Content Grid */}
@@ -1690,12 +2385,18 @@ export default function AttendanceAuditPage() {
             {calendarDays.map((item, index) => (
               <button
                 key={index}
-                onClick={() => !item.prevMonth && !item.nextMonth && setSelectedDate(item.day)}
+                onClick={() => {
+                  if (item.prevMonth || item.nextMonth) return;
+                  setSelectedDate(item.day);
+                  setReportPreset('day');
+                }}
                 className={`aspect-square p-1 sm:p-2 rounded-lg text-xs sm:text-sm transition-all ${
                   item.prevMonth || item.nextMonth
                     ? 'text-gray-400'
-                    : selectedDate === item.day
-                    ? 'bg-[#facc15] text-black font-semibold'
+                    : highlightedCalendarDays.has(item.day)
+                    ? reportPreset === 'day'
+                      ? 'bg-[#facc15] text-black font-semibold'
+                      : 'bg-yellow-100 border border-yellow-300 text-yellow-900 font-semibold'
                     : item.today
                     ? 'bg-yellow-100 border border-yellow-300 text-yellow-800'
                     : `${classes.text} ${classes.hover}`
@@ -1704,7 +2405,13 @@ export default function AttendanceAuditPage() {
                 <div className="flex flex-col items-center">
                   <span>{item.day}</span>
                   {dailyRecordCounts[item.day] > 0 && !item.prevMonth && !item.nextMonth && (
-                    <span className={`text-[10px] mt-0.5 ${selectedDate === item.day ? 'text-black/70' : classes.textMuted}`}>
+                    <span className={`text-[10px] mt-0.5 ${
+                      highlightedCalendarDays.has(item.day)
+                        ? reportPreset === 'day'
+                          ? 'text-black/70'
+                          : 'text-yellow-800'
+                        : classes.textMuted
+                    }`}>
                       {dailyRecordCounts[item.day]} rec
                     </span>
                   )}
@@ -1727,8 +2434,8 @@ export default function AttendanceAuditPage() {
           {/* Legend */}
           <div className={`flex flex-wrap items-center gap-3 mt-4 pt-4 border-t ${classes.border} text-xs`}>
             <div className="flex items-center gap-1.5">
-              <div className="w-3 h-3 rounded bg-[#facc15]" />
-              <span className={classes.textMuted}>Selected</span>
+              <div className={`w-3 h-3 rounded ${reportPreset === 'day' ? 'bg-[#facc15]' : 'bg-yellow-100 border border-yellow-300'}`} />
+              <span className={classes.textMuted}>{reportPreset === 'day' ? 'Selected' : 'Filtered Range'}</span>
             </div>
             <div className="flex items-center gap-1.5">
               <div className="w-3 h-3 rounded border border-yellow-300 bg-yellow-100" />
@@ -1747,19 +2454,19 @@ export default function AttendanceAuditPage() {
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             <div className={`${classes.bgCard} rounded-xl border ${classes.border} p-4`}>
               <p className={`${classes.textMuted} text-xs uppercase tracking-wider`}>Total Records</p>
-              <p className={`text-2xl font-bold ${classes.text} mt-1`}>{stats.totalRecords}</p>
+              <p className={`text-2xl font-bold ${classes.text} mt-1`}>{displayedStats.totalRecords}</p>
             </div>
             <div className={`${classes.bgCard} rounded-xl border ${classes.border} p-4`}>
               <p className={`${classes.textMuted} text-xs uppercase tracking-wider`}>Currently Present</p>
-              <p className="text-2xl font-bold text-green-500 mt-1">{stats.currentlyPresent}</p>
+              <p className="text-2xl font-bold text-green-500 mt-1">{displayedStats.currentlyPresent}</p>
             </div>
             <div className={`${classes.bgCard} rounded-xl border ${classes.border} p-4`}>
               <p className={`${classes.textMuted} text-xs uppercase tracking-wider`}>Completed Shifts</p>
-              <p className={`text-2xl font-bold ${classes.text} mt-1`}>{stats.completedShifts}</p>
+              <p className={`text-2xl font-bold ${classes.text} mt-1`}>{displayedStats.completedShifts}</p>
             </div>
             <div className={`${classes.bgCard} rounded-xl border ${classes.border} p-4`}>
               <p className={`${classes.textMuted} text-xs uppercase tracking-wider`}>Absent</p>
-              <p className="text-2xl font-bold text-red-500 mt-1">{stats.absent}</p>
+              <p className="text-2xl font-bold text-red-500 mt-1">{displayedStats.absent}</p>
             </div>
           </div>
 
@@ -1767,7 +2474,9 @@ export default function AttendanceAuditPage() {
           <div className={`border ${classes.border} rounded-xl p-4 ${classes.bgCard}`}>
             <div className="flex items-center gap-2 mb-2">
               <Calendar className={`w-5 h-5 ${classes.textAccent}`} />
-              <h3 className={`${classes.text} font-semibold`}>{displayDate}</h3>
+              <h3 className={`${classes.text} font-semibold`}>
+                {reportPreset === 'day' ? displayDate : `${reportRange.label}: ${reportRange.startDate} to ${reportRange.endDate}`}
+              </h3>
             </div>
             <div className={`flex items-center gap-2 text-sm ${classes.textMuted}`}>
               <AlertCircle className="w-4 h-4 text-yellow-500" />
