@@ -249,9 +249,6 @@ const buildPayrollSummary = (
         overlapMinutes(checkInMinutes, checkOutMinutes, SCHEDULE.morningStart, SCHEDULE.lunchStart) +
         overlapMinutes(checkInMinutes, checkOutMinutes, SCHEDULE.lunchEnd, SCHEDULE.end);
 
-      if (checkOutMinutes > SCHEDULE.end) {
-        dayOvertimeMinutesCandidate = checkOutMinutes - Math.max(checkInMinutes, SCHEDULE.end);
-      }
     }
 
     const dayFraction = minutesToDayFraction(dayPayableMinutes);
