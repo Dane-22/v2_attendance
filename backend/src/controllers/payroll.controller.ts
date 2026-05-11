@@ -8,13 +8,44 @@ import { detectChanges } from '../utils/changeDetector';
 
 const prisma = new PrismaClient();
 
-const SCHEDULE = {
-  morningStart: 7 * 60,
-  lunchStart: 12 * 60,
-  lunchEnd: 13 * 60,
-  end: 16 * 60,
-  paidDayMinutes: 8 * 60,
+const SCHEDULE_CONFIGS = {
+  // Engineers and Workers: 7:00 AM - 4:00 PM (8 hours)
+  standard: {
+    morningStart: 7 * 60,
+    lunchStart: 12 * 60,
+    lunchEnd: 13 * 60,
+    end: 16 * 60,
+    paidDayMinutes: 8 * 60,
+  },
+  // Developers, Admins, Super Admins: 8:00 AM - 5:00 PM (9 hours)
+  extended: {
+    morningStart: 8 * 60,
+    lunchStart: 12 * 60,
+    lunchEnd: 13 * 60,
+    end: 17 * 60,
+    paidDayMinutes: 9 * 60,
+  },
 } as const;
+
+// Determine schedule based on employee role
+const getEmployeeSchedule = (employee: Employee) => {
+  const role = employee.position?.toLowerCase() || '';
+  const department = employee.department?.toLowerCase() || '';
+  
+  // Extended schedule for Developers, Admins, Super Admins
+  if (role.includes('developer') || 
+      role.includes('admin') || 
+      role.includes('super') ||
+      department.includes('administration')) {
+    return SCHEDULE_CONFIGS.extended;
+  }
+  
+  // Standard schedule for Engineers, Workers, and others
+  return SCHEDULE_CONFIGS.standard;
+};
+
+// Default to standard schedule for backward compatibility
+const SCHEDULE = SCHEDULE_CONFIGS.standard;
 
 type PayrollIssueCode =
   | 'NO_ATTENDANCE'
@@ -131,11 +162,16 @@ const minutesToTime = (value: number | null): string | null => {
 const overlapMinutes = (start: number, end: number, rangeStart: number, rangeEnd: number) =>
   Math.max(0, Math.min(end, rangeEnd) - Math.max(start, rangeStart));
 
-const minutesToDayFraction = (minutes: number): number => {
+const minutesToDayFraction = (minutes: number, schedule: any): number => {
   if (minutes <= 0) return 0;
-  if (minutes <= 120) return 0.25;
-  if (minutes <= 240) return 0.5;
-  if (minutes <= 360) return 0.75;
+  const paidDayMinutes = schedule.paidDayMinutes || 480; // Default to 8 hours if not specified
+  const quarterDay = paidDayMinutes / 4;
+  const halfDay = paidDayMinutes / 2;
+  const threeQuarterDay = (paidDayMinutes * 3) / 4;
+  
+  if (minutes <= quarterDay) return 0.25;
+  if (minutes <= halfDay) return 0.5;
+  if (minutes <= threeQuarterDay) return 0.75;
   return 1;
 };
 
@@ -191,6 +227,7 @@ const buildPayrollSummary = (
 ): PayrollComputationSummary => {
   const issues: PayrollIssue[] = [];
   const dailyBreakdown: DailyAttendanceBreakdown[] = [];
+  const schedule = getEmployeeSchedule(employee);
 
   if (!employee.dailyRate || toNumber(employee.dailyRate) <= 0) {
     issues.push({
@@ -218,7 +255,7 @@ const buildPayrollSummary = (
     const checkInMinutes = timeToMinutes(attendance.check_in);
     const checkOutMinutes = timeToMinutes(attendance.check_out);
     const dayIssues: PayrollIssue[] = [];
-    const late = attendance.status === 'late' || (checkInMinutes != null && checkInMinutes > SCHEDULE.morningStart);
+    const late = attendance.status === 'late' || (checkInMinutes != null && checkInMinutes > schedule.morningStart);
 
     if (late) {
       lateCount += 1;
@@ -246,12 +283,12 @@ const buildPayrollSummary = (
       });
     } else {
       dayPayableMinutes =
-        overlapMinutes(checkInMinutes, checkOutMinutes, SCHEDULE.morningStart, SCHEDULE.lunchStart) +
-        overlapMinutes(checkInMinutes, checkOutMinutes, SCHEDULE.lunchEnd, SCHEDULE.end);
+        overlapMinutes(checkInMinutes, checkOutMinutes, schedule.morningStart, schedule.lunchStart) +
+        overlapMinutes(checkInMinutes, checkOutMinutes, schedule.lunchEnd, schedule.end);
 
     }
 
-    const dayFraction = minutesToDayFraction(dayPayableMinutes);
+    const dayFraction = minutesToDayFraction(dayPayableMinutes, schedule);
     if (dayPayableMinutes > 0) {
       daysWorked += 1;
       payableDays += dayFraction;
