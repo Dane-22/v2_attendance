@@ -246,7 +246,7 @@ export const attendanceApi = {
 };
 
 export const payrollApi = {
-  getAll: (params?: { page?: number; limit?: number; employeeId?: number; status?: string; weekStart?: string; weekEnd?: string }) =>
+  getAll: (params?: { page?: number; limit?: number; employeeId?: number; status?: string; weekStart?: string; weekEnd?: string; search?: string; branch?: string }) =>
     api.get<PaginatedResponse<PayrollRecord[]>>('/payroll', { params }),
   getMyPayroll: (params?: { page?: number; limit?: number; employeeId: number }) =>
     api.get<PaginatedResponse<PayrollRecord[]>>('/payroll/my', { params }),

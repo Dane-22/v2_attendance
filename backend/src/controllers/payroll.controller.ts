@@ -509,6 +509,8 @@ export const getAllPayroll = async (
     const status = req.query.status as string | undefined;
     const weekStart = req.query.weekStart ? new Date(req.query.weekStart as string) : undefined;
     const weekEnd = req.query.weekEnd ? new Date(req.query.weekEnd as string) : undefined;
+    const search = req.query.search as string | undefined;
+    const branch = req.query.branch as string | undefined;
 
     const where: Record<string, unknown> = {};
     if (employeeId) where.employeeId = employeeId;
@@ -517,6 +519,21 @@ export const getAllPayroll = async (
       where.payroll_week_start = {};
       if (weekStart) (where.payroll_week_start as Record<string, Date>).gte = weekStart;
       if (weekEnd) (where.payroll_week_start as Record<string, Date>).lte = weekEnd;
+    }
+    
+    // Add search and branch filtering
+    if (search || branch) {
+      where.employee = {};
+      if (search) {
+        (where.employee as Record<string, unknown>).OR = [
+          { firstName: { contains: search, mode: 'insensitive' } },
+          { lastName: { contains: search, mode: 'insensitive' } },
+          { employeeCode: { contains: search, mode: 'insensitive' } },
+        ];
+      }
+      if (branch) {
+        (where.employee as Record<string, unknown>).branchName = branch;
+      }
     }
 
     const [records, total] = await Promise.all([

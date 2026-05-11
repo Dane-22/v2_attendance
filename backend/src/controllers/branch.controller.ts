@@ -51,7 +51,7 @@ export const getBranches = async (
       return {
         id: admin.id.toString(),
         code: admin.branch_code || '',
-        name: admin.name,
+        name: branchName,
         shortName: branchName,
         description: `Deploy employees to ${branchName} for attendance.`
       };

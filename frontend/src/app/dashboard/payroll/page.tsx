@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   payrollApi,
+  branchesApi,
   PayrollDailyBreakdown,
   PayrollIssue,
   PayrollRecord,
@@ -235,9 +236,11 @@ export default function PayrollPage() {
   const [lastBatchResult, setLastBatchResult] = useState<WeeklyPayrollBatchResponse | null>(null);
   const [payslipError, setPayslipError] = useState<string | null>(null);
   const [isGeneratingPayslip, setIsGeneratingPayslip] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [branchFilter, setBranchFilter] = useState('all');
 
   const payrollQuery = useQuery({
-    queryKey: ['payroll', { page, statusFilter, week }],
+    queryKey: ['payroll', { page, statusFilter, week, searchQuery, branchFilter }],
     queryFn: async () => {
       const response = await payrollApi.getAll({
         page,
@@ -245,6 +248,8 @@ export default function PayrollPage() {
         weekStart: week.weekStart,
         weekEnd: week.weekEnd,
         status: statusFilter === 'draft' || statusFilter === 'processed' ? statusFilter : undefined,
+        search: searchQuery || undefined,
+        branch: branchFilter === 'all' ? undefined : branchFilter,
       });
 
       const records = response.data.data ?? [];
@@ -279,8 +284,17 @@ export default function PayrollPage() {
     },
   });
 
+  const branchesQuery = useQuery({
+  queryKey: ['branches'],
+  queryFn: async () => {
+    const response = await branchesApi.getAll();
+    return response.data.data || [];
+  },
+});
+
   const records = payrollQuery.data?.data.data ?? [];
   const meta = payrollQuery.data?.data.meta;
+  const branches = branchesQuery.data || [];
 
   const selectedRecordPreview = records.find((record) => record.id === selectedPayrollId) ?? null;
 
@@ -353,55 +367,131 @@ export default function PayrollPage() {
             </p>
           </div>
 
-          <div className="grid gap-3 rounded-2xl border border-white/10 bg-white/5 p-4 sm:grid-cols-2 xl:grid-cols-4">
-            <label className="text-sm">
-              <span className="mb-1 block text-slate-300">Week start</span>
-              <input
-                type="date"
-                value={week.weekStart}
-                onChange={(event) => {
-                  setPage(1);
-                  setWeek((current) => ({ ...current, weekStart: event.target.value }));
-                }}
-                className="w-full rounded-xl border border-white/10 bg-slate-950 px-3 py-2 text-white outline-none"
-              />
-            </label>
-            <label className="text-sm">
-              <span className="mb-1 block text-slate-300">Week end</span>
-              <input
-                type="date"
-                value={week.weekEnd}
-                onChange={(event) => {
-                  setPage(1);
-                  setWeek((current) => ({ ...current, weekEnd: event.target.value }));
-                }}
-                className="w-full rounded-xl border border-white/10 bg-slate-950 px-3 py-2 text-white outline-none"
-              />
-            </label>
-            <label className="text-sm">
-              <span className="mb-1 block text-slate-300">Record state</span>
-              <select
-                value={statusFilter}
-                onChange={(event) => {
-                  setPage(1);
-                  setStatusFilter(event.target.value as typeof statusFilter);
-                }}
-                className="w-full rounded-xl border border-white/10 bg-slate-950 px-3 py-2 text-white outline-none"
-              >
-                {statusFilterOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <button
-              onClick={() => batchMutation.mutate()}
-              disabled={batchMutation.isPending}
-              className="rounded-2xl bg-blue-500 px-4 py-3 text-sm font-medium text-white transition hover:bg-blue-400 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {batchMutation.isPending ? 'Generating payroll...' : 'Generate weekly payroll'}
-            </button>
+          <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+            <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
+              <label className="text-sm">
+                <span className="mb-1 block text-slate-300">Search employee</span>
+                <div className="relative">
+                  <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">
+                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                  </div>
+                  <input
+                    type="text"
+                    placeholder="Name or code..."
+                    value={searchQuery}
+                    onChange={(event) => {
+                      setPage(1);
+                      setSearchQuery(event.target.value);
+                    }}
+                    className="w-full rounded-xl border border-white/10 bg-slate-950 pl-9 pr-3 py-2 text-white outline-none placeholder:text-slate-400 transition focus:border-blue-400 focus:ring-2 focus:ring-blue-400/20"
+                  />
+                </div>
+              </label>
+              <label className="text-sm">
+                <span className="mb-1 block text-slate-300">Branch</span>
+                <div className="relative">
+                  <select
+                    value={branchFilter}
+                    onChange={(event) => {
+                      setPage(1);
+                      setBranchFilter(event.target.value);
+                    }}
+                    className="w-full appearance-none rounded-xl border border-white/10 bg-slate-950 px-3 py-2 pr-8 text-white outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-400/20"
+                  >
+                    <option value="all">All branches</option>
+                    {branches.map((branch) => (
+                      <option key={branch.id} value={branch.name}>
+                        {branch.name}
+                      </option>
+                    ))}
+                  </select>
+                  <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2 text-slate-400">
+                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </div>
+                </div>
+              </label>
+              <label className="text-sm">
+                <span className="mb-1 block text-slate-300">Week start</span>
+                <div className="relative">
+                  <input
+                    type="date"
+                    value={week.weekStart}
+                    onChange={(event) => {
+                      setPage(1);
+                      setWeek((current) => ({ ...current, weekStart: event.target.value }));
+                    }}
+                    className="w-full rounded-xl border border-white/10 bg-slate-950 px-3 py-2 text-white outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-400/20"
+                  />
+                </div>
+              </label>
+              <label className="text-sm">
+                <span className="mb-1 block text-slate-300">Week end</span>
+                <div className="relative">
+                  <input
+                    type="date"
+                    value={week.weekEnd}
+                    onChange={(event) => {
+                      setPage(1);
+                      setWeek((current) => ({ ...current, weekEnd: event.target.value }));
+                    }}
+                    className="w-full rounded-xl border border-white/10 bg-slate-950 px-3 py-2 text-white outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-400/20"
+                  />
+                </div>
+              </label>
+              <label className="text-sm">
+                <span className="mb-1 block text-slate-300">Record state</span>
+                <div className="relative">
+                  <select
+                    value={statusFilter}
+                    onChange={(event) => {
+                      setPage(1);
+                      setStatusFilter(event.target.value as typeof statusFilter);
+                    }}
+                    className="w-full appearance-none rounded-xl border border-white/10 bg-slate-950 px-3 py-2 pr-8 text-white outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-400/20"
+                  >
+                    {statusFilterOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                  <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2 text-slate-400">
+                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </div>
+                </div>
+              </label>
+              <div className="text-sm">
+                <span className="mb-1 block text-slate-300">&nbsp;</span>
+                <button
+                  onClick={() => batchMutation.mutate()}
+                  disabled={batchMutation.isPending}
+                  className="w-full rounded-2xl bg-gradient-to-r from-blue-500 to-blue-600 px-4 py-2 text-sm font-medium text-white shadow-lg transition-all hover:from-blue-400 hover:to-blue-500 hover:shadow-xl disabled:cursor-not-allowed disabled:opacity-60 disabled:from-slate-500 disabled:to-slate-600"
+                >
+                  {batchMutation.isPending ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <svg className="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      Generating...
+                    </span>
+                  ) : (
+                    <span className="flex items-center justify-center gap-2">
+                      <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                      </svg>
+                      Generate
+                    </span>
+                  )}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       </section>
