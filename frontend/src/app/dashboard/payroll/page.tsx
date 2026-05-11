@@ -402,7 +402,7 @@ export default function PayrollPage() {
                   >
                     <option value="all">All branches</option>
                     {branches.map((branch) => (
-                      <option key={branch.id} value={branch.name}>
+                      <option key={branch.id} value={branch.code}>
                         {branch.name}
                       </option>
                     ))}
