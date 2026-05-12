@@ -25,12 +25,14 @@ model Employee {
   updatedAt            DateTime? @default(now()) @updatedAt @map("updated_at") @db.Timestamp(0)
   defaultBranchId      Int?      @map("default_branch_id")
   performanceAllowance Decimal?  @default(0.00) @map("performance_allowance") @db.Decimal(10, 2)
-  hasDeduction         Boolean?  @default(true) @map("has_deduction")
   branchId             Int?      @map("branch_id")
   branchCode           String?   @map("branch_code") @db.VarChar(10)
+  faceConsentGiven     Boolean?  @default(false) @map("face_consent_given")
+  faceDataVersion      String?   @map("face_data_version") @db.VarChar(10)
+  payrollRecords       PayrollRecord[]
   // pinHash              String?   @map("pin_hash") @db.VarChar(255)
   // pinSalt              String?   @map("pin_salt") @db.VarChar(255)
-  
+
   @@index([branchName], map: "idx_employee_branch")
   @@index([branchCode], map: "idx_employee_branch_code")
   @@map("employees")
@@ -54,6 +56,7 @@ model Attendance {
 model PayrollRecord {
   id                    Int                     @id @default(autoincrement())
   employeeId            Int                     @map("employee_id")
+  employee              Employee                 @relation(fields: [employeeId], references: [id])
   branch_code           String                  @db.VarChar(20)
   payroll_week_start    DateTime                @db.Date
   payroll_week_end      DateTime                @db.Date

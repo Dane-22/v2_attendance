@@ -68,7 +68,6 @@ export interface Employee {
   dailyRate: number | null;
   performanceAllowance: number | null;
   hasDeductions: boolean | null;
-  hasDeduction: boolean | null;
   profileImage: string | null;
   createdAt: Date | null;
   updatedAt: Date | null;

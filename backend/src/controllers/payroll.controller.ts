@@ -416,7 +416,7 @@ const upsertPayrollForEmployeeWeek = async (
   const summary = buildPayrollSummary(employee, attendanceRecords);
   const dailyRate = toNumber(employee.dailyRate);
   const performanceAllowance = toNumber(employee.performanceAllowance);
-  const hasDeductions = Boolean(employee.hasDeductions) || Boolean(employee.hasDeduction);
+  const hasDeductions = Boolean(employee.hasDeductions);
 
   const existingRecord = await prisma.payrollRecord.findFirst({
     where: {
@@ -542,6 +542,9 @@ export const getAllPayroll = async (
         where,
         skip,
         take: limit,
+        include: {
+          employee: true,
+        },
         orderBy: [
           { payroll_week_start: 'desc' },
           { employeeId: 'asc' },
@@ -849,7 +852,7 @@ export const approvePayrollOvertime = async (
       summary.payableDays,
       approvedHours,
       toNumber(record.performance_allowance),
-      Boolean(employee.hasDeductions) || Boolean(employee.hasDeduction) || toNumber(record.sss_contribution) > 0 || toNumber(record.phic_contribution) > 0 || toNumber(record.hdmf_contribution) > 0 || false,
+      Boolean(employee.hasDeductions) || toNumber(record.sss_contribution) > 0 || toNumber(record.phic_contribution) > 0 || toNumber(record.hdmf_contribution) > 0 || false,
       toNumber(record.cash_advance),
       record.payroll_week_start,
     );
