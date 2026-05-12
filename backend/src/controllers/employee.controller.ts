@@ -358,9 +358,12 @@ export const updateEmployee = async (
     // Detect changes
     const changes = detectChanges(existingEmployee, data, 'EMPLOYEE');
 
+    // Filter out read-only fields that shouldn't be updated
+    const { id: _id, createdAt: _createdAt, updatedAt: _updatedAt, hasActualDeductions: _hasActualDeductions, ...updateData } = data as any;
+
     const employee = await prisma.employee.update({
       where: { id },
-      data,
+      data: updateData,
       select: {
         id: true,
         employeeCode: true,

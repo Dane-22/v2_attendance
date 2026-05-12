@@ -14,7 +14,7 @@ export interface ChangeDiff {
  * Configuration for change detection per entity type
  */
 const CHANGE_DETECTION_CONFIG: Record<string, string[]> = {
-  EMPLOYEE: ['first_name', 'middle_name', 'last_name', 'email', 'department', 'position', 'branch_name', 'status', 'daily_rate', 'has_deductions', 'has_deduction', 'branch_id'],
+  EMPLOYEE: ['firstName', 'middleName', 'lastName', 'email', 'department', 'position', 'branchName', 'status', 'dailyRate', 'hasDeductions', 'performanceAllowance', 'branchId'],
   ATTENDANCE: ['status', 'check_in', 'check_out', 'notes'],
   PAYROLL: ['days_worked', 'daily_rate', 'basic_pay', 'overtime_hours', 'overtime_amount', 'performance_allowance', 'gross_pay', 'sss_contribution', 'phic_contribution', 'hdmf_contribution', 'cash_advance', 'total_deductions', 'net_pay', 'status'],
   SETTINGS: ['*'], // All settings

@@ -1613,7 +1613,7 @@ function UserModal({ isOpen, onClose, onSuccess, userType, setUserType, mode, ed
                     <label className="block text-gray-400 text-sm mb-2">Quick Templates</label>
                     <div className="flex flex-wrap gap-2">
                       {[
-                        { name: 'Full Access', permissions: ['dashboard', 'attendance', 'notifications', 'employees', 'documents', 'logs', 'attendance-audit', 'finance', 'finance/payroll', 'finance/overtime', 'finance/billing', 'finance/cash-advance', 'finance/attendance-audit', 'procurement', 'settings'] },
+                        { name: 'Full Access', permissions: ['dashboard', 'tasks', 'task-deligation', 'attendance', 'notifications', 'employees', 'documents', 'logs', 'attendance-audit', 'finance', 'finance/payroll', 'finance/overtime', 'finance/billing', 'finance/cash-advance', 'finance/attendance-audit', 'procurement', 'settings'] },
                         { name: 'Finance Only', permissions: ['dashboard', 'finance', 'finance/payroll', 'finance/overtime', 'finance/billing', 'finance/cash-advance', 'finance/attendance-audit'] },
                         { name: 'HR Only', permissions: ['dashboard', 'employees', 'documents', 'logs'] },
                         { name: 'Basic Access', permissions: ['dashboard', 'attendance', 'notifications'] }
@@ -1636,6 +1636,8 @@ function UserModal({ isOpen, onClose, onSuccess, userType, setUserType, mode, ed
                     <div className="grid grid-cols-2 gap-2 max-h-64 overflow-y-auto pr-2">
                       {[
                         { id: 'dashboard', label: 'Dashboard' },
+                        { id: 'tasks', label: 'Task Management' },
+                        { id: 'task-deligation', label: 'Task Deligation' },
                         { id: 'attendance', label: 'Site Attendance' },
                         { id: 'notifications', label: 'Notification' },
                         { id: 'employees', label: 'Employee List' },

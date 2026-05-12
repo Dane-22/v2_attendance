@@ -64,7 +64,6 @@ export interface UpdateEmployeeRequest {
   dailyRate?: number;
   performanceAllowance?: number;
   hasDeductions?: boolean;
-  hasDeduction?: boolean;
 }
 
 export interface ClockInRequest {
