@@ -161,7 +161,7 @@ model Document {
 model ActivityLog {
   id            String                    @id @db.VarChar(50)
   timestamp     DateTime                  @default(now()) @db.DateTime(0)
-  userId        Int                       @map("user_id")
+  userId        Int?                      @map("user_id")
   userName      String                    @map("user_name") @db.VarChar(100)
   userRole      String                    @map("user_role") @db.VarChar(50)
   actionType    activity_logs_action_type @map("action_type")
