@@ -98,7 +98,6 @@ export const getAllEmployees = async (
           dailyRate: true,
           hasDeductions: true,
           performanceAllowance: true,
-          hasDeduction: true,
           branchId: true,
           defaultBranchId: true,
           profileImage: true,
@@ -278,7 +277,6 @@ export const createEmployee = async (
         dailyRate: data.dailyRate,
         performanceAllowance: data.performanceAllowance,
         hasDeductions: data.hasDeductions,
-        hasDeduction: data.hasDeduction,
         status: 'Active'
       },
       select: {
@@ -296,7 +294,7 @@ export const createEmployee = async (
         dailyRate: true,
         hasDeductions: true,
         performanceAllowance: true,
-        hasDeduction: true,
+        
         branchId: true,
         profileImage: true,
         createdAt: true,
@@ -378,7 +376,7 @@ export const updateEmployee = async (
         dailyRate: true,
         hasDeductions: true,
         performanceAllowance: true,
-        hasDeduction: true,
+        
         branchId: true,
         profileImage: true,
         createdAt: true,
@@ -551,7 +549,7 @@ export const uploadProfileImage = async (
         dailyRate: true,
         hasDeductions: true,
         performanceAllowance: true,
-        hasDeduction: true,
+        
         branchId: true,
         profileImage: true,
         createdAt: true,
@@ -669,7 +667,7 @@ export const transferEmployee = async (
         dailyRate: true,
         hasDeductions: true,
         performanceAllowance: true,
-        hasDeduction: true,
+        
         branchId: true,
         profileImage: true,
         createdAt: true,
@@ -732,14 +730,14 @@ export const archiveEmployee = async (
       INSERT INTO archived_employees (
         id, employeeCode, firstName, middleName, lastName, email, department,
         position, branchName, branchCode, status, dailyRate, performanceAllowance,
-        hasDeductions, hasDeduction, branchId, defaultBranchId, profileImage,
+        hasDeductions, branchId, defaultBranchId, profileImage,
         createdAt, updatedAt, archivedAt, archivedBy, archiveReason
       )
       VALUES (
         ${employee.id}, ${employee.employeeCode}, ${employee.firstName}, ${employee.middleName},
         ${employee.lastName}, ${employee.email}, ${employee.department}, ${employee.position},
         ${employee.branchName}, ${employee.branchCode}, 'Inactive', ${employee.dailyRate},
-        ${employee.performanceAllowance}, ${employee.hasDeductions}, ${employee.hasDeduction},
+        ${employee.performanceAllowance}, ${employee.hasDeductions},
         ${employee.branchId}, ${employee.defaultBranchId}, ${employee.profileImage},
         ${employee.createdAt}, ${employee.updatedAt}, NOW(),
         ${req.admin?.name || 'unknown'}, ${reason || 'Employee archived'}
