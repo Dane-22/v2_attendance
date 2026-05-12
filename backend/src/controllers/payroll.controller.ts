@@ -416,7 +416,7 @@ const upsertPayrollForEmployeeWeek = async (
   const summary = buildPayrollSummary(employee, attendanceRecords);
   const dailyRate = toNumber(employee.dailyRate);
   const performanceAllowance = toNumber(employee.performanceAllowance);
-  const hasDeductions = employee.hasDeduction ?? employee.hasDeductions ?? true;
+  const hasDeductions = Boolean(employee.hasDeductions) || Boolean(employee.hasDeduction);
 
   const existingRecord = await prisma.payrollRecord.findFirst({
     where: {
@@ -521,19 +521,20 @@ export const getAllPayroll = async (
       if (weekEnd) (where.payroll_week_start as Record<string, Date>).lte = weekEnd;
     }
     
-    // Add search and branch filtering
-    if (search || branch) {
-      where.employee = {};
-      if (search) {
-        (where.employee as Record<string, unknown>).OR = [
+    // Add search filtering (requires employee relation)
+    if (search) {
+      where.employee = {
+        OR: [
           { firstName: { contains: search, mode: 'insensitive' } },
           { lastName: { contains: search, mode: 'insensitive' } },
           { employeeCode: { contains: search, mode: 'insensitive' } },
-        ];
-      }
-      if (branch) {
-        (where.employee as Record<string, unknown>).branchName = branch;
-      }
+        ]
+      };
+    }
+    
+    // Add branch filtering using branch_code from PayrollRecord
+    if (branch) {
+      where.branch_code = branch;
     }
 
     const [records, total] = await Promise.all([
@@ -848,7 +849,7 @@ export const approvePayrollOvertime = async (
       summary.payableDays,
       approvedHours,
       toNumber(record.performance_allowance),
-      toNumber(record.sss_contribution) > 0 || toNumber(record.phic_contribution) > 0 || toNumber(record.hdmf_contribution) > 0 || employee.hasDeduction || employee.hasDeductions || false,
+      Boolean(employee.hasDeductions) || Boolean(employee.hasDeduction) || toNumber(record.sss_contribution) > 0 || toNumber(record.phic_contribution) > 0 || toNumber(record.hdmf_contribution) > 0 || false,
       toNumber(record.cash_advance),
       record.payroll_week_start,
     );
