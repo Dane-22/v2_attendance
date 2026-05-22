@@ -22,7 +22,10 @@ import {
   Activity,
   ShoppingCart,
   Settings,
-  LogOut
+  LogOut,
+  ClipboardList,
+  Shield,
+  Send
 } from 'lucide-react';
 import { useAppStore, useIsBranchUser, useBranchCode } from '@/store/appStore';
 import { useTheme } from '@/hooks/useTheme';
@@ -46,6 +49,8 @@ interface SubNavItem {
 // Navigation items by role
 const getAdminNavItems = (unreadCount: number): NavItem[] => [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
+  { name: 'Task Management', href: '/dashboard/tasks', icon: ClipboardList },
+  { name: 'View Employee Task', href: '/dashboard/task-deligation', icon: Shield },
   { name: 'Site Attendance', href: '/dashboard/attendance', icon: CalendarCheck },
   { name: 'Notification', href: '/dashboard/notifications', icon: Bell, badge: unreadCount > 0 ? unreadCount : undefined },
   { name: 'Employee List', href: '/dashboard/employees', icon: Users },
@@ -53,7 +58,8 @@ const getAdminNavItems = (unreadCount: number): NavItem[] => [
   { name: 'Activity Logs', href: '/dashboard/logs', icon: Activity },
   { name: 'Attendance Audit', href: '/dashboard/attendance-audit', icon: FileSearch },
   { name: 'Finance', href: '/dashboard/finance', icon: Wallet, hasSubmenu: true },
-  { name: 'Procurement', href: '/dashboard/procurement', icon: ShoppingCart },
+  { name: 'Procurement', href: 'https://procurement.xandree.com/', icon: ShoppingCart },
+  { name: 'Submit Request', href: '/dashboard/submit-request', icon: Send },
   { name: 'Settings', href: '/dashboard/settings', icon: Settings },
 ];
 
@@ -115,6 +121,8 @@ export default function Sidebar() {
       // Map nav item name to permission key
       const permissionMap: { [key: string]: string } = {
         'Dashboard': 'dashboard',
+        'Task Management': 'tasks',
+        'View Employee Task': 'task-deligation',
         'Site Attendance': 'attendance',
         'Notification': 'notifications',
         'Employee List': 'employees',
@@ -123,6 +131,7 @@ export default function Sidebar() {
         'Attendance Audit': 'attendance-audit',
         'Finance': 'finance',
         'Procurement': 'procurement',
+        'Submit Request': 'submit-request',
         'Settings': 'settings'
       };
 
