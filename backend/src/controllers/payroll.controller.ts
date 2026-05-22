@@ -397,6 +397,64 @@ const getPayrollRecordOrThrow = async (id: number) => {
   return record;
 };
 
+// Function to consume approved overtime requests for payroll calculation
+const getApprovedOvertimeRequests = async (
+  employeeId: number,
+  weekStart: Date,
+  weekEnd: Date,
+) => {
+  try {
+    // Use raw SQL query to fetch approved overtime requests
+    const query = `
+      SELECT 
+        id, 
+        requested_hours as requestedHours, 
+        request_date as requestDate, 
+        start_time as startTime, 
+        end_time as endTime, 
+        reason
+      FROM overtime_requests 
+      WHERE employee_id = $1 
+        AND status = 'APPROVED'
+        AND request_date >= $2 
+        AND request_date <= $3
+        AND payroll_record_id IS NULL
+    `;
+    
+    const result = await prisma.$queryRawUnsafe(query, employeeId, weekStart, weekEnd);
+    return result as Array<{
+      id: number;
+      requestedHours: number;
+      requestDate: Date;
+      startTime: string;
+      endTime: string;
+      reason: string;
+    }>;
+  } catch (error) {
+    console.error('Error fetching approved overtime requests:', error);
+    return [];
+  }
+};
+
+// Function to mark overtime requests as applied to payroll
+const markOvertimeRequestsAsApplied = async (
+  overtimeRequestIds: number[],
+  payrollRecordId: number,
+) => {
+  try {
+    // Use raw SQL query to mark overtime requests as applied
+    const query = `
+      UPDATE overtime_requests 
+      SET payroll_record_id = $1, applied_to_payroll_at = NOW()
+      WHERE id = ANY($2)
+    `;
+    
+    await prisma.$queryRawUnsafe(query, payrollRecordId, overtimeRequestIds);
+  } catch (error) {
+    console.error('Error marking overtime requests as applied:', error);
+  }
+};
+
 const upsertPayrollForEmployeeWeek = async (
   employee: Employee,
   weekStart: Date,
@@ -418,6 +476,15 @@ const upsertPayrollForEmployeeWeek = async (
   const performanceAllowance = toNumber(employee.performanceAllowance);
   const hasDeductions = Boolean(employee.hasDeductions);
 
+  // Get approved overtime requests for this employee and week
+  const approvedOvertimeRequests = await getApprovedOvertimeRequests(employee.id, weekStart, weekEnd);
+  
+  // Calculate total approved overtime hours from requests
+  const approvedOvertimeHoursFromRequests = approvedOvertimeRequests.reduce(
+    (total, request) => total + Number(request.requestedHours),
+    0
+  );
+
   const existingRecord = await prisma.payrollRecord.findFirst({
     where: {
       employeeId: employee.id,
@@ -430,7 +497,10 @@ const upsertPayrollForEmployeeWeek = async (
     return { record: existingRecord, summary, action: 'skipped_processed' as const };
   }
 
-  const approvedOvertimeHours = existingRecord ? toNumber(existingRecord.overtimeHours) : 0;
+  // Use existing overtime hours if available, otherwise use approved requests
+  const approvedOvertimeHours = existingRecord 
+    ? toNumber(existingRecord.overtimeHours) 
+    : approvedOvertimeHoursFromRequests;
   const cashAdvance = existingRecord ? toNumber(existingRecord.cash_advance) : 0;
   const calculations = calculatePayrollDetails(
     dailyRate,
@@ -486,12 +556,28 @@ const upsertPayrollForEmployeeWeek = async (
       data: payload,
     });
 
+    // Mark overtime requests as applied to payroll (only if we used overtime requests)
+    if (approvedOvertimeRequests.length > 0 && !existingRecord.overtimeHours) {
+      await markOvertimeRequestsAsApplied(
+        approvedOvertimeRequests.map(req => req.id),
+        record.id
+      );
+    }
+
     return { record, summary, action: 'updated' as const, previous: existingRecord, changes };
   }
 
   const record = await prisma.payrollRecord.create({
     data: payload,
   });
+
+  // Mark overtime requests as applied to payroll (only if we used overtime requests)
+  if (approvedOvertimeRequests.length > 0) {
+    await markOvertimeRequestsAsApplied(
+      approvedOvertimeRequests.map(req => req.id),
+      record.id
+    );
+  }
 
   return { record, summary, action: 'created' as const };
 };
@@ -996,6 +1082,118 @@ export const updatePayrollStatus = async (
       success: true,
       message: `Payroll status updated to ${status}`,
       data,
+    };
+
+    res.json(response);
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const syncPayrollDeductions = async (
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
+  try {
+    // Get all employees with their payroll records
+    const employees = await prisma.employee.findMany({
+      include: {
+        payrollRecords: true,
+      },
+    });
+
+    let updatedCount = 0;
+    const updates: Array<{ payrollId: number; employeeName: string; previousDeductions: number; newDeductions: number }> = [];
+
+    for (const employee of employees) {
+      const hasDeductions = Boolean(employee.hasDeductions);
+
+      for (const record of employee.payrollRecords) {
+        // Skip processed records
+        if (record.status === 'processed') {
+          continue;
+        }
+
+        const currentTotalDeductions = toNumber(record.total_deductions);
+        const shouldHaveDeductions = hasDeductions;
+
+        // If employee has no deductions but record shows deductions, remove them
+        if (!shouldHaveDeductions && currentTotalDeductions > 0) {
+          const newTotalDeductions = toNumber(record.cash_advance);
+          const newNetPay = toNumber(record.grossPay) - newTotalDeductions;
+
+          await prisma.payrollRecord.update({
+            where: { id: record.id },
+            data: {
+              sss_contribution: 0,
+              phic_contribution: 0,
+              hdmf_contribution: 0,
+              total_deductions: newTotalDeductions,
+              netPay: newNetPay,
+            },
+          });
+
+          updates.push({
+            payrollId: record.id,
+            employeeName: `${employee.firstName} ${employee.lastName}`,
+            previousDeductions: currentTotalDeductions,
+            newDeductions: newTotalDeductions,
+          });
+
+          updatedCount++;
+        }
+        // If employee has deductions but record shows no deductions, add them
+        else if (shouldHaveDeductions && currentTotalDeductions === toNumber(record.cash_advance)) {
+          const weekStart = record.payroll_week_start;
+          const proratedDeductions = getProratedDeductions(weekStart);
+          const sssContribution = proratedDeductions.sss;
+          const phicContribution = proratedDeductions.phic;
+          const hdmfContribution = proratedDeductions.hdmf;
+          const newTotalDeductions = roundCurrency(sssContribution + phicContribution + hdmfContribution + toNumber(record.cash_advance));
+          const newNetPay = toNumber(record.grossPay) - newTotalDeductions;
+
+          await prisma.payrollRecord.update({
+            where: { id: record.id },
+            data: {
+              sss_contribution: sssContribution,
+              phic_contribution: phicContribution,
+              hdmf_contribution: hdmfContribution,
+              total_deductions: newTotalDeductions,
+              netPay: newNetPay,
+            },
+          });
+
+          updates.push({
+            payrollId: record.id,
+            employeeName: `${employee.firstName} ${employee.lastName}`,
+            previousDeductions: currentTotalDeductions,
+            newDeductions: newTotalDeductions,
+          });
+
+          updatedCount++;
+        }
+      }
+    }
+
+    await logUpdate({
+      userId: req.admin?.id || 0,
+      userName: req.admin?.name || 'unknown',
+      userRole: req.admin?.role || 'admin',
+      entityType: 'PAYROLL',
+      entityId: '0',
+      entityName: 'Bulk payroll deduction sync',
+      description: `Synced payroll deductions with employee hasDeductions setting. Updated ${updatedCount} records.`,
+      detailsAfter: { updatedCount, updates },
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+      metadata: { updatedCount, updates },
+    });
+
+    const response: ApiResponse<{ updatedCount: number; updates: typeof updates }> = {
+      success: true,
+      message: `Synced ${updatedCount} payroll records with employee deduction settings`,
+      data: { updatedCount, updates },
     };
 
     res.json(response);

@@ -69,6 +69,7 @@ export interface Employee {
   performanceAllowance: number | null;
   hasDeductions: boolean | null;
   profileImage: string | null;
+  faceCaptureImage: string | null;
   createdAt: Date | null;
   updatedAt: Date | null;
 }
@@ -211,6 +212,18 @@ export const employeeApi = {
       },
     });
   },
+  uploadFaceCapture: (id: number, file: File, branchCode?: string) => {
+    const formData = new FormData();
+    formData.append('faceCapture', file);
+    if (branchCode) formData.append('branchCode', branchCode);
+    return api.post<ApiResponse<Employee>>(`/employees/${id}/upload-face-capture`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+  },
+  resolveScan: (data: { qrCodeData?: string; employeeCode?: string; employeeId?: number }) =>
+    api.post<ApiResponse<Pick<Employee, 'id' | 'employeeCode' | 'firstName' | 'middleName' | 'lastName' | 'branchCode' | 'branchName' | 'status' | 'faceCaptureImage'>>>('/employees/resolve-scan', data),
   transfer: (id: number, data: { branchCode: string; reason?: string }) =>
     api.patch<ApiResponse<{ employee: Employee; previousBranch: string | null }>>(`/employees/${id}/transfer`, data),
 };
@@ -351,7 +364,7 @@ export interface Notification {
   id: number;
   recipient_type: string;
   recipient_id: number;
-  type: 'ATTENDANCE' | 'PAYROLL' | 'SYSTEM' | 'SECURITY' | 'PROJECT' | 'FINANCE';
+  type: 'ATTENDANCE' | 'PAYROLL' | 'SYSTEM' | 'SECURITY' | 'PROJECT' | 'FINANCE' | 'OVERTIME_REQUEST';
   title: string;
   message: string;
   link: string | null;
@@ -372,6 +385,7 @@ export interface NotificationStats {
     SECURITY: number;
     PROJECT: number;
     FINANCE: number;
+    OVERTIME_REQUEST: number;
   };
 }
 
@@ -386,7 +400,7 @@ export interface NotificationsResponse {
   };
 }
 
-export type NotificationFilter = 'ALL' | 'UNREAD' | 'URGENT' | 'ATTENDANCE' | 'PAYROLL' | 'SYSTEM' | 'FINANCE' | 'PROJECT' | 'SECURITY';
+export type NotificationFilter = 'ALL' | 'UNREAD' | 'URGENT' | 'ATTENDANCE' | 'PAYROLL' | 'SYSTEM' | 'FINANCE' | 'PROJECT' | 'SECURITY' | 'OVERTIME_REQUEST';
 
 export const notificationApi = {
   getNotifications: (params?: { page?: number; limit?: number; filter?: NotificationFilter }) =>
@@ -504,6 +518,7 @@ export interface Admin {
   profileImage: string | null;
   created_at: string;
   updated_at: string;
+  employeeId?: number;
 }
 
 export interface CreateAdminRequest {
@@ -515,6 +530,7 @@ export interface CreateAdminRequest {
   branch_code?: string;
   permissions?: any;
   permissions_enabled?: boolean;
+  employeeId?: number;
 }
 
 export interface UpdateAdminRequest {
@@ -526,6 +542,7 @@ export interface UpdateAdminRequest {
   branch_code?: string;
   permissions?: any;
   permissions_enabled?: boolean;
+  employeeId?: number;
 }
 
 export const adminApi = {
@@ -644,6 +661,69 @@ export const taskApi = {
     api.post<ApiResponse<Task>>(`/tasks/${id}/timer/stop`),
   getTimerStatus: (id: number) =>
     api.get<ApiResponse<TimerStatus>>(`/tasks/${id}/timer/status`),
+};
+
+// Overtime Request Types
+export interface OvertimeRequest {
+  id: number;
+  employeeId: number;
+  employee?: {
+    id: number;
+    name: string;
+    position: string;
+    branchName: string;
+    branchCode: string;
+  };
+  requestedByAdminId: number;
+  requestDate: string;
+  startTime: string;
+  endTime: string;
+  requestedHours: number;
+  reason: string;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'APPLIED_TO_PAYROLL';
+  reviewNote?: string;
+  reviewedByAdminId?: number;
+  reviewedAt?: string;
+  payrollRecordId?: number;
+  appliedToPayrollAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateOvertimeRequestInput {
+  employeeName: string;
+  requestDate: string;
+  startTime: string;
+  endTime: string;
+  requestedHours?: number;
+  reason: string;
+}
+
+export interface ReviewOvertimeRequestInput {
+  reviewNote?: string;
+}
+
+export interface OvertimeRequestFilter {
+  status?: 'PENDING' | 'APPROVED' | 'REJECTED' | 'APPLIED_TO_PAYROLL';
+  employeeId?: number;
+  branchCode?: string;
+  startDate?: string;
+  endDate?: string;
+  page?: number;
+  limit?: number;
+}
+
+export const overtimeRequestApi = {
+  create: (data: CreateOvertimeRequestInput) =>
+    api.post<ApiResponse<OvertimeRequest>>('/overtime-requests', data),
+  getAll: (params?: OvertimeRequestFilter) =>
+    api.get<ApiResponse<OvertimeRequest[]>>('/overtime-requests', { params }),
+  getById: (id: number) =>
+    api.get<ApiResponse<OvertimeRequest>>(`/overtime-requests/${id}`),
+  approve: (id: number, data: ReviewOvertimeRequestInput) =>
+    api.patch<ApiResponse<OvertimeRequest>>(`/overtime-requests/${id}/approve`, data),
+  reject: (id: number, data: ReviewOvertimeRequestInput) =>
+    api.patch<ApiResponse<OvertimeRequest>>(`/overtime-requests/${id}/reject`, data),
 };
 
 export default api;

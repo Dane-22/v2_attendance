@@ -944,12 +944,22 @@ function UserModal({ isOpen, onClose, onSuccess, userType, setUserType, mode, ed
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Employees state for admin employeeId dropdown
+  const [employees, setEmployees] = useState<any[]>([]);
+
   // Fetch branches for dropdowns
   useEffect(() => {
     if (isOpen) {
       branchesApi.getAll().then(response => {
         if (response.data?.success && response.data.data) {
           setBranches(response.data.data);
+        }
+      }).catch(console.error);
+
+      // Fetch employees for admin employeeId dropdown
+      employeeApi.getAll().then(response => {
+        if (response.data?.success && response.data.data) {
+          setEmployees(response.data.data);
         }
       }).catch(console.error);
     }
@@ -974,7 +984,8 @@ function UserModal({ isOpen, onClose, onSuccess, userType, setUserType, mode, ed
           role: (editData as Admin).role,
           branch_code: (editData as Admin).branch_code || undefined,
           permissions: (editData as Admin).permissions || [],
-          permissions_enabled: (editData as Admin).permissions_enabled || false
+          permissions_enabled: (editData as Admin).permissions_enabled || false,
+          employeeId: (editData as Admin).employeeId || undefined
         });
       } else if (userType === 'branch_user' && 'branch_code' in editData) {
         // For edit mode, load branch_name from the branch data
@@ -1204,6 +1215,9 @@ function UserModal({ isOpen, onClose, onSuccess, userType, setUserType, mode, ed
           if (adminForm.role) updateData.role = adminForm.role;
           if (adminForm.branch_code) updateData.branch_code = adminForm.branch_code;
           if (adminForm.password) updateData.password = adminForm.password;
+          updateData.permissions = adminForm.permissions;
+          updateData.permissions_enabled = adminForm.permissions_enabled;
+          updateData.employeeId = adminForm.employeeId;
 
           const response = await adminApi.update(editData.id, updateData);
           if (response.data?.success) {
@@ -1581,6 +1595,19 @@ function UserModal({ isOpen, onClose, onSuccess, userType, setUserType, mode, ed
                     ))}
                   </select>
                 </div>
+                <div>
+                  <label className="block text-gray-400 text-sm mb-1">Associated Employee (for self-service requests)</label>
+                  <select
+                    value={adminForm.employeeId || ''}
+                    onChange={(e) => setAdminForm({ ...adminForm, employeeId: e.target.value ? parseInt(e.target.value) : undefined })}
+                    className="w-full px-4 py-2 bg-[#141414] border border-[#262626] rounded-lg text-white focus:outline-none focus:border-[#facc15]"
+                  >
+                    <option value="">No Employee</option>
+                    {employees.map((emp) => (
+                      <option key={emp.id} value={emp.id}>{emp.firstName} {emp.lastName} - {emp.employeeCode}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
               <p className="text-gray-500 text-xs mt-3">
                 <span className="text-[#facc15]">ℹ</span> Password must be at least 8 characters with 1 uppercase, 1 lowercase, and 1 number
@@ -1613,10 +1640,10 @@ function UserModal({ isOpen, onClose, onSuccess, userType, setUserType, mode, ed
                     <label className="block text-gray-400 text-sm mb-2">Quick Templates</label>
                     <div className="flex flex-wrap gap-2">
                       {[
-                        { name: 'Full Access', permissions: ['dashboard', 'tasks', 'task-deligation', 'attendance', 'notifications', 'employees', 'documents', 'logs', 'attendance-audit', 'finance', 'finance/payroll', 'finance/overtime', 'finance/billing', 'finance/cash-advance', 'finance/attendance-audit', 'procurement', 'settings'] },
+                        { name: 'Full Access', permissions: ['dashboard', 'tasks', 'task-deligation', 'attendance', 'notifications', 'employees', 'documents', 'logs', 'attendance-audit', 'finance', 'finance/payroll', 'finance/overtime', 'finance/billing', 'finance/cash-advance', 'finance/attendance-audit', 'procurement', 'submit-request', 'settings'] },
                         { name: 'Finance Only', permissions: ['dashboard', 'finance', 'finance/payroll', 'finance/overtime', 'finance/billing', 'finance/cash-advance', 'finance/attendance-audit'] },
                         { name: 'HR Only', permissions: ['dashboard', 'employees', 'documents', 'logs'] },
-                        { name: 'Basic Access', permissions: ['dashboard', 'attendance', 'notifications'] }
+                        { name: 'Basic Access', permissions: ['dashboard', 'attendance', 'notifications', 'submit-request'] }
                       ].map((template) => (
                         <button
                           key={template.name}
@@ -1645,6 +1672,7 @@ function UserModal({ isOpen, onClose, onSuccess, userType, setUserType, mode, ed
                         { id: 'logs', label: 'Activity Logs' },
                         { id: 'attendance-audit', label: 'Attendance Audit' },
                         { id: 'procurement', label: 'Procurement' },
+                        { id: 'submit-request', label: 'Submit Request' },
                         { id: 'settings', label: 'Settings' }
                       ].map((item) => (
                         <label key={item.id} className="flex items-center gap-2 cursor-pointer">

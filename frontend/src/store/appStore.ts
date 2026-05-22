@@ -12,6 +12,7 @@ export interface User {
   branch_code?: string;
   permissions?: any;
   permissions_enabled?: boolean;
+  employeeId?: number;
 }
 
 interface AppState {

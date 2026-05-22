@@ -95,6 +95,7 @@ export const getAllAdmins = async (
           branch_code: true,
           permissions: true,
           permissions_enabled: true,
+          employeeId: true,
           created_at: true,
           updated_at: true
         }
@@ -228,7 +229,7 @@ export const updateAdmin = async (
 ): Promise<void> => {
   try {
     const id = parseInt(req.params.id);
-    const { username, password, name, email, role, branch_code, permissions, permissions_enabled } = req.body;
+    const { username, password, name, email, role, branch_code, permissions, permissions_enabled, employeeId } = req.body;
 
     const existingAdmin = await prisma.admins.findUnique({
       where: { id }
@@ -280,6 +281,7 @@ export const updateAdmin = async (
     if (branch_code !== undefined) updateData.branch_code = branch_code;
     if (permissions !== undefined) updateData.permissions = permissions;
     if (permissions_enabled !== undefined) updateData.permissions_enabled = permissions_enabled;
+    if (employeeId !== undefined) updateData.employeeId = employeeId;
 
     // Handle password update with validation
     if (password) {
@@ -301,6 +303,7 @@ export const updateAdmin = async (
         branch_code: true,
         permissions: true,
         permissions_enabled: true,
+        employeeId: true,
         created_at: true,
         updated_at: true
       }

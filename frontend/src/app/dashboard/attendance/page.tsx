@@ -5,11 +5,14 @@ import { useTheme } from '@/hooks/useTheme';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { branchApi, attendanceApi, employeeApi, Branch, BranchEmployee, Attendance, logsApi } from '@/lib/api';
 import { AxiosError } from 'axios';
-import { Search, Plus, X, RotateCcw, Lightbulb, Clock, UserX, UserCheck, ChevronLeft, ChevronRight, CheckCircle, Loader2, LogIn, LogOut, MoreVertical } from 'lucide-react';
+import { Search, Plus, X, RotateCcw, Lightbulb, Clock, UserX, UserCheck, ChevronLeft, ChevronRight, CheckCircle, Loader2, LogIn, LogOut, MoreVertical, Timer } from 'lucide-react';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import RecentActivity from '@/components/RecentActivity';
 import ProfileImage from '@/components/ProfileImage';
 import ImagePreview from '@/components/ImagePreview';
+import OvertimeRequestModal from '@/components/OvertimeRequestModal';
+import { overtimeRequestApi, CreateOvertimeRequestInput } from '@/lib/api';
+import { isWorkerPosition } from '@/lib/constants';
 
 // Track recently updated images for cache busting
 const recentlyUpdatedImages = new Set<string>();
@@ -113,6 +116,10 @@ export default function AttendancePage() {
   // Auto-transfer confirmation modal state
   const [isAutoTransferModalOpen, setIsAutoTransferModalOpen] = useState(false);
   const [selectedEmployeeForAutoTransfer, setSelectedEmployeeForAutoTransfer] = useState<BranchEmployee | null>(null);
+  
+  // Overtime request modal state
+  const [isOvertimeModalOpen, setIsOvertimeModalOpen] = useState(false);
+  const [selectedEmployeeForOvertime, setSelectedEmployeeForOvertime] = useState<BranchEmployee | null>(null);
   
   // Lock body scroll when mobile employee modal is open
   useEffect(() => {
@@ -356,6 +363,27 @@ export default function AttendancePage() {
     }
   });
 
+  // Overtime request mutation
+  const overtimeRequestMutation = useMutation({
+    mutationFn: (data: CreateOvertimeRequestInput) =>
+      overtimeRequestApi.create(data),
+    onSuccess: async () => {
+      // Close modal
+      setIsOvertimeModalOpen(false);
+      setSelectedEmployeeForOvertime(null);
+      // Refresh data
+      await queryClient.refetchQueries({ queryKey: ['branch-employees', selectedBranch], exact: true });
+    },
+    onError: (error: AxiosError<{ message?: string }>) => {
+      console.error('Overtime request error:', error);
+      const message = error.response?.data?.message || error.message || 'Failed to submit overtime request';
+      throw new Error(message);
+    }
+  });
+
+  const handleOvertimeRequest = async (data: CreateOvertimeRequestInput) => {
+    await overtimeRequestMutation.mutateAsync(data);
+  };
 
   const employees = employeesData || [];
   const searchResults = searchResultsData || [];
@@ -840,11 +868,25 @@ export default function AttendancePage() {
                             <button
                               onClick={() => setKebabMenuOpen(prev => ({ ...prev, [employee.id]: !prev[employee.id] }))}
                               className={`p-1.5 rounded-lg transition-colors self-start ${classes.hover}`}
+                              aria-label="More options"
                             >
                               <MoreVertical className={`w-4 h-4 ${classes.textMuted}`} />
                             </button>
                             {kebabMenuOpen[employee.id] && (
                               <div className={`absolute right-0 top-full mt-2 w-48 border ${classes.border} ${classes.bgCard} rounded-lg shadow-xl z-50`}>
+                                {isWorkerPosition(employee.position) && (
+                                  <button
+                                    onClick={() => {
+                                      setKebabMenuOpen(prev => ({ ...prev, [employee.id]: false }));
+                                      setSelectedEmployeeForOvertime(employee);
+                                      setIsOvertimeModalOpen(true);
+                                    }}
+                                    className={`w-full px-4 py-2 text-left text-sm ${classes.text} ${classes.hover} transition-colors flex items-center gap-2`}
+                                  >
+                                    <Timer className="w-4 h-4" />
+                                    Request Overtime
+                                  </button>
+                                )}
                                 <button
                                   onClick={() => {
                                     setKebabMenuOpen(prev => ({ ...prev, [employee.id]: false }));
@@ -955,6 +997,19 @@ export default function AttendancePage() {
                             </button>
                             {kebabMenuOpen[employee.id] && (
                               <div className={`absolute right-0 top-full mt-2 w-48 border ${classes.border} ${classes.bgCard} rounded-lg shadow-xl z-50`}>
+                                {isWorkerPosition(employee.position) && (
+                                  <button
+                                    onClick={() => {
+                                      setKebabMenuOpen(prev => ({ ...prev, [employee.id]: false }));
+                                      setSelectedEmployeeForOvertime(employee);
+                                      setIsOvertimeModalOpen(true);
+                                    }}
+                                    className={`w-full px-4 py-2 text-left text-sm ${classes.text} ${classes.hover} transition-colors flex items-center gap-2`}
+                                  >
+                                    <Timer className="w-4 h-4" />
+                                    Request Overtime
+                                  </button>
+                                )}
                                 <button
                                   onClick={() => {
                                     setKebabMenuOpen(prev => ({ ...prev, [employee.id]: false }));
@@ -1018,6 +1073,19 @@ export default function AttendancePage() {
                             </button>
                             {kebabMenuOpen[employee.id] && (
                               <div className={`absolute right-0 top-full mt-2 w-48 border ${classes.border} ${classes.bgCard} rounded-lg shadow-xl z-50`}>
+                                {isWorkerPosition(employee.position) && (
+                                  <button
+                                    onClick={() => {
+                                      setKebabMenuOpen(prev => ({ ...prev, [employee.id]: false }));
+                                      setSelectedEmployeeForOvertime(employee);
+                                      setIsOvertimeModalOpen(true);
+                                    }}
+                                    className={`w-full px-4 py-2 text-left text-sm ${classes.text} ${classes.hover} transition-colors flex items-center gap-2`}
+                                  >
+                                    <Timer className="w-4 h-4" />
+                                    Request Overtime
+                                  </button>
+                                )}
                                 <button
                                   onClick={() => {
                                     setKebabMenuOpen(prev => ({ ...prev, [employee.id]: false }));
@@ -1279,6 +1347,19 @@ export default function AttendancePage() {
                                     </button>
                                     {kebabMenuOpen[employee.id] && (
                                       <div className={`absolute right-0 top-full mt-2 w-48 border ${classes.border} ${classes.bgCard} rounded-lg shadow-xl z-50`}>
+                                        {isWorkerPosition(employee.position) && (
+                                          <button
+                                            onClick={() => {
+                                              setKebabMenuOpen(prev => ({ ...prev, [employee.id]: false }));
+                                              setSelectedEmployeeForOvertime(employee);
+                                              setIsOvertimeModalOpen(true);
+                                            }}
+                                            className={`w-full px-4 py-2 text-left text-sm ${classes.text} ${classes.hover} transition-colors flex items-center gap-2`}
+                                          >
+                                            <Timer className="w-4 h-4" />
+                                            Request Overtime
+                                          </button>
+                                        )}
                                         <button
                                           onClick={() => {
                                             setKebabMenuOpen(prev => ({ ...prev, [employee.id]: false }));
@@ -1650,6 +1731,20 @@ export default function AttendancePage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Overtime Request Modal */}
+      {isOvertimeModalOpen && selectedEmployeeForOvertime && (
+        <OvertimeRequestModal
+          isOpen={isOvertimeModalOpen}
+          onClose={() => {
+            setIsOvertimeModalOpen(false);
+            setSelectedEmployeeForOvertime(null);
+          }}
+          onSubmit={handleOvertimeRequest}
+          initialEmployeeName={selectedEmployeeForOvertime.name}
+          isReadOnly={true}
+        />
       )}
 
       <ImagePreview

@@ -16,13 +16,16 @@ import {
   AlertTriangle,
   CheckCheck,
   ArrowRight,
-  Loader2
+  Loader2,
+  Timer
 } from 'lucide-react';
 import { 
   notificationApi, 
+  overtimeRequestApi,
   Notification, 
   NotificationStats, 
-  NotificationFilter
+  NotificationFilter,
+  ReviewOvertimeRequestInput
 } from '@/lib/api';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { useTheme } from '@/hooks/useTheme';
@@ -35,9 +38,10 @@ const iconMap: Record<string, React.ElementType> = {
   Settings,
   HardHat,
   Wallet,
+  Timer,
 };
 
-// Extended type config with FINANCE support
+// Extended type config with FINANCE and OVERTIME_REQUEST support
 const typeConfig: Record<string, { color: string; bg: string; label: string; icon: string }> = {
   ATTENDANCE: { color: 'text-blue-400', bg: 'bg-blue-400/10', label: 'Attendance', icon: 'Clock' },
   PAYROLL: { color: 'text-green-400', bg: 'bg-green-400/10', label: 'Payroll', icon: 'DollarSign' },
@@ -45,6 +49,7 @@ const typeConfig: Record<string, { color: string; bg: string; label: string; ico
   SYSTEM: { color: 'text-purple-400', bg: 'bg-purple-400/10', label: 'System', icon: 'Settings' },
   PROJECT: { color: 'text-orange-400', bg: 'bg-orange-400/10', label: 'Project', icon: 'HardHat' },
   FINANCE: { color: 'text-cyan-400', bg: 'bg-cyan-400/10', label: 'Finance', icon: 'Wallet' },
+  OVERTIME_REQUEST: { color: 'text-blue-500', bg: 'bg-blue-500/10', label: 'Overtime', icon: 'Timer' },
 };
 
 export default function NotificationsPage() {
@@ -66,7 +71,7 @@ export default function NotificationsPage() {
 
   const notifications = notificationsData?.data?.data?.notifications || [];
   const stats: NotificationStats = notificationsData?.data?.data?.stats || {
-    total: 0, unread: 0, urgent: 0, byType: { ATTENDANCE: 0, PAYROLL: 0, SYSTEM: 0, SECURITY: 0, PROJECT: 0, FINANCE: 0 }
+    total: 0, unread: 0, urgent: 0, byType: { ATTENDANCE: 0, PAYROLL: 0, SYSTEM: 0, SECURITY: 0, PROJECT: 0, FINANCE: 0, OVERTIME_REQUEST: 0 }
   };
   const pagination = notificationsData?.data?.data?.pagination;
 
@@ -106,6 +111,36 @@ export default function NotificationsPage() {
     },
   });
 
+  // Approve overtime request mutation
+  const approveOvertimeMutation = useMutation({
+    mutationFn: ({ id, data }: { id: number; data: ReviewOvertimeRequestInput }) =>
+      overtimeRequestApi.approve(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['notifications'] });
+      queryClient.invalidateQueries({ queryKey: ['unreadCount'] });
+      alert('Overtime request approved successfully');
+    },
+    onError: (error: any) => {
+      console.error('Failed to approve overtime request:', error);
+      alert('Failed to approve overtime request');
+    },
+  });
+
+  // Reject overtime request mutation
+  const rejectOvertimeMutation = useMutation({
+    mutationFn: ({ id, data }: { id: number; data: ReviewOvertimeRequestInput }) =>
+      overtimeRequestApi.reject(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['notifications'] });
+      queryClient.invalidateQueries({ queryKey: ['unreadCount'] });
+      alert('Overtime request rejected successfully');
+    },
+    onError: (error: any) => {
+      console.error('Failed to reject overtime request:', error);
+      alert('Failed to reject overtime request');
+    },
+  });
+
   // WebSocket: Listen for notification updates
   useEffect(() => {
     const handleNotificationUpdate = () => {
@@ -135,6 +170,38 @@ export default function NotificationsPage() {
     }
   };
 
+  const handleApproveOvertime = (notification: Notification) => {
+    const reviewNote = prompt('Enter approval reason (optional):');
+    // Extract overtime request ID from the link
+    const overtimeRequestId = notification.link?.match(/overtimeRequestId=(\d+)/)?.[1];
+    if (!overtimeRequestId) {
+      alert('Could not find overtime request ID');
+      return;
+    }
+    approveOvertimeMutation.mutate({
+      id: parseInt(overtimeRequestId),
+      data: { reviewNote: reviewNote || undefined }
+    });
+  };
+
+  const handleRejectOvertime = (notification: Notification) => {
+    const reviewNote = prompt('Enter rejection reason (required):');
+    if (!reviewNote) {
+      alert('Rejection reason is required');
+      return;
+    }
+    // Extract overtime request ID from the link
+    const overtimeRequestId = notification.link?.match(/overtimeRequestId=(\d+)/)?.[1];
+    if (!overtimeRequestId) {
+      alert('Could not find overtime request ID');
+      return;
+    }
+    rejectOvertimeMutation.mutate({
+      id: parseInt(overtimeRequestId),
+      data: { reviewNote }
+    });
+  };
+
   const handleLoadMore = () => {
     if (pagination && page < pagination.totalPages) {
       setPage(prev => prev + 1);
@@ -148,6 +215,7 @@ export default function NotificationsPage() {
     { value: 'ATTENDANCE', label: 'Attendance', count: stats.byType.ATTENDANCE },
     { value: 'PAYROLL', label: 'Payroll', count: stats.byType.PAYROLL },
     { value: 'FINANCE', label: 'Finance', count: stats.byType.FINANCE },
+    { value: 'OVERTIME_REQUEST', label: 'Overtime', count: stats.byType.OVERTIME_REQUEST },
     { value: 'SYSTEM', label: 'System', count: stats.byType.SYSTEM },
   ];
 
@@ -231,7 +299,7 @@ export default function NotificationsPage() {
             onClick={() => setActiveFilter(filter.value)}
             className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
               activeFilter === filter.value
-                ? 'bg-[#facc15] text-black'
+                ? 'bg-yellow-400 text-black'
                 : `${classes.bgCard} ${classes.border} ${classes.textMuted} hover:${classes.text}`
             }`}
           >
@@ -323,6 +391,27 @@ export default function NotificationsPage() {
 
                           {/* Actions */}
                           <div className="flex items-center gap-2">
+                            {/* Overtime Request Actions */}
+                            {notification.type === 'OVERTIME_REQUEST' && (
+                              <>
+                                <button
+                                  onClick={() => handleApproveOvertime(notification)}
+                                  disabled={approveOvertimeMutation.isPending}
+                                  className="flex items-center gap-1 px-3 py-1.5 bg-green-500/10 text-green-400 rounded-lg text-sm hover:bg-green-500/20 transition-colors disabled:opacity-50"
+                                >
+                                  <Check className="w-4 h-4" />
+                                  Approve
+                                </button>
+                                <button
+                                  onClick={() => handleRejectOvertime(notification)}
+                                  disabled={rejectOvertimeMutation.isPending}
+                                  className="flex items-center gap-1 px-3 py-1.5 bg-red-500/10 text-red-400 rounded-lg text-sm hover:bg-red-500/20 transition-colors disabled:opacity-50"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                  Reject
+                                </button>
+                              </>
+                            )}
                             {notification.link && (
                               <a
                                 href={notification.link}

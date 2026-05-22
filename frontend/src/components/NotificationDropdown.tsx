@@ -17,6 +17,7 @@ import {
   CheckCheck,
   ArrowRight,
   Loader2,
+  Timer,
 } from 'lucide-react';
 import { notificationApi, Notification } from '@/lib/api';
 import { useWebSocket } from '@/hooks/useWebSocket';
@@ -34,6 +35,7 @@ const iconMap: Record<string, React.ElementType> = {
   Settings,
   HardHat,
   Wallet,
+  Timer,
 };
 
 const typeConfig: Record<string, { color: string; bg: string; label: string; icon: string }> = {
@@ -43,6 +45,7 @@ const typeConfig: Record<string, { color: string; bg: string; label: string; ico
   SYSTEM: { color: 'text-purple-400', bg: 'bg-purple-400/10', label: 'System', icon: 'Settings' },
   PROJECT: { color: 'text-orange-400', bg: 'bg-orange-400/10', label: 'Project', icon: 'HardHat' },
   FINANCE: { color: 'text-cyan-400', bg: 'bg-cyan-400/10', label: 'Finance', icon: 'Wallet' },
+  OVERTIME_REQUEST: { color: 'text-blue-500', bg: 'bg-blue-500/10', label: 'Overtime', icon: 'Timer' },
 };
 
 export default function NotificationDropdown({ isOpen, onClose }: NotificationDropdownProps) {
@@ -216,6 +219,18 @@ export default function NotificationDropdown({ isOpen, onClose }: NotificationDr
 
                         {/* Actions */}
                         <div className="flex items-center gap-1">
+                          {/* View Request button for overtime requests */}
+                          {notification.type === 'OVERTIME_REQUEST' && notification.link && (
+                            <Link
+                              href={notification.link}
+                              onClick={onClose}
+                              className="flex items-center gap-1 px-2 py-1 bg-[#facc15]/10 text-[#facc15] rounded text-xs hover:bg-[#facc15]/20 transition-colors"
+                              title="View Request"
+                            >
+                              <ArrowRight className="w-3 h-3" />
+                              View
+                            </Link>
+                          )}
                           {!notification.is_read && (
                             <button
                               onClick={(e) => handleMarkAsRead(e, notification.id)}

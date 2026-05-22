@@ -1,7 +1,8 @@
 'use client';
 
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { employeeApi, attendanceApi } from '@/lib/api';
+import { employeeApi, attendanceApi, overtimeRequestApi } from '@/lib/api';
 import Link from 'next/link';
 import { useTheme } from '@/hooks/useTheme';
 import { 
@@ -12,11 +13,15 @@ import {
   CalendarCheck, 
   TrendingUp,
   ArrowRight,
-  Building2
+  Building2,
+  Timer
 } from 'lucide-react';
+import OvertimeRequestModal from '@/components/OvertimeRequestModal';
+import { CreateOvertimeRequestInput } from '@/lib/api';
 
 export default function DashboardPage() {
   const { classes } = useTheme();
+  const [isOvertimeModalOpen, setIsOvertimeModalOpen] = useState(false);
   
   const { data: employeesData } = useQuery({
     queryKey: ['employees', { limit: 5 }],
@@ -27,6 +32,18 @@ export default function DashboardPage() {
     queryKey: ['attendance', { limit: 5 }],
     queryFn: () => attendanceApi.getAll({ limit: 5 }),
   });
+
+  // Handle overtime request submission
+  const handleOvertimeRequest = async (data: CreateOvertimeRequestInput) => {
+    try {
+      await overtimeRequestApi.create(data);
+      alert('Overtime request submitted successfully');
+      setIsOvertimeModalOpen(false);
+    } catch (error) {
+      console.error('Failed to submit overtime request:', error);
+      alert('Failed to submit overtime request');
+    }
+  };
 
   const stats = {
     totalEmployees: employeesData?.data.meta?.total || 0,
@@ -127,7 +144,7 @@ export default function DashboardPage() {
             <Building2 className="w-5 h-5 text-[#facc15]" />
             Quick Actions
           </h2>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <Link
               href="/dashboard/employees"
               className={`group flex flex-col p-4 ${classes.bgCardHover} rounded-xl ${classes.border} hover:border-[#facc15]/50 transition-all`}
@@ -163,6 +180,19 @@ export default function DashboardPage() {
               <span className={`${classes.textMuted} text-sm mt-1`}>Process salaries</span>
               <ArrowRight className={`w-4 h-4 ${classes.textMuted} mt-3 group-hover:text-yellow-400 transition-colors`} />
             </Link>
+
+            {/* Overtime Request Quick Action */}
+            <button
+              onClick={() => setIsOvertimeModalOpen(true)}
+              className={`group flex flex-col p-4 ${classes.bgCardHover} rounded-xl ${classes.border} hover:border-[#facc15]/50 transition-all text-left`}
+            >
+              <div className="w-10 h-10 rounded-lg bg-blue-500/10 flex items-center justify-center mb-3 group-hover:bg-blue-500/20 transition-colors">
+                <Timer className="w-5 h-5 text-blue-400" />
+              </div>
+              <span className={`${classes.text} font-medium`}>Request Overtime</span>
+              <span className={`${classes.textMuted} text-sm mt-1`}>Submit overtime request</span>
+              <ArrowRight className={`w-4 h-4 ${classes.textMuted} mt-3 group-hover:text-blue-400 transition-colors`} />
+            </button>
           </div>
         </div>
 
@@ -200,6 +230,15 @@ export default function DashboardPage() {
           </div>
         </div>
       </div>
+
+      {/* Overtime Request Modal */}
+      {isOvertimeModalOpen && (
+        <OvertimeRequestModal
+          isOpen={isOvertimeModalOpen}
+          onClose={() => setIsOvertimeModalOpen(false)}
+          onSubmit={handleOvertimeRequest}
+        />
+      )}
     </div>
   );
 }
