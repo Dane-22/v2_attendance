@@ -1,8 +1,9 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
-import { AuthState, Admin } from '../types';
+import { AuthPayload, AuthState } from '../types';
 
 const initialState: AuthState = {
   isAuthenticated: false,
+  isHydrated: false,
   userType: null,
   user: null,
   token: null,
@@ -12,13 +13,31 @@ const authSlice = createSlice({
   name: 'auth',
   initialState,
   reducers: {
-    setAdminAuth: (state, action: PayloadAction<{ user: Admin; token: string }>) => {
+    hydrateAuth: (state, action: PayloadAction<AuthPayload | null>) => {
+      state.isHydrated = true;
+
+      if (!action.payload) {
+        state.isAuthenticated = false;
+        state.userType = null;
+        state.user = null;
+        state.token = null;
+        return;
+      }
+
       state.isAuthenticated = true;
-      state.userType = 'admin';
+      state.userType = action.payload.userType;
+      state.user = action.payload.user;
+      state.token = action.payload.token;
+    },
+    setAuth: (state, action: PayloadAction<AuthPayload>) => {
+      state.isHydrated = true;
+      state.isAuthenticated = true;
+      state.userType = action.payload.userType;
       state.user = action.payload.user;
       state.token = action.payload.token;
     },
     logout: (state) => {
+      state.isHydrated = true;
       state.isAuthenticated = false;
       state.userType = null;
       state.user = null;
@@ -27,5 +46,5 @@ const authSlice = createSlice({
   },
 });
 
-export const { setAdminAuth, logout } = authSlice.actions;
+export const { hydrateAuth, setAuth, logout } = authSlice.actions;
 export default authSlice.reducer;

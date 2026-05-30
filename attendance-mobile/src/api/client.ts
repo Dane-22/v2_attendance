@@ -1,6 +1,7 @@
 import axios from 'axios';
-import { API_BASE_URL } from '../constants/config';
+import { API_BASE_URL, STORAGE_KEYS } from '../constants/config';
 import { secureStorage } from '../utils/secureStorage';
+import { clearPersistedAuth } from '../utils/authStorage';
 
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
@@ -10,36 +11,19 @@ const apiClient = axios.create({
   },
 });
 
-// Request interceptor to add token
-apiClient.interceptors.request.use(
-  async (config) => {
-    try {
-      const token = await secureStorage.getItem('auth_token');
-      if (token) {
-        config.headers.Authorization = `Bearer ${token}`;
-      }
-    } catch (error) {
-      // Ignore storage errors
-    }
-    return config;
-  },
-  (error) => {
-    return Promise.reject(error);
+apiClient.interceptors.request.use(async (config) => {
+  const token = await secureStorage.getItem(STORAGE_KEYS.TOKEN);
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
   }
-);
+  return config;
+});
 
-// Response interceptor for error handling
 apiClient.interceptors.response.use(
   (response) => response,
   async (error) => {
     if (error.response?.status === 401) {
-      // Handle unauthorized - clear token and redirect to login
-      try {
-        await secureStorage.removeItem('auth_token');
-        await secureStorage.removeItem('user_type');
-      } catch (error) {
-        // Ignore storage errors
-      }
+      await clearPersistedAuth();
     }
     return Promise.reject(error);
   }

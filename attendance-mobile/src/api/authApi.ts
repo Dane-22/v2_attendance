@@ -1,18 +1,24 @@
 import apiClient from './client';
-import { User, Admin } from '../types';
-
-interface LoginResponse {
-  token: string;
-  user: User | Admin;
-  userType: 'admin';
-}
+import { ApiResponse } from '../types/api';
+import { AuthPayload } from '../types';
 
 export const authApi = {
-  adminLogin: async (username: string, password: string) => {
-    const response = await apiClient.post<{ success: boolean; message: string; data: LoginResponse }>('/auth/login', {
+  login: async (username: string, password: string) => {
+    const response = await apiClient.post<ApiResponse<AuthPayload>>('/auth/login', {
       username,
       password,
     });
+
     return response.data.data;
+  },
+
+  logout: async () => {
+    const response = await apiClient.post<ApiResponse<null>>('/auth/logout');
+    return response.data;
+  },
+
+  changePassword: async (payload: { currentPassword: string; newPassword: string; confirmPassword: string }) => {
+    const response = await apiClient.post<ApiResponse<null>>('/auth/change-password', payload);
+    return response.data;
   },
 };
