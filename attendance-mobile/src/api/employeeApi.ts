@@ -46,8 +46,8 @@ export const employeeApi = {
   },
 
   resolveScan: async (payload: { qrCodeData?: string; employeeCode?: string; employeeId?: number }) => {
-    const response = await apiClient.post<ApiResponse<ResolvedEmployee>>('/employees/resolve-scan', payload);
-    return response.data.data;
+    const response = await apiClient.post<ApiResponse<{ decoded: any; employee: ResolvedEmployee; isValid: boolean }>>('/qr/decode', { qrData: payload.qrCodeData });
+    return response.data.data.employee;
   },
 
   uploadFaceCapture: async (id: number, payload: { uri: string; branchCode: string; fileName?: string; mimeType?: string }) => {
