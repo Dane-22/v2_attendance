@@ -193,7 +193,7 @@ export const createLog = async (
       data: {
         id: logId,
         userId: parseInt(userId),
-        userName,
+        userName: userName || 'unknown',
         userRole,
         actionType,
         entityType,

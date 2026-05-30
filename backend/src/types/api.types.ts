@@ -48,7 +48,6 @@ export interface CreateEmployeeRequest {
   dailyRate?: number;
   performanceAllowance?: number;
   hasDeductions?: boolean;
-  hasDeduction?: boolean;
 }
 
 export interface UpdateEmployeeRequest {
@@ -136,4 +135,44 @@ export interface JWTPayload {
 export interface AuthenticatedRequest extends Request {
   employee?: EmployeeWithoutSensitive;
   token?: string;
+}
+
+export interface OvertimeRequest {
+  id: number;
+  employeeId: number;
+  requestedByAdminId: number;
+  requestDate: Date;
+  startTime: string;
+  endTime: string;
+  requestedHours: number;
+  reason: string;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'APPLIED_TO_PAYROLL';
+  reviewNote?: string;
+  reviewedByAdminId?: number;
+  reviewedAt?: Date;
+  payrollRecordId?: number;
+  appliedToPayrollAt?: Date;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface CreateOvertimeRequestInput {
+  employeeName: string;
+  requestDate: string;
+  startTime: string;
+  endTime: string;
+  requestedHours?: number;
+  reason: string;
+}
+
+export interface ReviewOvertimeRequestInput {
+  reviewNote?: string;
+}
+
+export interface OvertimeRequestFilter {
+  status?: 'PENDING' | 'APPROVED' | 'REJECTED' | 'APPLIED_TO_PAYROLL';
+  employeeId?: number;
+  branchCode?: string;
+  startDate?: string;
+  endDate?: string;
 }
