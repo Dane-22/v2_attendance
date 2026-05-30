@@ -1,10 +1,9 @@
 import { Platform } from 'react-native';
 
-// Use the workstation LAN IP for physical-device testing.
-// Update this when your PC gets a different IP from Wi-Fi.
-const DEV_HOST = '192.168.100.20';
+// Production API URL
+const DEV_HOST = 'attendacev2.xandree.com';
 
-export const API_BASE_URL = `http://${DEV_HOST}:5000/api`;
+export const API_BASE_URL = `https://${DEV_HOST}/api`;
 
 export const STORAGE_KEYS = {
   TOKEN: 'auth_token',
