@@ -8,6 +8,7 @@ import { detectChanges } from '../utils/changeDetector';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
+import crypto from 'crypto';
 
 const prisma = new PrismaClient();
 
@@ -45,6 +46,44 @@ const upload = multer({
       cb(null, true);
     } else {
       cb(new Error('Invalid file type. Only JPG, PNG, GIF, and WebP are allowed.'));
+    }
+  }
+});
+
+// Configure multer for face capture uploads
+const faceCaptureDir = path.join(process.cwd(), 'assets', 'face-captures', 'employees');
+
+// Ensure face capture upload directory exists
+if (!fs.existsSync(faceCaptureDir)) {
+  fs.mkdirSync(faceCaptureDir, { recursive: true });
+}
+
+const faceCaptureStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, faceCaptureDir);
+  },
+  filename: (req, file, cb) => {
+    const employeeId = req.params.id;
+    const timestamp = Date.now();
+    const ext = path.extname(file.originalname);
+    cb(null, `${employeeId}_face_${timestamp}${ext}`);
+  }
+});
+
+const faceCaptureUpload = multer({
+  storage: faceCaptureStorage,
+  limits: {
+    fileSize: 10 * 1024 * 1024, // 10MB
+  },
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = /jpeg|jpg|png|webp/;
+    const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
+    const mimetype = allowedTypes.test(file.mimetype);
+
+    if (extname && mimetype) {
+      cb(null, true);
+    } else {
+      cb(new Error('Invalid file type. Only JPG, PNG, and WebP are allowed for face capture.'));
     }
   }
 });
@@ -790,5 +829,120 @@ export const archiveEmployee = async (
   }
 };
 
+export const uploadFaceCapture = async (
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const id = parseInt(req.params.id);
+    const { branchCode } = req.body;
+
+    if (!branchCode) {
+      throw new AppError('branchCode is required', 400);
+    }
+
+    const employee = await prisma.employee.findUnique({
+      where: { id }
+    });
+
+    if (!employee) {
+      throw new AppError('Employee not found', 404);
+    }
+
+    // Validate branchCode matches employee's branch
+    if (employee.branchCode !== branchCode) {
+      throw new AppError('branchCode does not match employee branch', 400);
+    }
+
+    // Branch admin authorization check
+    if (req.admin?.role === 'admin' && req.admin?.branch_code !== branchCode) {
+      throw new AppError('Branch admins can only upload face captures for their own branch', 403);
+    }
+
+    if (!req.file) {
+      throw new AppError('No file uploaded', 400);
+    }
+
+    // SHA-256 duplicate detection
+    const fileBuffer = fs.readFileSync(req.file.path);
+    const fileHash = crypto.createHash('sha256').update(fileBuffer).digest('hex');
+
+    // Check if this hash already exists in any face capture file
+    const existingFiles = fs.readdirSync(faceCaptureDir);
+    for (const existingFile of existingFiles) {
+      const existingFilePath = path.join(faceCaptureDir, existingFile);
+      try {
+        const existingBuffer = fs.readFileSync(existingFilePath);
+        const existingHash = crypto.createHash('sha256').update(existingBuffer).digest('hex');
+        if (existingHash === fileHash) {
+          // Delete the newly uploaded file since it's a duplicate
+          fs.unlinkSync(req.file.path);
+          throw new AppError('Duplicate face capture image detected', 409);
+        }
+      } catch (err) {
+        // Skip files that can't be read
+        continue;
+      }
+    }
+
+    // Generate the image URL path
+    const imagePath = `/assets/face-captures/employees/${req.file.filename}`;
+
+    // Update employee with new face capture image
+    const updatedEmployee = await prisma.employee.update({
+      where: { id },
+      data: { faceCaptureImage: imagePath },
+      select: {
+        id: true,
+        employeeCode: true,
+        firstName: true,
+        middleName: true,
+        lastName: true,
+        branchCode: true,
+        branchName: true,
+        profileImage: true,
+        faceCaptureImage: true,
+        updatedAt: true
+      }
+    });
+
+    // Log face capture upload
+    await logUpdate({
+      userId: req.admin?.id || 0,
+      userName: req.admin?.name || 'unknown',
+      userRole: req.admin?.role || 'admin',
+      entityType: 'EMPLOYEE',
+      entityId: employee.id.toString(),
+      entityName: `${employee.firstName} ${employee.lastName}`,
+      description: `Uploaded face capture for employee: ${employee.employeeCode}`,
+      detailsBefore: { faceCaptureImage: employee.faceCaptureImage },
+      detailsAfter: { faceCaptureImage: imagePath },
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+      branchId: employee.branchId || undefined,
+    });
+
+    const response: ApiResponse<typeof updatedEmployee> = {
+      success: true,
+      message: 'Face capture uploaded successfully',
+      data: updatedEmployee
+    };
+
+    res.json(response);
+  } catch (error) {
+    // Clean up uploaded file if there was an error
+    if (req.file && req.file.path) {
+      try {
+        fs.unlinkSync(req.file.path);
+      } catch (err) {
+        // Ignore cleanup errors
+      }
+    }
+    next(error);
+  }
+};
+
 // Export upload middleware for use in routes
 export const uploadMiddleware = upload.single('profileImage');
+export const faceCaptureUploadMiddleware = faceCaptureUpload.single('faceCapture');

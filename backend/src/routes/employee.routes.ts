@@ -9,6 +9,8 @@ import {
   generateQRCode,
   uploadProfileImage,
   uploadMiddleware,
+  uploadFaceCapture,
+  faceCaptureUploadMiddleware,
   transferEmployee,
   archiveEmployee
 } from '../controllers/employee.controller';
@@ -22,6 +24,7 @@ router.put('/:id', authenticate, updateEmployee);
 router.delete('/:id', authenticate, deleteEmployee);
 router.get('/:id/qr', authenticate, generateQRCode);
 router.post('/:id/upload-profile-image', authenticate, uploadMiddleware, uploadProfileImage);
+router.post('/:id/upload-face-capture', authenticate, faceCaptureUploadMiddleware, uploadFaceCapture);
 router.patch('/:id/transfer', authenticate, transferEmployee);
 router.patch('/:id/archive', authenticate, archiveEmployee);
 
