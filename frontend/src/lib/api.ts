@@ -1,8 +1,15 @@
 import axios from 'axios';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+const normalizeApiUrl = (url?: string) => {
+  if (!url) return undefined;
+  return url.replace(/\/+$/, '').replace(/\/api$/i, '');
+};
+
+const API_BASE_URL = normalizeApiUrl(process.env.NEXT_PUBLIC_API_URL) || 'http://localhost:5000';
+const API_URL = `${API_BASE_URL}/api`;
 
 console.log('[API] NEXT_PUBLIC_API_URL:', process.env.NEXT_PUBLIC_API_URL);
+console.log('[API] Normalized API_BASE_URL:', API_BASE_URL);
 console.log('[API] Using API_URL:', API_URL);
 
 export const api = axios.create({
