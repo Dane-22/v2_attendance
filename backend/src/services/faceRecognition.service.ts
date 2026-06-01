@@ -115,11 +115,22 @@ export async function registerFace(
     const encryptedEmbedding = await encryptEmbedding(embedding);
     
     // Update employee record
+    // NOTE: faceEmbedding and faceRegisteredAt fields not yet in Prisma schema
+    // Uncomment when face recognition service is fully activated
+    /*
     await prisma.employee.update({
       where: { id: employeeId },
       data: {
         faceEmbedding: encryptedEmbedding,
         faceRegisteredAt: new Date(),
+        faceConsentGiven: consentGiven,
+        faceDataVersion: 'v1'
+      }
+    });
+    */
+    await prisma.employee.update({
+      where: { id: employeeId },
+      data: {
         faceConsentGiven: consentGiven,
         faceDataVersion: 'v1'
       }
@@ -142,6 +153,9 @@ export async function verifyFace(
   threshold: number = 0.7
 ): Promise<{ match: boolean; confidence: number; distance: number }> {
   try {
+    // NOTE: faceEmbedding field not yet in Prisma schema
+    // Uncomment when face recognition service is fully activated
+    /*
     // Get employee's registered embedding
     const employee = await prisma.employee.findUnique({
       where: { id: employeeId },
@@ -163,21 +177,9 @@ export async function verifyFace(
       throw new Error('Employee is not active');
     }
     
-    // Decrypt registered embedding
     const registeredEmbedding = await decryptEmbedding(employee.faceEmbedding);
-    
-    // Compare embeddings
-    const distance = compareFaces(embedding, registeredEmbedding);
-    const confidence = distanceToConfidence(distance);
-    
-    // Check if confidence meets threshold
-    const match = confidence >= threshold;
-    
-    return {
-      match,
-      confidence,
-      distance
-    };
+    */
+    throw new Error('Face recognition service not yet activated');
   } catch (error) {
     throw new Error(`Failed to verify face: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
@@ -195,6 +197,9 @@ export async function getFaceRegistrationStatus(employeeId: number): Promise<{
   version: string | null;
 }> {
   try {
+    // NOTE: faceEmbedding and faceRegisteredAt fields not yet in Prisma schema
+    // Uncomment when face recognition service is fully activated
+    /*
     const employee = await prisma.employee.findUnique({
       where: { id: employeeId },
       select: {
@@ -215,6 +220,25 @@ export async function getFaceRegistrationStatus(employeeId: number): Promise<{
       registeredAt: employee.faceRegisteredAt || null,
       version: employee.faceDataVersion || null
     };
+    */
+    const employee = await prisma.employee.findUnique({
+      where: { id: employeeId },
+      select: {
+        faceConsentGiven: true,
+        faceDataVersion: true
+      }
+    });
+    
+    if (!employee) {
+      throw new Error('Employee not found');
+    }
+    
+    return {
+      registered: false,
+      consentGiven: employee.faceConsentGiven || false,
+      registeredAt: null,
+      version: employee.faceDataVersion || null
+    };
   } catch (error) {
     throw new Error(`Failed to get face registration status: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
@@ -226,11 +250,22 @@ export async function getFaceRegistrationStatus(employeeId: number): Promise<{
  */
 export async function deleteFaceData(employeeId: number): Promise<void> {
   try {
+    // NOTE: faceEmbedding and faceRegisteredAt fields not yet in Prisma schema
+    // Uncomment when face recognition service is fully activated
+    /*
     await prisma.employee.update({
       where: { id: employeeId },
       data: {
         faceEmbedding: null,
         faceRegisteredAt: null,
+        faceConsentGiven: false,
+        faceDataVersion: null
+      }
+    });
+    */
+    await prisma.employee.update({
+      where: { id: employeeId },
+      data: {
         faceConsentGiven: false,
         faceDataVersion: null
       }
@@ -258,6 +293,9 @@ export async function logFaceRecognition(
   userAgent?: string
 ): Promise<void> {
   try {
+    // NOTE: faceRecognitionLog model not yet in Prisma schema
+    // Uncomment when face recognition service is fully activated
+    /*
     await prisma.faceRecognitionLog.create({
       data: {
         employeeId,
@@ -268,6 +306,8 @@ export async function logFaceRecognition(
         userAgent
       }
     });
+    */
+    console.log('Face recognition logging not yet activated:', { employeeId, branchCode, scanResult, confidence });
   } catch (error) {
     // Log failure should not throw error
     console.error('Failed to log face recognition:', error);
@@ -282,6 +322,9 @@ export async function logFaceRecognition(
  */
 export async function getFaceRecognitionLogs(employeeId: number, limit: number = 50) {
   try {
+    // NOTE: faceRecognitionLog model not yet in Prisma schema
+    // Uncomment when face recognition service is fully activated
+    /*
     const logs = await prisma.faceRecognitionLog.findMany({
       where: { employeeId },
       orderBy: { timestamp: 'desc' },
@@ -289,6 +332,8 @@ export async function getFaceRecognitionLogs(employeeId: number, limit: number =
     });
     
     return logs;
+    */
+    return [];
   } catch (error) {
     throw new Error(`Failed to get face recognition logs: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }

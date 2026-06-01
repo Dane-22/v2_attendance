@@ -55,8 +55,10 @@ async function monitorFailedLogins(): Promise<Alert[]> {
   // Group by user to detect repeated failures
   const failuresByUser = new Map<number, number>();
   failedLogins.forEach(log => {
-    const count = failuresByUser.get(log.userId) || 0;
-    failuresByUser.set(log.userId, count + 1);
+    if (log.userId !== null) {
+      const count = failuresByUser.get(log.userId) || 0;
+      failuresByUser.set(log.userId, count + 1);
+    }
   });
 
   // Generate alerts for users exceeding threshold
@@ -105,8 +107,10 @@ async function monitorSuspiciousActivity(): Promise<Alert[]> {
   // Group by user to detect unusual activity
   const actionsByUser = new Map<number, number>();
   sensitiveActions.forEach(log => {
-    const count = actionsByUser.get(log.userId) || 0;
-    actionsByUser.set(log.userId, count + 1);
+    if (log.userId !== null) {
+      const count = actionsByUser.get(log.userId) || 0;
+      actionsByUser.set(log.userId, count + 1);
+    }
   });
 
   // Generate alerts for users exceeding threshold

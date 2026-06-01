@@ -129,7 +129,7 @@ export const getLogs = async (
       id: log.id,
       timestamp: log.timestamp.toISOString(),
       user: {
-        id: log.userId.toString(),
+        id: log.userId?.toString() || '0',
         name: log.userName,
         role: log.userRole
       },

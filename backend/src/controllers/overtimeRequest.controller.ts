@@ -263,19 +263,6 @@ export class OvertimeRequestController {
       const [requests, total] = await Promise.all([
         prisma.overtimeRequest.findMany({
           where,
-          include: {
-            employee: {
-              select: {
-                id: true,
-                firstName: true,
-                lastName: true,
-                employeeCode: true,
-                position: true,
-                branchName: true,
-                branchCode: true
-              }
-            }
-          },
           orderBy: {
             createdAt: 'desc'
           },
@@ -312,20 +299,7 @@ export class OvertimeRequestController {
   ): Promise<ApiResponse> {
     try {
       const request = await prisma.overtimeRequest.findUnique({
-        where: { id },
-        include: {
-          employee: {
-            select: {
-              id: true,
-              firstName: true,
-              lastName: true,
-              employeeCode: true,
-              position: true,
-              branchName: true,
-              branchCode: true
-            }
-          }
-        }
+        where: { id }
       });
 
       if (!request) {
@@ -365,10 +339,7 @@ export class OvertimeRequestController {
       }
 
       const request = await prisma.overtimeRequest.findUnique({
-        where: { id },
-        include: {
-          employee: true
-        }
+        where: { id }
       });
 
       if (!request) {
@@ -392,9 +363,6 @@ export class OvertimeRequestController {
           status: 'APPROVED',
           reviewedByAdminId: adminId,
           reviewedAt: new Date()
-        },
-        include: {
-          employee: true
         }
       });
 
@@ -405,7 +373,7 @@ export class OvertimeRequestController {
           recipient_id: request.requestedByAdminId,
           type: 'OVERTIME_REQUEST',
           title: 'Overtime Request Approved',
-          message: `Overtime request for ${request.employee.firstName} ${request.employee.lastName} on ${request.requestDate.toDateString()} has been approved`,
+          message: `Overtime request for employee ID ${request.employeeId} on ${request.requestDate.toDateString()} has been approved`,
           link: `/dashboard/notifications?overtimeRequestId=${id}`
         }
       });
@@ -430,8 +398,8 @@ export class OvertimeRequestController {
           actionType: 'APPROVE',
           entityType: 'OVERTIME_REQUEST',
           entityId: id.toString(),
-          entityName: `Overtime Request - ${request.employee.firstName} ${request.employee.lastName}`,
-          description: `Approved overtime request for ${request.employee.firstName} ${request.employee.lastName}`
+          entityName: `Overtime Request - Employee ID ${request.employeeId}`,
+          description: `Approved overtime request for employee ID ${request.employeeId}`
         }
       });
 
@@ -465,10 +433,7 @@ export class OvertimeRequestController {
       }
 
       const request = await prisma.overtimeRequest.findUnique({
-        where: { id },
-        include: {
-          employee: true
-        }
+        where: { id }
       });
 
       if (!request) {
@@ -493,9 +458,6 @@ export class OvertimeRequestController {
           reviewedByAdminId: adminId,
           reviewedAt: new Date(),
           reviewNote: data.reviewNote
-        },
-        include: {
-          employee: true
         }
       });
 
@@ -506,7 +468,7 @@ export class OvertimeRequestController {
           recipient_id: request.requestedByAdminId,
           type: 'OVERTIME_REQUEST',
           title: 'Overtime Request Rejected',
-          message: `Overtime request for ${request.employee.firstName} ${request.employee.lastName} on ${request.requestDate.toDateString()} has been rejected`,
+          message: `Overtime request for employee ID ${request.employeeId} on ${request.requestDate.toDateString()} has been rejected`,
           link: `/dashboard/notifications?overtimeRequestId=${id}`
         }
       });
@@ -531,8 +493,8 @@ export class OvertimeRequestController {
           actionType: 'REJECT',
           entityType: 'OVERTIME_REQUEST',
           entityId: id.toString(),
-          entityName: `Overtime Request - ${request.employee.firstName} ${request.employee.lastName}`,
-          description: `Rejected overtime request for ${request.employee.firstName} ${request.employee.lastName}`,
+          entityName: `Overtime Request - Employee ID ${request.employeeId}`,
+          description: `Rejected overtime request for employee ID ${request.employeeId}`,
           detailsAfter: {
             reviewNote: data.reviewNote
           }

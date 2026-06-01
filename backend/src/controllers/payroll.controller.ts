@@ -628,9 +628,6 @@ export const getAllPayroll = async (
         where,
         skip,
         take: limit,
-        include: {
-          employee: true,
-        },
         orderBy: [
           { payroll_week_start: 'desc' },
           { employeeId: 'asc' },
@@ -1096,20 +1093,20 @@ export const syncPayrollDeductions = async (
   next: NextFunction,
 ): Promise<void> => {
   try {
-    // Get all employees with their payroll records
-    const employees = await prisma.employee.findMany({
-      include: {
-        payrollRecords: true,
-      },
-    });
+    // Get all employees
+    const employees = await prisma.employee.findMany();
+
+    // Get all payroll records
+    const payrollRecords = await prisma.payrollRecord.findMany();
 
     let updatedCount = 0;
     const updates: Array<{ payrollId: number; employeeName: string; previousDeductions: number; newDeductions: number }> = [];
 
     for (const employee of employees) {
       const hasDeductions = Boolean(employee.hasDeductions);
+      const employeeRecords = payrollRecords.filter(r => r.employeeId === employee.id);
 
-      for (const record of employee.payrollRecords) {
+      for (const record of employeeRecords) {
         // Skip processed records
         if (record.status === 'processed') {
           continue;
