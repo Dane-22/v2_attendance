@@ -12,7 +12,7 @@ on:
       - 'backend/**'
 
 jobs:
-  verify:
+  build:
     runs-on: ubuntu-latest
     
     steps:
@@ -23,11 +23,24 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: backend/package-lock.json
 
       - name: Install dependencies
         working-directory: ./backend
         run: npm install
 
-      - name: Verify package.json
+      - name: Generate Prisma Client
         working-directory: ./backend
-        run: cat package.json
+        run: npx prisma generate
+
+      - name: Build TypeScript
+        working-directory: ./backend
+        run: npm run build
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-dist
+          path: backend/dist
+          retention-days: 7
