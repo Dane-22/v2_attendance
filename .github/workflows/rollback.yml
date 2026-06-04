@@ -1,0 +1,42 @@
+name: Emergency Rollback
+
+on:
+  workflow_dispatch:
+    inputs:
+      commit_sha:
+        description: 'Commit SHA to rollback to'
+        required: true
+
+jobs:
+  rollback:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.commit_sha }}
+
+      - name: Deploy specific commit
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          password: ${{ secrets.VPS_PASSWORD }}
+          script: |
+            cd /var/www/version2_attendance
+            git fetch origin
+            git reset --hard ${{ github.event.inputs.commit_sha }}
+            
+            cd backend && npm run build
+            cd ../frontend && npm run build
+            
+            pm2 restart all
+            pm2 status
+
+      - name: Notify rollback
+        uses: 8398a7/action-slack@v3
+        with:
+          status: 'success'
+          text: 'Rolled back to commit: ${{ github.event.inputs.commit_sha }}'
+          webhook_url: ${{ secrets.SLACK_WEBHOOK }}

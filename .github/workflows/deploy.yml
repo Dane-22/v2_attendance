@@ -1,0 +1,67 @@
+name: Deploy to Production
+
+on:
+  # push:
+  #   branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Deploy to VPS
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          password: ${{ secrets.VPS_PASSWORD }}
+          port: ${{ secrets.VPS_PORT || 22 }}
+          script: |
+            cd /var/www/version2_attendance
+            
+            # Pull latest changes
+            git fetch origin main
+            git reset --hard origin/main
+            
+            # Install root dependencies
+            npm install
+            
+            # Backend deployment
+            cd backend
+            npm install
+            npx prisma generate
+            npm run build
+            pm2 restart v2_attendance-api --update-env
+            
+            # Frontend deployment
+            cd ../frontend
+            npm install
+            echo "NEXT_PUBLIC_API_URL=https://attendacev2.xandree.com/api" > .env.local
+            npm run build
+            pm2 restart v2_attendance-web --update-env
+            
+            # Verify services
+            pm2 status
+            
+            # Health check
+            curl -f http://localhost:5002/health || exit 1
+            curl -f http://localhost:3001 || exit 1
+
+      - name: Notify deployment status
+        if: always()
+        uses: 8398a7/action-slack@v3
+        with:
+          status: ${{ job.status }}
+          text: 'Deployment to production: ${{ job.status }}'
+          webhook_url: ${{ secrets.SLACK_WEBHOOK }}
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK }}
