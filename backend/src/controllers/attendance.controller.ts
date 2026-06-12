@@ -416,21 +416,10 @@ export const clock = async (
 
 // Helper to get Philippines date range (for Prisma queries in manual endpoints)
 const getPhilippinesDateRange = (): { start: Date; end: Date } => {
-  const now = new Date();
-  // Use Intl.DateTimeFormat to get correct Philippines date components
-  const formatter = new Intl.DateTimeFormat('en-US', {
-    timeZone: 'Asia/Manila',
-    year: 'numeric',
-    month: 'numeric',
-    day: 'numeric',
-    hour12: false
-  });
-  const parts = formatter.formatToParts(now);
-  const year = parseInt(parts.find(p => p.type === 'year')?.value || '0');
-  const month = parseInt(parts.find(p => p.type === 'month')?.value || '0') - 1; // 0-indexed
-  const day = parseInt(parts.find(p => p.type === 'day')?.value || '0');
-  const start = new Date(Date.UTC(year, month, day));
-  const end = new Date(Date.UTC(year, month, day + 1));
+  const todayStr = getPhilippinesDateString();
+  const [year, month, day] = todayStr.split('-').map(Number);
+  const start = new Date(year, month - 1, day);
+  const end = new Date(year, month - 1, day + 1);
   return { start, end };
 };
 
