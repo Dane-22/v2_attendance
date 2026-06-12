@@ -4,20 +4,10 @@ exports.getBranchEmployees = exports.getBranches = void 0;
 const client_1 = require("@prisma/client");
 const activityLogger_service_1 = require("../services/activityLogger.service");
 const prisma = new client_1.PrismaClient();
-// Branch mapping from branch_code to full name
-const branchNames = {
-    'A': 'Sto. Rosario',
-    'B': 'BCDA',
-    'C': 'Sundara',
-    'D': 'Panicsican',
-    'E': 'Main Office',
-    'F': 'Capitol',
-    'H': 'Testing Branch',
-};
 const getBranches = async (req, res, next) => {
     try {
         // Get branch devices from admins table (where role is empty or branch device)
-        const branches = await prisma.admins.findMany({
+        const admins = await prisma.admins.findMany({
             where: {
                 branch_code: { not: null }
             },
@@ -30,24 +20,41 @@ const getBranches = async (req, res, next) => {
                 branch_code: 'asc'
             }
         });
-        // Format branches with full names
-        const formattedBranches = branches.map(branch => ({
-            id: branch.id.toString(),
-            code: branch.branch_code || '',
-            name: branch.name,
-            shortName: branchNames[branch.branch_code || ''] || branch.branch_code || 'Unknown',
-            description: `Deploy employees to ${branchNames[branch.branch_code || ''] || branch.branch_code} for attendance.`
-        }));
+        // Get all branch codes
+        const branchCodes = admins.map(a => a.branch_code).filter(Boolean);
+        // Fetch branch names from branches table
+        const branchesData = await prisma.branches.findMany({
+            where: {
+                branch_code: { in: branchCodes }
+            },
+            select: {
+                branch_code: true,
+                branch_name: true
+            }
+        });
+        // Create a map of branch_code to branch_name
+        const branchNameMap = new Map(branchesData.map(b => [b.branch_code, b.branch_name]));
+        // Format branches with names from database
+        const formattedBranches = admins.map(admin => {
+            const branchName = branchNameMap.get(admin.branch_code || '') || admin.branch_code || 'Unknown';
+            return {
+                id: admin.id.toString(),
+                code: admin.branch_code || '',
+                name: branchName,
+                shortName: branchName,
+                description: `Deploy employees to ${branchName} for attendance.`
+            };
+        });
         // Log branch list view
         await (0, activityLogger_service_1.logView)({
             userId: req.admin?.id || 0,
             userName: req.admin?.name || 'unknown',
             userRole: req.admin?.role || 'admin',
             entityType: 'BRANCH',
-            description: `Viewed all branches (${branches.length} branches)`,
+            description: `Viewed all branches (${admins.length} branches)`,
             ipAddress: req.ip,
             userAgent: req.headers['user-agent'],
-            metadata: { branchCount: branches.length },
+            metadata: { branchCount: admins.length },
         });
         res.json({
             success: true,
@@ -79,6 +86,7 @@ const getBranchEmployees = async (req, res, next) => {
                 employeeCode: true,
                 firstName: true,
                 lastName: true,
+                profileImage: true,
                 department: true,
                 position: true,
                 branchName: true,
@@ -153,6 +161,7 @@ const getBranchEmployees = async (req, res, next) => {
                 id: emp.id,
                 name: `${emp.firstName || ''} ${emp.lastName || ''}`.trim() || 'Unknown',
                 avatar: `${emp.firstName?.[0] || ''}${emp.lastName?.[0] || ''}`.toUpperCase(),
+                profileImage: emp.profileImage,
                 employeeCode: emp.employeeCode,
                 department: emp.department || 'General',
                 position: emp.position || 'Worker',

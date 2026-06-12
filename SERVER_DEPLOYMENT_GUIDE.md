@@ -26,11 +26,11 @@ cd /var/www/version2_attendance/backend
 npx prisma generate
 
 # 5. Build the backend
-cd /var/www/version2_attendance/backend
+cd backend
 npm run build
 
 # 6. Build the frontend (with correct API URL)
-cd /var/www/version2_attendance/frontend
+cd frontend
 echo "NEXT_PUBLIC_API_URL=https://attendacev2.xandree.com/api" > .env.local
 npm run build
 

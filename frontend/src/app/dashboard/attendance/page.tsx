@@ -21,7 +21,7 @@ const recentlyUpdatedImages = new Set<string>();
 const constructImageUrl = (profileImage: string | null | undefined, bustCache = false): string | null => {
   if (!profileImage) return null;
 
-  // Use port 5000 for localhost, 5002 for production
+  // Use port 5000 for localhost (backend default), 5002 for production
   const defaultPort = typeof window !== 'undefined' && window.location.hostname === 'localhost' ? 5000 : 5002;
   const baseUrl = process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || `http://localhost:${defaultPort}`;
 
@@ -606,8 +606,8 @@ export default function AttendancePage() {
         </div>
       </div>
 
-      {/* Recent Activity Section */}
-      {selectedBranch && <RecentActivity branchCode={selectedBranch} />}
+
+      
 
       {/* Project Selection Section */}
       <div className={`rounded-xl border ${classes.border} ${classes.bgCard} p-4 sm:p-6`}>

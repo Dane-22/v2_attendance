@@ -1,0 +1,25 @@
+-- Create overtime_requests table
+CREATE TABLE IF NOT EXISTS `overtime_requests` (
+  `id` INT NOT NULL AUTO_INCREMENT,
+  `employee_id` INT NOT NULL,
+  `requested_by_admin_id` INT NOT NULL,
+  `request_date` DATE NOT NULL,
+  `start_time` VARCHAR(10) NOT NULL,
+  `end_time` VARCHAR(10) NOT NULL,
+  `requested_hours` DECIMAL(5, 2) NOT NULL,
+  `reason` TEXT NOT NULL,
+  `status` VARCHAR(20) NOT NULL DEFAULT 'PENDING',
+  `review_note` TEXT NULL,
+  `reviewed_by_admin_id` INT NULL,
+  `reviewed_at` TIMESTAMP(0) NULL,
+  `payroll_record_id` INT NULL,
+  `applied_to_payroll_at` TIMESTAMP(0) NULL,
+  `created_at` TIMESTAMP(0) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP(0) NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  INDEX `idx_overtime_employee` (`employee_id`),
+  INDEX `idx_overtime_status` (`status`),
+  INDEX `idx_overtime_date` (`request_date`),
+  INDEX `idx_overtime_employee_date_status` (`employee_id`, `request_date`, `status`),
+  INDEX `idx_overtime_payroll_record` (`payroll_record_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

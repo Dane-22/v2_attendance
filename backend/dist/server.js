@@ -24,7 +24,10 @@ const notification_routes_1 = __importDefault(require("./routes/notification.rou
 const document_routes_1 = __importDefault(require("./routes/document.routes"));
 const admin_routes_1 = __importDefault(require("./routes/admin.routes"));
 const branch_user_routes_1 = __importDefault(require("./routes/branch-user.routes"));
-const faceRecognition_routes_1 = __importDefault(require("./routes/faceRecognition.routes"));
+const task_routes_1 = __importDefault(require("./routes/task.routes"));
+const backup_routes_1 = __importDefault(require("./routes/backup.routes"));
+const settings_routes_1 = __importDefault(require("./routes/settings.routes"));
+const overtimeRequest_routes_1 = __importDefault(require("./routes/overtimeRequest.routes"));
 const error_middleware_1 = require("./middleware/error.middleware");
 const logMonitoring_service_1 = require("./services/logMonitoring.service");
 const logCleanup_job_1 = require("./jobs/logCleanup.job");
@@ -110,6 +113,12 @@ if (!fs_1.default.existsSync(publicDir)) {
     fs_1.default.mkdirSync(publicDir, { recursive: true });
 }
 app.use('/uploads', express_1.default.static(path_1.default.join(publicDir, 'uploads')));
+// Serve static files from assets directory (profile images)
+const assetsDir = path_1.default.join(process.cwd(), 'assets');
+if (!fs_1.default.existsSync(assetsDir)) {
+    fs_1.default.mkdirSync(assetsDir, { recursive: true });
+}
+app.use('/assets', express_1.default.static(assetsDir));
 app.get('/health', (req, res) => {
     res.json({
         status: 'ok',
@@ -129,7 +138,10 @@ app.use('/api/notifications', notification_routes_1.default);
 app.use('/api/documents', document_routes_1.default);
 app.use('/api/admins', admin_routes_1.default);
 app.use('/api/branch-users', branch_user_routes_1.default);
-app.use('/api/face-recognition', faceRecognition_routes_1.default);
+app.use('/api/tasks', task_routes_1.default);
+app.use('/api/backup', backup_routes_1.default);
+app.use('/api/settings', settings_routes_1.default);
+app.use('/api/overtime-requests', overtimeRequest_routes_1.default);
 app.use(error_middleware_1.errorHandler);
 app.use((req, res) => {
     res.status(404).json({

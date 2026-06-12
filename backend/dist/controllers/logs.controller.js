@@ -105,7 +105,7 @@ const getLogs = async (req, res, next) => {
             id: log.id,
             timestamp: log.timestamp.toISOString(),
             user: {
-                id: log.userId.toString(),
+                id: log.userId?.toString() || '0',
                 name: log.userName,
                 role: log.userRole
             },
@@ -148,7 +148,7 @@ const createLog = async (req, res, next) => {
             data: {
                 id: logId,
                 userId: parseInt(userId),
-                userName,
+                userName: userName || 'unknown',
                 userRole,
                 actionType,
                 entityType,

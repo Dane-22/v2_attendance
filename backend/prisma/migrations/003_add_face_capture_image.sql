@@ -1,0 +1,2 @@
+ALTER TABLE employees
+ADD COLUMN face_capture_image VARCHAR(255) DEFAULT NULL;

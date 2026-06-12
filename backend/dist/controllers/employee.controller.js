@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.uploadMiddleware = exports.archiveEmployee = exports.transferEmployee = exports.uploadProfileImage = exports.generateQRCode = exports.deleteEmployee = exports.updateEmployee = exports.createEmployee = exports.getEmployeeById = exports.getAllEmployees = void 0;
+exports.faceCaptureUploadMiddleware = exports.uploadMiddleware = exports.uploadFaceCapture = exports.archiveEmployee = exports.transferEmployee = exports.uploadProfileImage = exports.generateQRCode = exports.deleteEmployee = exports.updateEmployee = exports.createEmployee = exports.getEmployeeById = exports.getAllEmployees = void 0;
 const client_1 = require("@prisma/client");
 const error_middleware_1 = require("../middleware/error.middleware");
 const activityLogger_service_1 = require("../services/activityLogger.service");
@@ -11,6 +11,7 @@ const changeDetector_1 = require("../utils/changeDetector");
 const multer_1 = __importDefault(require("multer"));
 const path_1 = __importDefault(require("path"));
 const fs_1 = __importDefault(require("fs"));
+const crypto_1 = __importDefault(require("crypto"));
 const prisma = new client_1.PrismaClient();
 // Configure multer for profile image uploads
 const uploadDir = path_1.default.join(process.cwd(), 'assets', 'profile-images', 'employees');
@@ -43,6 +44,40 @@ const upload = (0, multer_1.default)({
         }
         else {
             cb(new Error('Invalid file type. Only JPG, PNG, GIF, and WebP are allowed.'));
+        }
+    }
+});
+// Configure multer for face capture uploads
+const faceCaptureDir = path_1.default.join(process.cwd(), 'assets', 'face-captures', 'employees');
+// Ensure face capture upload directory exists
+if (!fs_1.default.existsSync(faceCaptureDir)) {
+    fs_1.default.mkdirSync(faceCaptureDir, { recursive: true });
+}
+const faceCaptureStorage = multer_1.default.diskStorage({
+    destination: (req, file, cb) => {
+        cb(null, faceCaptureDir);
+    },
+    filename: (req, file, cb) => {
+        const employeeId = req.params.id;
+        const timestamp = Date.now();
+        const ext = path_1.default.extname(file.originalname);
+        cb(null, `${employeeId}_face_${timestamp}${ext}`);
+    }
+});
+const faceCaptureUpload = (0, multer_1.default)({
+    storage: faceCaptureStorage,
+    limits: {
+        fileSize: 10 * 1024 * 1024, // 10MB
+    },
+    fileFilter: (req, file, cb) => {
+        const allowedTypes = /jpeg|jpg|png|webp/;
+        const extname = allowedTypes.test(path_1.default.extname(file.originalname).toLowerCase());
+        const mimetype = allowedTypes.test(file.mimetype);
+        if (extname && mimetype) {
+            cb(null, true);
+        }
+        else {
+            cb(new Error('Invalid file type. Only JPG, PNG, and WebP are allowed for face capture.'));
         }
     }
 });
@@ -89,7 +124,6 @@ const getAllEmployees = async (req, res, next) => {
                     dailyRate: true,
                     hasDeductions: true,
                     performanceAllowance: true,
-                    hasDeduction: true,
                     branchId: true,
                     defaultBranchId: true,
                     profileImage: true,
@@ -251,7 +285,6 @@ const createEmployee = async (req, res, next) => {
                 dailyRate: data.dailyRate,
                 performanceAllowance: data.performanceAllowance,
                 hasDeductions: data.hasDeductions,
-                hasDeduction: data.hasDeduction,
                 status: 'Active'
             },
             select: {
@@ -269,7 +302,6 @@ const createEmployee = async (req, res, next) => {
                 dailyRate: true,
                 hasDeductions: true,
                 performanceAllowance: true,
-                hasDeduction: true,
                 branchId: true,
                 profileImage: true,
                 createdAt: true,
@@ -322,9 +354,11 @@ const updateEmployee = async (req, res, next) => {
         }
         // Detect changes
         const changes = (0, changeDetector_1.detectChanges)(existingEmployee, data, 'EMPLOYEE');
+        // Filter out read-only fields that shouldn't be updated
+        const { id: _id, createdAt: _createdAt, updatedAt: _updatedAt, hasActualDeductions: _hasActualDeductions, ...updateData } = data;
         const employee = await prisma.employee.update({
             where: { id },
-            data,
+            data: updateData,
             select: {
                 id: true,
                 employeeCode: true,
@@ -340,7 +374,6 @@ const updateEmployee = async (req, res, next) => {
                 dailyRate: true,
                 hasDeductions: true,
                 performanceAllowance: true,
-                hasDeduction: true,
                 branchId: true,
                 profileImage: true,
                 createdAt: true,
@@ -484,7 +517,6 @@ const uploadProfileImage = async (req, res, next) => {
                 dailyRate: true,
                 hasDeductions: true,
                 performanceAllowance: true,
-                hasDeduction: true,
                 branchId: true,
                 profileImage: true,
                 createdAt: true,
@@ -585,7 +617,6 @@ const transferEmployee = async (req, res, next) => {
                 dailyRate: true,
                 hasDeductions: true,
                 performanceAllowance: true,
-                hasDeduction: true,
                 branchId: true,
                 profileImage: true,
                 createdAt: true,
@@ -639,14 +670,14 @@ const archiveEmployee = async (req, res, next) => {
       INSERT INTO archived_employees (
         id, employeeCode, firstName, middleName, lastName, email, department,
         position, branchName, branchCode, status, dailyRate, performanceAllowance,
-        hasDeductions, hasDeduction, branchId, defaultBranchId, profileImage,
+        hasDeductions, branchId, defaultBranchId, profileImage,
         createdAt, updatedAt, archivedAt, archivedBy, archiveReason
       )
       VALUES (
         ${employee.id}, ${employee.employeeCode}, ${employee.firstName}, ${employee.middleName},
         ${employee.lastName}, ${employee.email}, ${employee.department}, ${employee.position},
         ${employee.branchName}, ${employee.branchCode}, 'Inactive', ${employee.dailyRate},
-        ${employee.performanceAllowance}, ${employee.hasDeductions}, ${employee.hasDeduction},
+        ${employee.performanceAllowance}, ${employee.hasDeductions},
         ${employee.branchId}, ${employee.defaultBranchId}, ${employee.profileImage},
         ${employee.createdAt}, ${employee.updatedAt}, NOW(),
         ${req.admin?.name || 'unknown'}, ${reason || 'Employee archived'}
@@ -693,6 +724,107 @@ const archiveEmployee = async (req, res, next) => {
     }
 };
 exports.archiveEmployee = archiveEmployee;
+const uploadFaceCapture = async (req, res, next) => {
+    try {
+        const id = parseInt(req.params.id);
+        const { branchCode } = req.body;
+        if (!branchCode) {
+            throw new error_middleware_1.AppError('branchCode is required', 400);
+        }
+        const employee = await prisma.employee.findUnique({
+            where: { id }
+        });
+        if (!employee) {
+            throw new error_middleware_1.AppError('Employee not found', 404);
+        }
+        // Validate branchCode matches employee's branch
+        if (employee.branchCode !== branchCode) {
+            throw new error_middleware_1.AppError('branchCode does not match employee branch', 400);
+        }
+        // Branch admin authorization check
+        if (req.admin?.role === 'admin' && req.admin?.branch_code !== branchCode) {
+            throw new error_middleware_1.AppError('Branch admins can only upload face captures for their own branch', 403);
+        }
+        if (!req.file) {
+            throw new error_middleware_1.AppError('No file uploaded', 400);
+        }
+        // SHA-256 duplicate detection
+        const fileBuffer = fs_1.default.readFileSync(req.file.path);
+        const fileHash = crypto_1.default.createHash('sha256').update(fileBuffer).digest('hex');
+        // Check if this hash already exists in any face capture file
+        const existingFiles = fs_1.default.readdirSync(faceCaptureDir);
+        for (const existingFile of existingFiles) {
+            const existingFilePath = path_1.default.join(faceCaptureDir, existingFile);
+            try {
+                const existingBuffer = fs_1.default.readFileSync(existingFilePath);
+                const existingHash = crypto_1.default.createHash('sha256').update(existingBuffer).digest('hex');
+                if (existingHash === fileHash) {
+                    // Delete the newly uploaded file since it's a duplicate
+                    fs_1.default.unlinkSync(req.file.path);
+                    throw new error_middleware_1.AppError('Duplicate face capture image detected', 409);
+                }
+            }
+            catch (err) {
+                // Skip files that can't be read
+                continue;
+            }
+        }
+        // Generate the image URL path
+        const imagePath = `/assets/face-captures/employees/${req.file.filename}`;
+        // Update employee with new face capture image
+        const updatedEmployee = await prisma.employee.update({
+            where: { id },
+            data: { faceCaptureImage: imagePath },
+            select: {
+                id: true,
+                employeeCode: true,
+                firstName: true,
+                middleName: true,
+                lastName: true,
+                branchCode: true,
+                branchName: true,
+                profileImage: true,
+                faceCaptureImage: true,
+                updatedAt: true
+            }
+        });
+        // Log face capture upload
+        await (0, activityLogger_service_1.logUpdate)({
+            userId: req.admin?.id || 0,
+            userName: req.admin?.name || 'unknown',
+            userRole: req.admin?.role || 'admin',
+            entityType: 'EMPLOYEE',
+            entityId: employee.id.toString(),
+            entityName: `${employee.firstName} ${employee.lastName}`,
+            description: `Uploaded face capture for employee: ${employee.employeeCode}`,
+            detailsBefore: { faceCaptureImage: employee.faceCaptureImage },
+            detailsAfter: { faceCaptureImage: imagePath },
+            ipAddress: req.ip,
+            userAgent: req.headers['user-agent'],
+            branchId: employee.branchId || undefined,
+        });
+        const response = {
+            success: true,
+            message: 'Face capture uploaded successfully',
+            data: updatedEmployee
+        };
+        res.json(response);
+    }
+    catch (error) {
+        // Clean up uploaded file if there was an error
+        if (req.file && req.file.path) {
+            try {
+                fs_1.default.unlinkSync(req.file.path);
+            }
+            catch (err) {
+                // Ignore cleanup errors
+            }
+        }
+        next(error);
+    }
+};
+exports.uploadFaceCapture = uploadFaceCapture;
 // Export upload middleware for use in routes
 exports.uploadMiddleware = upload.single('profileImage');
+exports.faceCaptureUploadMiddleware = faceCaptureUpload.single('faceCapture');
 //# sourceMappingURL=employee.controller.js.map

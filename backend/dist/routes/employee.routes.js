@@ -11,6 +11,7 @@ router.put('/:id', auth_middleware_1.authenticate, employee_controller_1.updateE
 router.delete('/:id', auth_middleware_1.authenticate, employee_controller_1.deleteEmployee);
 router.get('/:id/qr', auth_middleware_1.authenticate, employee_controller_1.generateQRCode);
 router.post('/:id/upload-profile-image', auth_middleware_1.authenticate, employee_controller_1.uploadMiddleware, employee_controller_1.uploadProfileImage);
+router.post('/:id/upload-face-capture', auth_middleware_1.authenticate, employee_controller_1.faceCaptureUploadMiddleware, employee_controller_1.uploadFaceCapture);
 router.patch('/:id/transfer', auth_middleware_1.authenticate, employee_controller_1.transferEmployee);
 router.patch('/:id/archive', auth_middleware_1.authenticate, employee_controller_1.archiveEmployee);
 exports.default = router;
