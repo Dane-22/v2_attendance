@@ -15,7 +15,8 @@
       "supportsTablet": true,
       "bundleIdentifier": "y",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSCameraUsageDescription": "Allow JAJR Pulse to access your camera for scanning QR codes and capturing attendance"
       }
     },
     "android": {

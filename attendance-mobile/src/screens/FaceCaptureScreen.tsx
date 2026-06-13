@@ -32,9 +32,23 @@ export default function FaceCaptureScreen({
   const [uploading, setUploading] = useState(false);
 
   useEffect(() => {
-    Camera.requestCameraPermissionsAsync()
-      .then(({ status }) => setHasPermission(status === 'granted'))
-      .catch(() => setHasPermission(false));
+    Camera.getCameraPermissionsAsync()
+      .then(({ status }) => {
+        if (status === 'granted') {
+          setHasPermission(true);
+        } else if (status === 'denied') {
+          setHasPermission(false);
+        } else {
+          Camera.requestCameraPermissionsAsync()
+            .then(({ status }) => setHasPermission(status === 'granted'))
+            .catch(() => setHasPermission(false));
+        }
+      })
+      .catch(() => {
+        Camera.requestCameraPermissionsAsync()
+          .then(({ status }) => setHasPermission(status === 'granted'))
+          .catch(() => setHasPermission(false));
+      });
   }, []);
 
   const employeeName =

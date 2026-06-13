@@ -129,9 +129,23 @@ export default function ScannerKioskScreen({ user = null, onLogout = async () =>
   }, [branches, branchCode]);
 
   useEffect(() => {
-    Camera.requestCameraPermissionsAsync()
-      .then(({ status }) => setHasPermission(status === 'granted'))
-      .catch(() => setHasPermission(false));
+    Camera.getCameraPermissionsAsync()
+      .then(({ status }) => {
+        if (status === 'granted') {
+          setHasPermission(true);
+        } else if (status === 'denied') {
+          setHasPermission(false);
+        } else {
+          Camera.requestCameraPermissionsAsync()
+            .then(({ status }) => setHasPermission(status === 'granted'))
+            .catch(() => setHasPermission(false));
+        }
+      })
+      .catch(() => {
+        Camera.requestCameraPermissionsAsync()
+          .then(({ status }) => setHasPermission(status === 'granted'))
+          .catch(() => setHasPermission(false));
+      });
   }, []);
 
   useEffect(() => {
@@ -347,6 +361,7 @@ export default function ScannerKioskScreen({ user = null, onLogout = async () =>
     return (
       <View style={styles.loader}>
         <Text style={styles.loaderText}>Camera access is required before the branch kiosk can scan attendance codes.</Text>
+        <Text style={styles.loaderText}>Please grant camera permission in your device settings and restart the app.</Text>
         <TouchableOpacity style={styles.permissionButton} onPress={() => void onLogout()}>
           <Text style={styles.permissionButtonText}>Logout</Text>
         </TouchableOpacity>
