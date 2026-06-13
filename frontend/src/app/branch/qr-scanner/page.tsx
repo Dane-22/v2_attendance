@@ -33,6 +33,10 @@ export default function BranchQRScannerPage() {
   const [showPresentList, setShowPresentList] = useState(false);
   const [processingDelay, setProcessingDelay] = useState(false);
   const [countdown, setCountdown] = useState<number>(0);
+  const [facingMode, setFacingMode] = useState<'environment' | 'user'>('environment');
+  const [availableCameras, setAvailableCameras] = useState<MediaDeviceInfo[]>([]);
+  const [hasMultipleCameras, setHasMultipleCameras] = useState(false);
+  const [cameraSwitchError, setCameraSwitchError] = useState<string | null>(null);
   const { isConnected, joinBranch, emit, on, off } = useWebSocket();
 
   // Play success sound on scan
@@ -74,6 +78,30 @@ export default function BranchQRScannerPage() {
       joinBranch(user.branch_code);
     }
   }, [user, joinBranch]);
+
+  // Detect available cameras on mount
+  useEffect(() => {
+    const detectCameras = async () => {
+      try {
+        // Request permission first to enumerate devices
+        await navigator.mediaDevices.getUserMedia({ video: true });
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const videoDevices = devices.filter(device => device.kind === 'videoinput');
+        setAvailableCameras(videoDevices);
+        setHasMultipleCameras(videoDevices.length > 1);
+        
+        // Load saved preference
+        const savedFacingMode = localStorage.getItem('cameraFacingMode');
+        if (savedFacingMode === 'user' || savedFacingMode === 'environment') {
+          setFacingMode(savedFacingMode);
+        }
+      } catch (error) {
+        console.error('Camera detection failed:', error);
+      }
+    };
+    
+    detectCameras();
+  }, []);
 
   // Store parsed employee info for success messages
   const [lastEmployeeName, setLastEmployeeName] = useState('');
@@ -143,7 +171,7 @@ export default function BranchQRScannerPage() {
       navigator.mediaDevices
         .getUserMedia({ 
           video: { 
-            facingMode: 'environment',
+            facingMode: facingMode,
             width: { ideal: 1920 },
             height: { ideal: 1080 }
           } 
@@ -169,7 +197,7 @@ export default function BranchQRScannerPage() {
         tracks.forEach((track) => track.stop());
       }
     };
-  }, [scanning]);
+  }, [scanning, facingMode]);
 
   // Throttle scan to every 200ms for better performance (5fps instead of 60fps)
   const lastScanTimeRef = useRef<number>(0);
@@ -349,6 +377,64 @@ export default function BranchQRScannerPage() {
     router.push('/login');
   };
 
+  const switchCamera = async () => {
+    if (cooldown || processingDelay) return;
+    
+    const previousMode = facingMode;
+    const newMode = facingMode === 'environment' ? 'user' : 'environment';
+    
+    try {
+      setScanning(false);
+      
+      // Stop current stream
+      if (videoRef.current?.srcObject) {
+        const tracks = (videoRef.current.srcObject as MediaStream).getTracks();
+        tracks.forEach(track => track.stop());
+      }
+      
+      // Start new stream with new facing mode
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: newMode,
+          width: { ideal: 1920 },
+          height: { ideal: 1080 }
+        }
+      });
+      
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        videoRef.current.play();
+        setFacingMode(newMode);
+        localStorage.setItem('cameraFacingMode', newMode);
+        setScanning(true);
+        setCameraSwitchError(null);
+      }
+    } catch (error) {
+      console.error('Camera switch failed:', error);
+      setCameraSwitchError('Failed to switch camera');
+      
+      // Revert to previous camera
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: previousMode,
+            width: { ideal: 1920 },
+            height: { ideal: 1080 }
+          }
+        });
+        
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          videoRef.current.play();
+          setScanning(true);
+        }
+      } catch (revertError) {
+        console.error('Camera revert failed:', revertError);
+        setScanning(false);
+      }
+    }
+  };
+
   const branchCode = user?.branch_code || user?.username?.split('-')[1]?.toUpperCase() || 'A';
   const todayDate = new Date().toISOString().split('T')[0];
 
@@ -412,15 +498,42 @@ export default function BranchQRScannerPage() {
             <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`} />
           </div>
         </div>
-        <button
-          onClick={handleLogout}
-          className="flex items-center gap-2 text-gray-400 hover:text-white text-sm bg-gray-800 px-3 py-1.5 rounded"
-        >
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-          </svg>
-          Logout
-        </button>
+        <div className="flex items-center gap-2">
+          {/* Camera Switch Button - Only show when multiple cameras detected */}
+          {hasMultipleCameras && (
+            <button
+              onClick={switchCamera}
+              disabled={cooldown || processingDelay || clockMutation.isPending}
+              className="flex items-center gap-2 text-gray-400 hover:text-white text-sm bg-gray-800 px-3 py-1.5 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+              title={facingMode === 'environment' ? 'Switch to front camera' : 'Switch to back camera'}
+            >
+              {facingMode === 'environment' ? (
+                // Back camera icon
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+              ) : (
+                // Front camera icon
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                </svg>
+              )}
+              <span className="hidden sm:inline">
+                {facingMode === 'environment' ? 'Back' : 'Front'}
+              </span>
+            </button>
+          )}
+          <button
+            onClick={handleLogout}
+            className="flex items-center gap-2 text-gray-400 hover:text-white text-sm bg-gray-800 px-3 py-1.5 rounded"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+            </svg>
+            Logout
+          </button>
+        </div>
       </div>
 
       {/* Currently Present Button */}
@@ -581,6 +694,19 @@ export default function BranchQRScannerPage() {
           <button
             onClick={() => setLastQrData('')}
             className="mt-2 text-xs text-gray-400 underline"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
+
+      {/* Camera Switch Error Display */}
+      {cameraSwitchError && (
+        <div className="absolute top-20 left-4 right-4 z-40 bg-red-900/90 border border-red-500/50 rounded-lg p-3">
+          <p className="text-white text-sm">{cameraSwitchError}</p>
+          <button
+            onClick={() => setCameraSwitchError(null)}
+            className="mt-2 text-xs text-white underline"
           >
             Dismiss
           </button>
