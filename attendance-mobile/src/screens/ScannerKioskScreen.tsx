@@ -129,23 +129,21 @@ export default function ScannerKioskScreen({ user = null, onLogout = async () =>
   }, [branches, branchCode]);
 
   useEffect(() => {
-    Camera.getCameraPermissionsAsync()
-      .then(({ status }) => {
-        if (status === 'granted') {
-          setHasPermission(true);
-        } else if (status === 'denied') {
-          setHasPermission(false);
-        } else {
-          Camera.requestCameraPermissionsAsync()
-            .then(({ status }) => setHasPermission(status === 'granted'))
-            .catch(() => setHasPermission(false));
+    const requestCameraPermission = async () => {
+      try {
+        const { status } = await Camera.requestCameraPermissionsAsync();
+        setHasPermission(status === 'granted');
+        
+        if (status !== 'granted') {
+          console.warn('Camera permission status:', status);
         }
-      })
-      .catch(() => {
-        Camera.requestCameraPermissionsAsync()
-          .then(({ status }) => setHasPermission(status === 'granted'))
-          .catch(() => setHasPermission(false));
-      });
+      } catch (error) {
+        console.error('Camera permission error:', error);
+        setHasPermission(false);
+      }
+    };
+
+    requestCameraPermission();
   }, []);
 
   useEffect(() => {
