@@ -90,13 +90,18 @@ export default function BranchQRScannerPage() {
         setAvailableCameras(videoDevices);
         setHasMultipleCameras(videoDevices.length > 1);
         
+        console.log('[CAMERA] Detected cameras:', videoDevices.length, videoDevices.map(d => d.label));
+        
         // Load saved preference
         const savedFacingMode = localStorage.getItem('cameraFacingMode');
         if (savedFacingMode === 'user' || savedFacingMode === 'environment') {
           setFacingMode(savedFacingMode);
+          console.log('[CAMERA] Loaded saved preference:', savedFacingMode);
         }
       } catch (error) {
-        console.error('Camera detection failed:', error);
+        console.error('[CAMERA] Detection failed:', error);
+        // Show button anyway for testing purposes if detection fails
+        setHasMultipleCameras(true);
       }
     };
     
