@@ -351,6 +351,26 @@ export default function PayrollPage() {
     },
   });
 
+  const recalculateMutation = useMutation({
+    mutationFn: async (record: PayrollRecord) => {
+      // If status is processed, first update to draft
+      if (record.status === 'processed') {
+        await payrollApi.updateStatus(record.id, 'draft');
+      }
+      // Then calculate payroll
+      const weekStart = new Date(record.payroll_week_start).toISOString().split('T')[0];
+      const weekEnd = new Date(record.payroll_week_end).toISOString().split('T')[0];
+      await payrollApi.calculate({
+        employeeId: record.employeeId,
+        weekStart,
+        weekEnd,
+      });
+    },
+    onSuccess: async () => {
+      await refreshPayrollQueries();
+    },
+  });
+
   const canProcessRecord = (record: PayrollRecord) =>
     record.status === 'draft' && !record.issues?.some((issue) => issue.severity === 'error');
 
@@ -813,6 +833,13 @@ export default function PayrollPage() {
                     {processMutation.isPending ? 'Processing payroll...' : 'Process payroll'}
                   </button>
                 )}
+                <button
+                  onClick={() => recalculateMutation.mutate(selectedRecord)}
+                  disabled={recalculateMutation.isPending}
+                  className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-500 disabled:opacity-50"
+                >
+                  {recalculateMutation.isPending ? 'Recalculating...' : 'Recalculate'}
+                </button>
               </div>
               {payslipError && <p className="text-sm text-red-600">{payslipError}</p>}
             </div>
