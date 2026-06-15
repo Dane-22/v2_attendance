@@ -165,10 +165,12 @@ const overlapMinutes = (start: number, end: number, rangeStart: number, rangeEnd
 const minutesToDayFraction = (minutes: number, schedule: any): number => {
   if (minutes <= 0) return 0;
   const paidDayMinutes = schedule.paidDayMinutes || 480; // Default to 8 hours if not specified
+  const minimumThreshold = 30; // Minimum 30 minutes required to count any day fraction
   const quarterDay = paidDayMinutes / 4;
   const halfDay = paidDayMinutes / 2;
   const threeQuarterDay = (paidDayMinutes * 3) / 4;
   
+  if (minutes < minimumThreshold) return 0; // Below minimum threshold, no day credit
   if (minutes <= quarterDay) return 0.25;
   if (minutes <= halfDay) return 0.5;
   if (minutes <= threeQuarterDay) return 0.75;
