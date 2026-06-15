@@ -91,17 +91,26 @@ export default function BranchQRScannerPage() {
           return;
         }
 
-        // Request permission first to enumerate devices
-        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-        // Stop the stream immediately after permission check
-        stream.getTracks().forEach(track => track.stop());
+        // Try to enumerate devices without requesting stream first (works on most modern browsers)
+        let devices = await navigator.mediaDevices.enumerateDevices();
+        let videoDevices = devices.filter(device => device.kind === 'videoinput');
         
-        const devices = await navigator.mediaDevices.enumerateDevices();
-        const videoDevices = devices.filter(device => device.kind === 'videoinput');
+        // If no cameras detected or labels are empty, we need to request permission
+        if (videoDevices.length === 0 || videoDevices.every(d => !d.label)) {
+          console.log('[CAMERA] No cameras detected or labels empty, requesting permission...');
+          const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+          // Stop the stream immediately after permission check
+          stream.getTracks().forEach(track => track.stop());
+          
+          // Re-enumerate devices after permission granted
+          devices = await navigator.mediaDevices.enumerateDevices();
+          videoDevices = devices.filter(device => device.kind === 'videoinput');
+        }
+        
         setAvailableCameras(videoDevices);
         setHasMultipleCameras(videoDevices.length > 1);
         
-        console.log('[CAMERA] Detected cameras:', videoDevices.length, videoDevices.map(d => d.label));
+        console.log('[CAMERA] Detected cameras:', videoDevices.length, videoDevices.map(d => d.label || 'unnamed'));
         
         // Load saved preference
         const savedFacingMode = localStorage.getItem('cameraFacingMode');
@@ -197,12 +206,20 @@ export default function BranchQRScannerPage() {
   // Start camera scanning
   useEffect(() => {
     if (scanning && videoRef.current) {
+      // Ensure any existing stream is stopped before requesting new one
+      if (videoRef.current.srcObject) {
+        const existingTracks = (videoRef.current.srcObject as MediaStream).getTracks();
+        existingTracks.forEach(track => track.stop());
+        videoRef.current.srcObject = null;
+      }
+
+      // Try with minimal constraints first for better Android compatibility
       navigator.mediaDevices
         .getUserMedia({ 
           video: { 
             facingMode: facingMode,
-            width: { ideal: 1280 },
-            height: { ideal: 720 }
+            width: { ideal: 640 },
+            height: { ideal: 480 }
           } 
         })
         .then((stream) => {
@@ -215,7 +232,7 @@ export default function BranchQRScannerPage() {
         .catch((err) => {
           console.error('Camera access error:', err);
           
-          // Try with minimal constraints as fallback
+          // Try with even more minimal constraints as fallback
           navigator.mediaDevices
             .getUserMedia({ video: { facingMode: facingMode } })
             .then((stream) => {
@@ -249,6 +266,7 @@ export default function BranchQRScannerPage() {
       if (videoRef.current?.srcObject) {
         const tracks = (videoRef.current.srcObject as MediaStream).getTracks();
         tracks.forEach((track) => track.stop());
+        videoRef.current.srcObject = null;
       }
     };
   }, [scanning, facingMode]);

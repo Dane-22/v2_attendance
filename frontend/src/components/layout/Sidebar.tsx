@@ -58,7 +58,6 @@ const getAdminNavItems = (unreadCount: number): NavItem[] => [
   { name: 'Activity Logs', href: '/dashboard/logs', icon: Activity },
   { name: 'Attendance Audit', href: '/dashboard/attendance-audit', icon: FileSearch },
   { name: 'Finance', href: '/dashboard/finance', icon: Wallet, hasSubmenu: true },
-  { name: 'Procurement', href: 'https://procurement.xandree.com/', icon: ShoppingCart },
   { name: 'Submit Request', href: '/dashboard/submit-request', icon: Send },
   { name: 'Settings', href: '/dashboard/settings', icon: Settings },
 ];
@@ -130,7 +129,6 @@ export default function Sidebar() {
         'Activity Logs': 'logs',
         'Attendance Audit': 'attendance-audit',
         'Finance': 'finance',
-        'Procurement': 'procurement',
         'Submit Request': 'submit-request',
         'Settings': 'settings'
       };
