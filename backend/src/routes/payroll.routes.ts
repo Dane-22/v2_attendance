@@ -8,7 +8,8 @@ import {
   calculateWeeklyPayrollBatch,
   approvePayrollOvertime,
   processPayroll,
-  updatePayrollStatus
+  updatePayrollStatus,
+  exportPayrollToExcel
 } from '../controllers/payroll.controller';
 
 const router = Router();
@@ -21,5 +22,6 @@ router.get('/:id', authenticate, getPayrollById);
 router.post('/:id/approve-overtime', authenticate, approvePayrollOvertime);
 router.post('/:id/process', authenticate, processPayroll);
 router.patch('/:id/status', authenticate, updatePayrollStatus);
+router.get('/export/excel', authenticate, exportPayrollToExcel);
 
 export default router;

@@ -281,6 +281,11 @@ export const payrollApi = {
     api.post<ApiResponse<PayrollRecord>>(`/payroll/${id}/process`),
   updateStatus: (id: number, status: 'draft' | 'processed') =>
     api.patch<ApiResponse<PayrollRecord>>(`/payroll/${id}/status`, { status }),
+  exportToExcel: (params?: { weekStart?: string; weekEnd?: string; status?: string; branch?: string; search?: string }) =>
+    api.get('/payroll/export/excel', { 
+      params,
+      responseType: 'blob',
+    }),
 };
 
 export const qrApi = {

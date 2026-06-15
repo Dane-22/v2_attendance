@@ -238,6 +238,7 @@ export default function PayrollPage() {
   const [isGeneratingPayslip, setIsGeneratingPayslip] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [branchFilter, setBranchFilter] = useState('all');
+  const [isExporting, setIsExporting] = useState(false);
 
   const payrollQuery = useQuery({
     queryKey: ['payroll', { page, statusFilter, week, searchQuery, branchFilter }],
@@ -371,6 +372,33 @@ export default function PayrollPage() {
     },
   });
 
+  const handleExport = async () => {
+    try {
+      setIsExporting(true);
+      const response = await payrollApi.exportToExcel({
+        weekStart: week.weekStart,
+        weekEnd: week.weekEnd,
+        status: statusFilter === 'draft' || statusFilter === 'processed' ? statusFilter : undefined,
+        branch: branchFilter === 'all' ? undefined : branchFilter,
+        search: searchQuery || undefined,
+      });
+
+      // Create download link
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `payroll-export-${week.weekStart}-to-${week.weekEnd}.xlsx`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Export failed:', error);
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   const canProcessRecord = (record: PayrollRecord) =>
     record.status === 'draft' && !record.issues?.some((issue) => issue.severity === 'error');
 
@@ -488,28 +516,52 @@ export default function PayrollPage() {
               </label>
               <div className="text-sm">
                 <span className="mb-1 block text-slate-300">&nbsp;</span>
-                <button
-                  onClick={() => batchMutation.mutate()}
-                  disabled={batchMutation.isPending}
-                  className="w-full rounded-2xl bg-gradient-to-r from-blue-500 to-blue-600 px-4 py-2 text-sm font-medium text-white shadow-lg transition-all hover:from-blue-400 hover:to-blue-500 hover:shadow-xl disabled:cursor-not-allowed disabled:opacity-60 disabled:from-slate-500 disabled:to-slate-600"
-                >
-                  {batchMutation.isPending ? (
-                    <span className="flex items-center justify-center gap-2">
-                      <svg className="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                      </svg>
-                      Generating...
-                    </span>
-                  ) : (
-                    <span className="flex items-center justify-center gap-2">
-                      <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                      </svg>
-                      Generate
-                    </span>
-                  )}
-                </button>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => batchMutation.mutate()}
+                    disabled={batchMutation.isPending}
+                    className="flex-1 rounded-2xl bg-gradient-to-r from-blue-500 to-blue-600 px-4 py-2 text-sm font-medium text-white shadow-lg transition-all hover:from-blue-400 hover:to-blue-500 hover:shadow-xl disabled:cursor-not-allowed disabled:opacity-60 disabled:from-slate-500 disabled:to-slate-600"
+                  >
+                    {batchMutation.isPending ? (
+                      <span className="flex items-center justify-center gap-2">
+                        <svg className="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        Generating...
+                      </span>
+                    ) : (
+                      <span className="flex items-center justify-center gap-2">
+                        <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                        </svg>
+                        Generate
+                      </span>
+                    )}
+                  </button>
+                  <button
+                    onClick={handleExport}
+                    disabled={isExporting}
+                    className="flex-1 rounded-2xl bg-gradient-to-r from-emerald-500 to-emerald-600 px-4 py-2 text-sm font-medium text-white shadow-lg transition-all hover:from-emerald-400 hover:to-emerald-500 hover:shadow-xl disabled:cursor-not-allowed disabled:opacity-60 disabled:from-slate-500 disabled:to-slate-600"
+                  >
+                    {isExporting ? (
+                      <span className="flex items-center justify-center gap-2">
+                        <svg className="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        Exporting...
+                      </span>
+                    ) : (
+                      <span className="flex items-center justify-center gap-2">
+                        <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                        </svg>
+                        Export
+                      </span>
+                    )}
+                  </button>
+                </div>
               </div>
             </div>
           </div>
