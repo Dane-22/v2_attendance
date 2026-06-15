@@ -622,17 +622,6 @@ export const getAllPayroll = async (
       if (weekEnd) (where.payroll_week_start as Record<string, Date>).lte = weekEnd;
     }
     
-    // Add search filtering (requires employee relation)
-    if (search) {
-      where.employee = {
-        OR: [
-          { firstName: { contains: search, mode: 'insensitive' } },
-          { lastName: { contains: search, mode: 'insensitive' } },
-          { employeeCode: { contains: search, mode: 'insensitive' } },
-        ]
-      };
-    }
-    
     // Add branch filtering using branch_code from PayrollRecord
     if (branch) {
       where.branch_code = branch;
@@ -1234,16 +1223,6 @@ export const exportPayrollToExcel = async (
       if (weekEnd) (where.payroll_week_start as Record<string, Date>).lte = weekEnd;
     }
     
-    if (search) {
-      where.employee = {
-        OR: [
-          { firstName: { contains: search, mode: 'insensitive' } },
-          { lastName: { contains: search, mode: 'insensitive' } },
-          { employeeCode: { contains: search, mode: 'insensitive' } },
-        ]
-      };
-    }
-    
     if (branch) {
       where.branch_code = branch;
     }
@@ -1307,9 +1286,22 @@ export const exportPayrollToExcel = async (
 
     const workbook = new ExcelJS.Workbook();
 
-    // Create a separate sheet for each branch
+    // Create a separate sheet for each branch with unique names
+    const usedSheetNames = new Set<string>();
     for (const [branchName, branchData] of Object.entries(groupedByBranch)) {
-      const worksheet = workbook.addWorksheet(branchName.substring(0, 31)); // Excel sheet name max 31 chars
+      let sheetName = branchName.substring(0, 31); // Excel sheet name max 31 chars
+      let counter = 1;
+      
+      // Ensure unique sheet name by adding suffix if duplicate
+      while (usedSheetNames.has(sheetName)) {
+        const suffix = ` (${counter})`;
+        const baseName = branchName.substring(0, 31 - suffix.length);
+        sheetName = `${baseName}${suffix}`;
+        counter++;
+      }
+      
+      usedSheetNames.add(sheetName);
+      const worksheet = workbook.addWorksheet(sheetName);
 
       // Header section with project name and date range
       worksheet.mergeCells('A1:P1');
