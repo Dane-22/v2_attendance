@@ -268,24 +268,36 @@ const buildPayrollSummary = (
 
     let dayPayableMinutes = 0;
     let dayOvertimeMinutesCandidate = 0;
+    let effectiveCheckOutMinutes = checkOutMinutes;
 
-    if (checkInMinutes == null || checkOutMinutes == null) {
+    // Handle missing check-out time by assuming standard end-of-day time
+    if (checkInMinutes != null && checkOutMinutes == null) {
+      effectiveCheckOutMinutes = schedule.end;
+      dayIssues.push({
+        code: 'INCOMPLETE_ATTENDANCE',
+        severity: 'warning',
+        message: 'Check-out time missing. Assuming standard end-of-day time for payroll calculation.',
+      });
+    } else if (checkInMinutes == null) {
       dayIssues.push({
         code: 'INCOMPLETE_ATTENDANCE',
         severity: 'error',
-        message: 'Attendance is missing a check-in or check-out time.',
+        message: 'Attendance is missing a check-in time.',
       });
-    } else if (checkOutMinutes <= checkInMinutes) {
-      dayIssues.push({
-        code: 'ZERO_PAYABLE_TIME',
-        severity: 'error',
-        message: 'Attendance time range is invalid for payroll computation.',
-      });
-    } else {
-      dayPayableMinutes =
-        overlapMinutes(checkInMinutes, checkOutMinutes, schedule.morningStart, schedule.lunchStart) +
-        overlapMinutes(checkInMinutes, checkOutMinutes, schedule.lunchEnd, schedule.end);
+    }
 
+    if (checkInMinutes != null && effectiveCheckOutMinutes != null) {
+      if (effectiveCheckOutMinutes <= checkInMinutes) {
+        dayIssues.push({
+          code: 'ZERO_PAYABLE_TIME',
+          severity: 'error',
+          message: 'Attendance time range is invalid for payroll computation.',
+        });
+      } else {
+        dayPayableMinutes =
+          overlapMinutes(checkInMinutes, effectiveCheckOutMinutes, schedule.morningStart, schedule.lunchStart) +
+          overlapMinutes(checkInMinutes, effectiveCheckOutMinutes, schedule.lunchEnd, schedule.end);
+      }
     }
 
     const dayFraction = minutesToDayFraction(dayPayableMinutes, schedule);
