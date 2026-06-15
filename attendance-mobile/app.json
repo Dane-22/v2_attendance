@@ -29,6 +29,7 @@
       "package": "com.anonymous.attendancemobile",
       "permissions": [
         "android.permission.CAMERA",
+        "android.permission.CAMERA_ROLL",
         "android.permission.RECORD_AUDIO"
       ]
     },
@@ -40,7 +41,10 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "Allow JAJR Pulse to access your camera"
+          "cameraPermission": "Allow JAJR Pulse to access your camera",
+          "android": {
+            "cameraPermission": "Allow JAJR Pulse to access your camera"
+          }
         }
       ]
     ],

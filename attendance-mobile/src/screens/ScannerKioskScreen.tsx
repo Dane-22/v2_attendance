@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   Alert,
   FlatList,
+  Platform,
   StyleSheet,
   Text,
   TextInput,
@@ -136,10 +137,45 @@ export default function ScannerKioskScreen({ user = null, onLogout = async () =>
         
         if (status !== 'granted') {
           console.warn('Camera permission status:', status);
+          Alert.alert(
+            'Camera Permission Required',
+            'Camera permission is required for QR scanning. Please grant camera permission in your device settings.',
+            [
+              { text: 'Cancel', style: 'cancel' },
+              { 
+                text: 'Open Settings', 
+                onPress: () => {
+                  // On Android, this might not work directly, but provides guidance
+                  if (Platform.OS === 'android') {
+                    Alert.alert(
+                      'Enable Camera Permission',
+                      'Go to Settings > Apps > Attendance Mobile > Permissions > Camera and enable it.',
+                      [{ text: 'OK' }]
+                    );
+                  }
+                }
+              }
+            ]
+          );
+        } else {
+          console.log('[CAMERA] Permission granted successfully');
         }
-      } catch (error) {
+      } catch (error: any) {
         console.error('Camera permission error:', error);
         setHasPermission(false);
+        
+        let errorMessage = 'Unable to access camera. Please check if your device has a working camera.';
+        if (error.message?.includes('not supported')) {
+          errorMessage = 'Camera is not supported on this device';
+        } else if (error.message?.includes('permission')) {
+          errorMessage = 'Camera permission was denied. Please enable it in device settings.';
+        }
+        
+        Alert.alert(
+          'Camera Error',
+          errorMessage,
+          [{ text: 'OK' }]
+        );
       }
     };
 

@@ -83,8 +83,19 @@ export default function BranchQRScannerPage() {
   useEffect(() => {
     const detectCameras = async () => {
       try {
+        // Check if HTTPS is required (browsers require HTTPS for camera access except localhost)
+        if (window.location.protocol !== 'https:' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+          console.warn('[CAMERA] Camera access requires HTTPS');
+          setCameraError(true);
+          setScanResult({ success: false, message: 'Camera requires HTTPS - Please use HTTPS connection', show: true });
+          return;
+        }
+
         // Request permission first to enumerate devices
-        await navigator.mediaDevices.getUserMedia({ video: true });
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        // Stop the stream immediately after permission check
+        stream.getTracks().forEach(track => track.stop());
+        
         const devices = await navigator.mediaDevices.enumerateDevices();
         const videoDevices = devices.filter(device => device.kind === 'videoinput');
         setAvailableCameras(videoDevices);
@@ -98,10 +109,23 @@ export default function BranchQRScannerPage() {
           setFacingMode(savedFacingMode);
           console.log('[CAMERA] Loaded saved preference:', savedFacingMode);
         }
-      } catch (error) {
+      } catch (error: any) {
         console.error('[CAMERA] Detection failed:', error);
-        // Show button anyway for testing purposes if detection fails
-        setHasMultipleCameras(true);
+        
+        // Provide specific error messages
+        let errorMessage = 'Camera not available';
+        if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
+          errorMessage = 'Camera permission denied - Please grant camera permission in browser settings';
+        } else if (error.name === 'NotFoundError' || error.name === 'DevicesNotFoundError') {
+          errorMessage = 'No camera found on device';
+        } else if (error.name === 'NotReadableError' || error.name === 'TrackStartError') {
+          errorMessage = 'Camera is being used by another application';
+        } else if (error.name === 'OverconstrainedError' || error.name === 'ConstraintNotSatisfiedError') {
+          errorMessage = 'Camera does not support requested settings';
+        }
+        
+        setCameraError(true);
+        setScanResult({ success: false, message: errorMessage, show: true });
       }
     };
     
@@ -177,8 +201,8 @@ export default function BranchQRScannerPage() {
         .getUserMedia({ 
           video: { 
             facingMode: facingMode,
-            width: { ideal: 1920 },
-            height: { ideal: 1080 }
+            width: { ideal: 1280 },
+            height: { ideal: 720 }
           } 
         })
         .then((stream) => {
@@ -190,9 +214,34 @@ export default function BranchQRScannerPage() {
         })
         .catch((err) => {
           console.error('Camera access error:', err);
-          setCameraError(true);
-          setScanning(false);
-          setScanResult({ success: false, message: 'Camera not available', show: true });
+          
+          // Try with minimal constraints as fallback
+          navigator.mediaDevices
+            .getUserMedia({ video: { facingMode: facingMode } })
+            .then((stream) => {
+              if (videoRef.current) {
+                videoRef.current.srcObject = stream;
+                videoRef.current.play();
+                scanFrame();
+              }
+            })
+            .catch((fallbackErr) => {
+              console.error('Camera fallback failed:', fallbackErr);
+              setCameraError(true);
+              setScanning(false);
+              
+              // Provide specific error message
+              let errorMessage = 'Camera not available';
+              if (fallbackErr.name === 'NotAllowedError' || fallbackErr.name === 'PermissionDeniedError') {
+                errorMessage = 'Camera permission denied - Please grant camera permission in browser settings';
+              } else if (fallbackErr.name === 'NotFoundError' || fallbackErr.name === 'DevicesNotFoundError') {
+                errorMessage = 'No camera found on device';
+              } else if (fallbackErr.name === 'NotReadableError' || fallbackErr.name === 'TrackStartError') {
+                errorMessage = 'Camera is being used by another application';
+              }
+              
+              setScanResult({ success: false, message: errorMessage, show: true });
+            });
         });
     }
 
@@ -401,8 +450,8 @@ export default function BranchQRScannerPage() {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
           facingMode: newMode,
-          width: { ideal: 1920 },
-          height: { ideal: 1080 }
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
         }
       });
       
@@ -423,8 +472,8 @@ export default function BranchQRScannerPage() {
         const stream = await navigator.mediaDevices.getUserMedia({
           video: {
             facingMode: previousMode,
-            width: { ideal: 1920 },
-            height: { ideal: 1080 }
+            width: { ideal: 1280 },
+            height: { ideal: 720 }
           }
         });
         
