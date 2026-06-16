@@ -1295,7 +1295,9 @@ export const exportPayrollToExcel = async (
       // Ensure unique sheet name by adding suffix if duplicate
       while (usedSheetNames.has(sheetName)) {
         const suffix = ` (${counter})`;
-        const baseName = branchName.substring(0, 31 - suffix.length);
+        // Truncate base name to accommodate suffix, ensuring total length <= 31
+        const maxBaseLength = 31 - suffix.length;
+        const baseName = branchName.substring(0, Math.max(0, maxBaseLength));
         sheetName = `${baseName}${suffix}`;
         counter++;
       }
