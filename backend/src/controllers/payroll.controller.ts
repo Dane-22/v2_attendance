@@ -1291,19 +1291,29 @@ export const exportPayrollToExcel = async (
     for (const [branchName, branchData] of Object.entries(groupedByBranch)) {
       let sheetName = branchName.substring(0, 31); // Excel sheet name max 31 chars
       let counter = 1;
+      let worksheet: ExcelJS.Worksheet;
       
       // Ensure unique sheet name by adding suffix if duplicate
-      while (usedSheetNames.has(sheetName) || workbook.getWorksheet(sheetName)) {
-        const suffix = ` (${counter})`;
-        // Truncate base name to accommodate suffix, ensuring total length <= 31
-        const maxBaseLength = 31 - suffix.length;
-        const baseName = branchName.substring(0, Math.max(0, maxBaseLength));
-        sheetName = `${baseName}${suffix}`;
-        counter++;
+      // Use try-catch to handle ExcelJS duplicate name error
+      while (true) {
+        try {
+          worksheet = workbook.addWorksheet(sheetName);
+          break; // Success, exit the loop
+        } catch (error: any) {
+          if (error.message && error.message.includes('Worksheet name already exists')) {
+            const suffix = ` (${counter})`;
+            // Truncate base name to accommodate suffix, ensuring total length <= 31
+            const maxBaseLength = 31 - suffix.length;
+            const baseName = branchName.substring(0, Math.max(0, maxBaseLength));
+            sheetName = `${baseName}${suffix}`;
+            counter++;
+          } else {
+            throw error; // Re-throw if it's a different error
+          }
+        }
       }
       
       usedSheetNames.add(sheetName);
-      const worksheet = workbook.addWorksheet(sheetName);
 
       // Header section with project name and date range
       worksheet.mergeCells('A1:P1');
