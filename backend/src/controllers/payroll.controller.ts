@@ -1368,7 +1368,7 @@ export const exportPayrollToExcel = async (
       };
 
       // Add borders to header row
-      headerRow.eachCell((cell) => {
+      headerRow.eachCell((cell: any) => {
         cell.border = {
           top: { style: 'medium' },
           left: { style: 'thin' },
@@ -1406,7 +1406,7 @@ export const exportPayrollToExcel = async (
         ]);
 
         // Add borders to each cell in the row
-        row.eachCell((cell, colNumber) => {
+        row.eachCell((cell: any, colNumber: number) => {
           cell.border = {
             top: { style: 'thin' },
             left: { style: 'thin' },
@@ -1455,11 +1455,11 @@ export const exportPayrollToExcel = async (
         { width: 18, wrap: false },  // Net Pay
       ];
 
-      worksheet.columns.forEach((column, index) => {
+      worksheet.columns.forEach((column: any, index: number) => {
         if (columnWidths[index]) {
           column.width = columnWidths[index].width;
           // Center all content
-          column.alignment = { 
+          column.alignment = {
             horizontal: 'center',
             vertical: 'middle',
             wrapText: columnWidths[index].wrap
