@@ -99,7 +99,7 @@ export default function SubmitRequestPage() {
     mutationFn: (data: CreateOvertimeRequestInput) =>
       overtimeRequestApi.create(data),
     onSuccess: async (response: any) => {
-      if (response.success) {
+      if (response.data.success) {
         alert('Overtime request submitted successfully');
         setFormData({
           employeeName: '',
@@ -112,7 +112,7 @@ export default function SubmitRequestPage() {
         setErrors({});
         await queryClient.invalidateQueries({ queryKey: ['my-overtime-requests'] });
       } else {
-        alert(response.message || 'Failed to submit overtime request');
+        alert(response.data.message || 'Failed to submit overtime request');
       }
     },
     onError: (error: any) => {
