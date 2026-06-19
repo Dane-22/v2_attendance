@@ -98,18 +98,22 @@ export default function SubmitRequestPage() {
   const overtimeRequestMutation = useMutation({
     mutationFn: (data: CreateOvertimeRequestInput) =>
       overtimeRequestApi.create(data),
-    onSuccess: async () => {
-      alert('Overtime request submitted successfully');
-      setFormData({
-        employeeName: '',
-        requestDate: new Date().toISOString().split('T')[0],
-        startTime: '',
-        endTime: '',
-        requestedHours: undefined,
-        reason: ''
-      });
-      setErrors({});
-      await queryClient.invalidateQueries({ queryKey: ['my-overtime-requests'] });
+    onSuccess: async (response: any) => {
+      if (response.success) {
+        alert('Overtime request submitted successfully');
+        setFormData({
+          employeeName: '',
+          requestDate: new Date().toISOString().split('T')[0],
+          startTime: '',
+          endTime: '',
+          requestedHours: undefined,
+          reason: ''
+        });
+        setErrors({});
+        await queryClient.invalidateQueries({ queryKey: ['my-overtime-requests'] });
+      } else {
+        alert(response.message || 'Failed to submit overtime request');
+      }
     },
     onError: (error: any) => {
       console.error('Overtime request error:', error);
