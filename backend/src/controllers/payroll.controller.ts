@@ -627,6 +627,30 @@ export const getAllPayroll = async (
       where.branch_code = branch;
     }
 
+    // Add search filtering by employee name or employee code
+    // Only apply search if employeeId is not already specified (to avoid conflicts)
+    let employeeIds: number[] | undefined;
+    if (search && !employeeId) {
+      const matchingEmployees = await prisma.employee.findMany({
+        where: {
+          OR: [
+            { firstName: { contains: search } },
+            { middleName: { contains: search } },
+            { lastName: { contains: search } },
+            { employeeCode: { contains: search } },
+          ],
+        },
+        select: { id: true },
+      });
+      employeeIds = matchingEmployees.map((e) => e.id);
+      if (employeeIds.length > 0) {
+        where.employeeId = { in: employeeIds };
+      } else {
+        // If no employees match, return empty results
+        where.employeeId = -1; // Impossible ID to return no results
+      }
+    }
+
     const [records, total] = await Promise.all([
       prisma.payrollRecord.findMany({
         where,
