@@ -90,4 +90,15 @@ export const attendanceApi = {
     });
     return response.data.data;
   },
+
+  clockWithLocation: async (qrCodeData: string, location: { latitude: number; longitude: number; accuracy?: number }, notes?: string) => {
+    const response = await apiClient.post<ApiResponse<any>>('/attendance/clock-geo', {
+      qrCodeData,
+      latitude: location.latitude,
+      longitude: location.longitude,
+      accuracy: location.accuracy,
+      notes,
+    });
+    return response.data;
+  },
 };

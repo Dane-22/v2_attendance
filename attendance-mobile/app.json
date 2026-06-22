@@ -16,7 +16,9 @@
       "bundleIdentifier": "y",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
-        "NSCameraUsageDescription": "Allow JAJR Pulse to access your camera for scanning QR codes and capturing attendance"
+        "NSCameraUsageDescription": "Allow JAJR Pulse to access your camera for scanning QR codes and capturing attendance",
+        "NSLocationWhenInUseUsageDescription": "Allow JAJR Pulse to access your location for attendance validation and security",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "Allow JAJR Pulse to access your location for attendance validation and security"
       }
     },
     "android": {
@@ -30,7 +32,9 @@
       "permissions": [
         "android.permission.CAMERA",
         "android.permission.CAMERA_ROLL",
-        "android.permission.RECORD_AUDIO"
+        "android.permission.RECORD_AUDIO",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_COARSE_LOCATION"
       ]
     },
     "web": {

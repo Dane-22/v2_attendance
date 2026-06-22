@@ -149,3 +149,33 @@ export interface SettingsPayload {
   autoLogout?: boolean | null;
   dataRetention?: number | null;
 }
+
+export interface LocationCoordinates {
+  latitude: number;
+  longitude: number;
+  accuracy?: number;
+  altitude?: number;
+  altitudeAccuracy?: number;
+  heading?: number;
+  speed?: number;
+}
+
+export interface LocationPermissionStatus {
+  granted: boolean;
+  canAskAgain: boolean;
+  status: 'granted' | 'denied' | 'undetermined' | 'limited';
+}
+
+export interface LocationError {
+  code?: number;
+  message: string;
+  type: 'PERMISSION_DENIED' | 'POSITION_UNAVAILABLE' | 'TIMEOUT' | 'UNKNOWN';
+}
+
+export interface LocationValidationResult {
+  isValid: boolean;
+  distance: number;
+  withinRadius: boolean;
+  accuracy: number;
+  message: string;
+}

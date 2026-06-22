@@ -17,8 +17,9 @@ import { branchApi } from '../api/branchApi';
 import { employeeApi, ResolvedEmployee } from '../api/employeeApi';
 import { APP_COPY } from '../constants/config';
 import { AuthUser } from '../types';
-import { BranchEmployee, BranchSummary } from '../types';
+import { BranchEmployee, BranchSummary, LocationCoordinates, LocationError } from '../types';
 import FaceCaptureScreen from './FaceCaptureScreen';
+import LocationDisplay from '../components/LocationDisplay';
 
 type ScanResult = {
   success: boolean;
@@ -121,6 +122,10 @@ export default function ScannerKioskScreen({ user = null, onLogout = async () =>
   const [parsedFormat, setParsedFormat] = useState<string | null>(null);
   const [scannerActive, setScannerActive] = useState(true);
   const [showFaceCapture, setShowFaceCapture] = useState(false);
+  const [currentLocation, setCurrentLocation] = useState<LocationCoordinates | null>(null);
+  const [locationError, setLocationError] = useState<LocationError | null>(null);
+  const [locationRequired, setLocationRequired] = useState(true);
+  const [branchLocation, setBranchLocation] = useState<{ latitude: number; longitude: number; radius: number } | null>(null);
   const scanLockRef = useRef(false);
 
   const branchCode = user?.branch_code || user?.username?.split('-')[1]?.toUpperCase() || 'A';
@@ -206,6 +211,17 @@ export default function ScannerKioskScreen({ user = null, onLogout = async () =>
 
       setBranches(allBranches || []);
       setPresentEmployees((employees || []).filter((employee) => employee.timeIn && !employee.timeOut));
+
+      // Set branch location for geolocation validation
+      const currentBranch = allBranches?.find((branch) => branch.code === branchCode);
+      if (currentBranch) {
+        // For now, use default values. In production, these should come from branch data
+        setBranchLocation({
+          latitude: 14.5995, // Default Manila coordinates
+          longitude: 120.9842,
+          radius: 500, // 500 meters default radius
+        });
+      }
     } catch (error) {
       console.error('Failed to load branch scanner context', error);
     } finally {
@@ -237,7 +253,28 @@ export default function ScannerKioskScreen({ user = null, onLogout = async () =>
     Alert.alert('Invalid QR code', preview);
   };
 
+  const handleLocationAcquired = (location: LocationCoordinates) => {
+    setCurrentLocation(location);
+    setLocationError(null);
+    console.log('[Location] Location acquired:', location);
+  };
+
+  const handleLocationError = (error: LocationError) => {
+    setLocationError(error);
+    setCurrentLocation(null);
+    console.error('[Location] Location error:', error);
+  };
+
   const handleResolvedScan = async (qrData: string, parsed: ParsedQRData) => {
+    // Validate location before proceeding
+    if (locationRequired && !currentLocation) {
+      throw new Error('Location is required for attendance. Please enable location services.');
+    }
+
+    if (locationRequired && locationError) {
+      throw new Error(`Location error: ${locationError.message}. Please enable location services and try again.`);
+    }
+
     setScanStage('resolving');
     setScanResult({
       success: true,
@@ -263,7 +300,14 @@ export default function ScannerKioskScreen({ user = null, onLogout = async () =>
       detail: [employee.firstName, employee.lastName].filter(Boolean).join(' ') || employee.employeeCode || '',
     });
 
-    const attendanceResponse = await attendanceApi.clock(qrData);
+    // Use location-enabled API
+    let attendanceResponse;
+    if (currentLocation) {
+      attendanceResponse = await attendanceApi.clockWithLocation(qrData, currentLocation);
+    } else {
+      attendanceResponse = await attendanceApi.clock(qrData);
+    }
+    
     const message = attendanceResponse?.message || 'Scan recorded';
 
     setScanStage('success');
@@ -432,6 +476,15 @@ export default function ScannerKioskScreen({ user = null, onLogout = async () =>
             <Text style={styles.logoutButtonText}>Logout</Text>
           </TouchableOpacity>
         </View>
+
+        {locationRequired && (
+          <LocationDisplay
+            onLocationAcquired={handleLocationAcquired}
+            onLocationError={handleLocationError}
+            branchLocation={branchLocation || undefined}
+            showDistance={!!branchLocation}
+          />
+        )}
 
         <TouchableOpacity style={styles.presentToggle} onPress={() => setShowPresentList((value) => !value)}>
           <Text style={styles.presentToggleText}>View Present ({presentEmployees.length})</Text>
