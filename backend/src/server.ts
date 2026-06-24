@@ -11,6 +11,7 @@ import fs from 'fs';
 import authRoutes from './routes/auth.routes';
 import employeeRoutes from './routes/employee.routes';
 import attendanceRoutes from './routes/attendance.routes';
+import attendanceGeoRoutes from './routes/attendance-geo.routes';
 import payrollRoutes from './routes/payroll.routes';
 import qrRoutes from './routes/qr.routes';
 import reportRoutes from './routes/report.routes';
@@ -42,9 +43,9 @@ const httpServer = createServer(app);
 // Configure Socket.IO
 const io = new SocketIOServer(httpServer, {
   cors: {
-    origin: process.env.NODE_ENV === 'production' 
+    origin: process.env.NODE_ENV === 'production'
       ? process.env.FRONTEND_URL || 'https://attendacev2.xandree.com'
-      : ['http://localhost:3000', 'http://localhost:3001'],
+      : ['http://localhost:3000', 'http://localhost:3001', 'http://192.168.0.116:3000', /^https:\/\/.*\.ngrok(-free)?\.app$/],
     credentials: true
   }
 });
@@ -116,7 +117,7 @@ io.on('connection', (socket) => {
 app.use(cors({
   origin: process.env.NODE_ENV === 'production'
     ? process.env.FRONTEND_URL || 'https://attendacev2.xandree.com'
-    : ['http://localhost:3000', 'http://localhost:3001'],
+    : ['http://localhost:3000', 'http://localhost:3001', 'http://192.168.0.116:3000', /^https:\/\/.*\.ngrok(-free)?\.app$/],
   credentials: true
 }));
 
@@ -148,6 +149,7 @@ app.get('/health', (req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/employees', employeeRoutes);
 app.use('/api/attendance', attendanceRoutes);
+app.use('/api/attendance', attendanceGeoRoutes);
 app.use('/api/payroll', payrollRoutes);
 app.use('/api/qr', qrRoutes);
 app.use('/api/reports', reportRoutes);
