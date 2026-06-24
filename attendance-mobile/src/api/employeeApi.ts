@@ -46,7 +46,7 @@ export const employeeApi = {
   },
 
   resolveScan: async (payload: { qrCodeData?: string; employeeCode?: string; employeeId?: number }) => {
-    const response = await apiClient.post<ApiResponse<{ decoded: any; employee: ResolvedEmployee; isValid: boolean }>>('/qr/decode', { qrData: payload.qrCodeData });
+    const response = await apiClient.post<ApiResponse<{ decoded: any; employee: ResolvedEmployee; isValid: boolean }>>('/qr/decode', { qrData: payload.qrCodeData || payload.employeeCode });
     return response.data.data.employee;
   },
 
