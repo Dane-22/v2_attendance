@@ -175,17 +175,7 @@ export default function BranchQRScannerGeoPage() {
   // Unified clock mutation - backend decides clock-in or clock-out
   const clockMutation = useMutation({
     mutationFn: (data: { qrCodeData: string; notes?: string; branch_code?: string }) => {
-      // Get fresh location at scan time (not from cache)
-      return requestLocation().then((location) => {
-        return attendanceApi.clockGeo({
-          qrCodeData: data.qrCodeData,
-          notes: data.notes,
-          branch_code: data.branch_code,
-          latitude: location?.latitude,
-          longitude: location?.longitude,
-          accuracy: location?.accuracy,
-        });
-      });
+      return attendanceApi.clock(data);
     },
     onSuccess: (response: any) => {
       const action = response.data?.data?.action || response.data?.action || 'clock_in';
