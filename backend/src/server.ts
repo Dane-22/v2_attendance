@@ -114,6 +114,9 @@ io.on('connection', (socket) => {
   });
 });
 
+// Trust proxy for nginx reverse proxy
+app.set('trust proxy', true);
+
 app.use(cors({
   origin: process.env.NODE_ENV === 'production'
     ? process.env.FRONTEND_URL || 'https://attendacev2.xandree.com'
