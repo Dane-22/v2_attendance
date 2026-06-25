@@ -4,7 +4,6 @@ import { PrismaClient } from '@prisma/client';
 import { decodeQRCodeData, extractEmployeeCode } from '../services/qr.service';
 import { AppError } from '../middleware/error.middleware';
 import { AuthenticatedRequest } from '../middleware/auth.middleware';
-import { calculateDistance, validateLocation, parseLocationError } from '../services/geolocation.service';
 
 const prisma = new PrismaClient();
 const router = Router();
@@ -66,14 +65,14 @@ const resolveAttendanceBranchCode = async (employee: { branchCode: string | null
   throw new AppError('Unable to resolve branch code for attendance record', 422);
 };
 
-// Test clock endpoint with geolocation validation
+// Test clock endpoint without geolocation validation
 export const clockGeo = async (
   req: AuthenticatedRequest,
   res: any,
   next: any
 ): Promise<void> => {
   try {
-    const { qrCodeData, notes, latitude, longitude, accuracy } = req.body;
+    const { qrCodeData, notes } = req.body;
 
     // Get branch_code from logged-in admin (from JWT token)
     const adminBranchCode = req.admin?.branch_code;
@@ -107,58 +106,13 @@ export const clockGeo = async (
       throw new AppError('Employee account is not active', 403);
     }
 
-    // Get branch location for validation
+    // Resolve branch code
     const resolvedBranchCode = await resolveAttendanceBranchCode(employee, adminBranchCode);
-    const branch = await prisma.branches.findUnique({
-      where: { branch_code: resolvedBranchCode },
-      select: {
-        latitude: true,
-        longitude: true,
-        location_radius_meters: true,
-      }
-    });
-
-    let locationValidation: any = null;
-    let locationStatus = 'valid';
-    let locationMessage = '';
-
-    // Validate location if coordinates provided and branch has location configured
-    if (latitude && longitude && branch?.latitude && branch?.longitude) {
-      try {
-        locationValidation = validateLocation(
-          { latitude, longitude },
-          {
-            branchCode: resolvedBranchCode,
-            latitude: branch.latitude,
-            longitude: branch.longitude,
-            radius: branch.location_radius_meters || 500,
-          },
-          accuracy || 0
-        );
-
-        locationStatus = locationValidation.isValid ? 'valid' : 'invalid';
-        locationMessage = locationValidation.message;
-
-        console.log('[GEO] Location validation:', locationValidation);
-      } catch (error) {
-        console.error('[GEO] Location validation error:', error);
-        locationStatus = 'error';
-        locationMessage = 'Location validation failed';
-      }
-    } else if (latitude && longitude) {
-      // Location provided but branch has no coordinates configured
-      locationStatus = 'valid'; // Allow scan if branch location not configured
-      locationMessage = 'Branch location not configured, location validation skipped';
-    } else {
-      // No location provided
-      locationStatus = 'error';
-      locationMessage = 'No location data provided';
-    }
 
     const { start: todayStart, end: todayEnd } = getPhilippinesDateRange();
     const now = new Date();
 
-    console.log('[CLOCK-GEO] Employee:', employee.id, 'Location status:', locationStatus, 'Server time:', now.toISOString());
+    console.log('[CLOCK-GEO] Employee:', employee.id, 'Server time:', now.toISOString());
 
     // Use Prisma query to find active clock-in
     const activeRecord = await prisma.attendance.findFirst({
@@ -188,22 +142,12 @@ export const clockGeo = async (
         );
       }
 
-      // Update using raw SQL with location data
-      await prisma.$executeRaw`
-        UPDATE attendance 
-        SET check_out = ${checkOutTime}, 
-            scan_latitude = ${latitude || null},
-            scan_longitude = ${longitude || null},
-            scan_accuracy_meters = ${accuracy || null},
-            location_status = ${locationStatus},
-            location_error_message = ${locationMessage || null},
-            updated_at = NOW()
-        WHERE id = ${activeRecord.id}
-      `;
-
-      // Fetch the updated record
-      const updatedRecord = await prisma.attendance.findUnique({
-        where: { id: activeRecord.id }
+      // Update attendance record
+      const updatedRecord = await prisma.attendance.update({
+        where: { id: activeRecord.id },
+        data: {
+          check_out: checkOutTime
+        }
       });
 
       console.log('[CLOCK-GEO] Clock OUT successful for employee:', employee.id);
@@ -215,10 +159,7 @@ export const clockGeo = async (
           action: 'clock_out',
           employeeId: employee.id,
           employeeName: `${employee.firstName} ${employee.lastName}`,
-          attendance: updatedRecord,
-          locationStatus,
-          locationMessage,
-          distance: locationValidation?.distance,
+          attendance: updatedRecord
         }
       };
 
@@ -229,20 +170,20 @@ export const clockGeo = async (
       const status = determineStatus(checkInTime);
 
       const todayStr = getPhilippinesDateString();
-      
-      // Insert with location data using raw SQL
-      await prisma.$executeRaw`
-        INSERT INTO attendance (employee_id, date, check_in, status, branch_code, notes, scan_latitude, scan_longitude, scan_accuracy_meters, location_status, location_error_message, created_at, updated_at)
-        VALUES (${employee.id}, ${todayStr}, ${checkInTime}, ${status}, ${resolvedBranchCode}, ${notes || null}, ${latitude || null}, ${longitude || null}, ${accuracy || null}, ${locationStatus}, ${locationMessage || null}, NOW(), NOW())
-      `;
+
+      // Insert attendance record
+      const newRecord = await prisma.attendance.create({
+        data: {
+          employeeId: employee.id,
+          date: new Date(todayStr),
+          check_in: checkInTime,
+          status,
+          branch_code: resolvedBranchCode,
+          notes: notes || null
+        }
+      });
 
       console.log('[CLOCK-GEO] Clock IN successful for employee:', employee.id);
-
-      // Fetch the created record
-      const newRecord = await prisma.attendance.findFirst({
-        where: { employeeId: employee.id },
-        orderBy: { id: 'desc' }
-      });
 
       const response = {
         success: true,
@@ -251,10 +192,7 @@ export const clockGeo = async (
           action: 'clock_in',
           employeeId: employee.id,
           employeeName: `${employee.firstName} ${employee.lastName}`,
-          attendance: newRecord,
-          locationStatus,
-          locationMessage,
-          distance: locationValidation?.distance,
+          attendance: newRecord
         }
       };
 

@@ -37,16 +37,16 @@ model Employee {
 }
 
 model Attendance {
-  id          Int                @id @default(autoincrement())
-  employeeId  Int                @map("employee_id")
-  branch_code String?            @db.VarChar(10)
-  date        DateTime           @db.Date
-  check_in    DateTime?          @db.Time(0)
-  check_out   DateTime?          @db.Time(0)
-  status      attendance_status? @default(present)
-  notes       String?            @db.Text
-  createdAt   DateTime?          @default(now()) @map("created_at") @db.Timestamp(0)
-  updatedAt   DateTime?          @default(now()) @updatedAt @map("updated_at") @db.Timestamp(0)
+  id                    Int                      @id @default(autoincrement())
+  employeeId            Int                      @map("employee_id")
+  branch_code           String?                  @db.VarChar(10)
+  date                  DateTime                 @db.Date
+  check_in              DateTime?                @db.Time(0)
+  check_out             DateTime?                @db.Time(0)
+  status                attendance_status?       @default(present)
+  notes                 String?                  @db.Text
+  createdAt             DateTime?                @default(now()) @map("created_at") @db.Timestamp(0)
+  updatedAt             DateTime?                @default(now()) @updatedAt @map("updated_at") @db.Timestamp(0)
 
   @@map("attendance")
 }
@@ -107,14 +107,14 @@ model branch_users {
 }
 
 model branches {
-  id             Int       @id @default(autoincrement())
-  branch_code    String    @unique(map: "branch_code") @db.VarChar(10)
-  branch_name    String    @db.VarChar(100)
-  address        String?   @db.Text
-  contact_number String?   @db.VarChar(20)
-  status         String?   @default("Active") @db.VarChar(20)
-  created_at     DateTime? @default(now()) @db.Timestamp(0)
-  updated_at     DateTime? @default(now()) @db.Timestamp(0)
+  id                   Int       @id @default(autoincrement())
+  branch_code          String    @unique(map: "branch_code") @db.VarChar(10)
+  branch_name          String    @db.VarChar(100)
+  address              String?   @db.Text
+  contact_number       String?   @db.VarChar(20)
+  status               String?   @default("Active") @db.VarChar(20)
+  created_at           DateTime? @default(now()) @db.Timestamp(0)
+  updated_at           DateTime? @default(now()) @db.Timestamp(0)
 }
 
 model notifications {
