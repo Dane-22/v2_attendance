@@ -105,22 +105,22 @@ export const getLogs = async (
       const query = (searchQuery as string).toLowerCase();
       const queryUpper = (searchQuery as string).toUpperCase();
       
-      // Build OR conditions for searchable fields
+      // Build OR conditions for searchable text fields
       const orConditions: any[] = [
         { userName: { contains: query } },
         { entityName: { contains: query } },
         { description: { contains: query } }
       ];
       
-      // Add enum field searches with uppercase matching
-      if (VALID_ACTION_TYPES.some(type => type.includes(queryUpper))) {
-        orConditions.push({ actionType: { contains: queryUpper } });
+      // Add enum field searches with exact matching (MySQL doesn't support contains on enums)
+      if (VALID_ACTION_TYPES.includes(queryUpper)) {
+        orConditions.push({ actionType: queryUpper });
       }
-      if (VALID_ENTITY_TYPES.some(type => type.includes(queryUpper))) {
-        orConditions.push({ entityType: { contains: queryUpper } });
+      if (VALID_ENTITY_TYPES.includes(queryUpper)) {
+        orConditions.push({ entityType: queryUpper });
       }
-      if (VALID_STATUSES.some(status => status.includes(queryUpper))) {
-        orConditions.push({ status: { contains: queryUpper } });
+      if (VALID_STATUSES.includes(queryUpper)) {
+        orConditions.push({ status: queryUpper });
       }
       
       if (orConditions.length > 0) {
