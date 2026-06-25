@@ -132,6 +132,15 @@ export const ipRateLimiter = rateLimit({
   skipFailedRequests: true,
   // Disable X-Forwarded-For validation since we trust proxy
   validate: { xForwardedForHeader: false },
+  // Use custom key generator that doesn't rely on IP when trust proxy is enabled
+  keyGenerator: (req) => {
+    // For authenticated requests, use user ID
+    if ((req as any).user?.id) {
+      return `user:${(req as any).user.id}`;
+    }
+    // For unauthenticated requests, use IP (but this may be unreliable with trust proxy)
+    return req.ip || req.socket.remoteAddress || 'unknown';
+  },
 });
 
 // Global rate limiter
@@ -149,11 +158,8 @@ export const globalRateLimiter = rateLimit({
 });
 
 // Combined rate limiter for log endpoints
-export const logRateLimiter = [
-  ipRateLimiter,
-  globalRateLimiter,
-  userRateLimiter,
-];
+// Since log endpoints require authentication, we only use user rate limiter
+export const logRateLimiter = [userRateLimiter];
 
 // Helper to check if a specific action is allowed
 export const checkActionRateLimit = async (
