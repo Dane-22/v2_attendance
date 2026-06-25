@@ -129,6 +129,9 @@ export const ipRateLimiter = rateLimit({
     // Skip IP rate limiting for authenticated requests (user rate limiter handles it)
     return !!(req as any).user?.id;
   },
+  skipFailedRequests: true,
+  // Disable X-Forwarded-For validation since we trust proxy
+  validate: { xForwardedForHeader: false },
 });
 
 // Global rate limiter
@@ -141,6 +144,8 @@ export const globalRateLimiter = rateLimit({
   },
   standardHeaders: true,
   legacyHeaders: false,
+  // Disable X-Forwarded-For validation since we trust proxy
+  validate: { xForwardedForHeader: false },
 });
 
 // Combined rate limiter for log endpoints
