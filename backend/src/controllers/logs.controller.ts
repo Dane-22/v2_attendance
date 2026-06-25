@@ -104,12 +104,12 @@ export const getLogs = async (
     if (searchQuery) {
       const query = (searchQuery as string).toLowerCase();
       where.OR = [
-        { userName: { contains: query, mode: 'insensitive' } },
-        { actionType: { contains: query, mode: 'insensitive' } },
-        { entityType: { contains: query, mode: 'insensitive' } },
-        { entityName: { contains: query, mode: 'insensitive' } },
-        { description: { contains: query, mode: 'insensitive' } },
-        { status: { contains: query, mode: 'insensitive' } }
+        { userName: { contains: query } },
+        { actionType: { contains: query } },
+        { entityType: { contains: query } },
+        { entityName: { contains: query } },
+        { description: { contains: query } },
+        { status: { contains: query } }
       ];
     }
 
