@@ -103,14 +103,29 @@ export const getLogs = async (
     // Search query filter
     if (searchQuery) {
       const query = (searchQuery as string).toLowerCase();
-      where.OR = [
+      const queryUpper = (searchQuery as string).toUpperCase();
+      
+      // Build OR conditions for searchable fields
+      const orConditions: any[] = [
         { userName: { contains: query } },
-        { actionType: { contains: query } },
-        { entityType: { contains: query } },
         { entityName: { contains: query } },
-        { description: { contains: query } },
-        { status: { contains: query } }
+        { description: { contains: query } }
       ];
+      
+      // Add enum field searches with uppercase matching
+      if (VALID_ACTION_TYPES.some(type => type.includes(queryUpper))) {
+        orConditions.push({ actionType: { contains: queryUpper } });
+      }
+      if (VALID_ENTITY_TYPES.some(type => type.includes(queryUpper))) {
+        orConditions.push({ entityType: { contains: queryUpper } });
+      }
+      if (VALID_STATUSES.some(status => status.includes(queryUpper))) {
+        orConditions.push({ status: { contains: queryUpper } });
+      }
+      
+      if (orConditions.length > 0) {
+        where.OR = orConditions;
+      }
     }
 
     // Get total count
