@@ -302,44 +302,58 @@ export const createEmployee = async (
       }
     }
 
-    const employee = await prisma.employee.create({
-      data: {
-        employeeCode: employeeCode,
-        firstName: data.firstName,
-        lastName: data.lastName,
-        middleName: data.middleName,
-        email: data.email,
-        department: data.department,
-        position: data.position,
-        branchName: data.branchName,
-        branchCode: data.branchCode,
-        dailyRate: data.dailyRate,
-        performanceAllowance: data.performanceAllowance,
-        hasDeductions: data.hasDeductions,
-        status: 'Active'
-      },
-      select: {
-        id: true,
-        employeeCode: true,
-        firstName: true,
-        middleName: true,
-        lastName: true,
-        email: true,
-        department: true,
-        position: true,
-        branchName: true,
-        branchCode: true,
-        status: true,
-        dailyRate: true,
-        hasDeductions: true,
-        performanceAllowance: true,
-        
-        branchId: true,
-        profileImage: true,
-        createdAt: true,
-        updatedAt: true
+    let employee;
+    try {
+      employee = await prisma.employee.create({
+        data: {
+          employeeCode: employeeCode,
+          firstName: data.firstName,
+          lastName: data.lastName,
+          middleName: data.middleName,
+          email: data.email,
+          department: data.department,
+          position: data.position,
+          branchName: data.branchName,
+          branchCode: data.branchCode,
+          dailyRate: data.dailyRate,
+          performanceAllowance: data.performanceAllowance,
+          hasDeductions: data.hasDeductions,
+          status: 'Active'
+        },
+        select: {
+          id: true,
+          employeeCode: true,
+          firstName: true,
+          middleName: true,
+          lastName: true,
+          email: true,
+          department: true,
+          position: true,
+          branchName: true,
+          branchCode: true,
+          status: true,
+          dailyRate: true,
+          hasDeductions: true,
+          performanceAllowance: true,
+
+          branchId: true,
+          profileImage: true,
+          createdAt: true,
+          updatedAt: true
+        }
+      });
+    } catch (prismaError: any) {
+      if (prismaError.code === 'P2002') {
+        const target = prismaError.meta?.target;
+        if (target === 'employee_code') {
+          throw new AppError('Employee code already exists. Please use a different code.', 409);
+        } else if (target === 'email') {
+          throw new AppError('Email already exists. Please use a different email.', 409);
+        }
+        throw new AppError('A duplicate field was detected. Please check your input.', 409);
       }
-    });
+      throw prismaError;
+    }
 
     // Log employee creation
     await logCreate({
