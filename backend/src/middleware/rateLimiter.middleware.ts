@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import rateLimit from 'express-rate-limit';
+import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 
 // In-memory store for rate limiting
 const store = new Map<string, { count: number; resetTime: number }>();
@@ -119,6 +119,10 @@ export const userRateLimiter = async (
 export const ipRateLimiter = rateLimit({
   windowMs: RATE_LIMIT_WINDOW_MS,
   max: RATE_LIMIT_MAX_REQUESTS_IP,
+  keyGenerator: (req) => {
+    const ip = req.ip || req.socket.remoteAddress || 'unknown';
+    return ipKeyGenerator(ip);
+  },
   message: {
     success: false,
     message: 'Rate limit exceeded for IP address',
@@ -130,17 +134,8 @@ export const ipRateLimiter = rateLimit({
     return !!(req as any).user?.id;
   },
   skipFailedRequests: true,
-  // Disable X-Forwarded-For validation since we trust proxy
-  validate: { xForwardedForHeader: false },
-  // Use custom key generator that doesn't rely on IP when trust proxy is enabled
-  keyGenerator: (req) => {
-    // For authenticated requests, use user ID
-    if ((req as any).user?.id) {
-      return `user:${(req as any).user.id}`;
-    }
-    // For unauthenticated requests, use IP (but this may be unreliable with trust proxy)
-    return req.ip || req.socket.remoteAddress || 'unknown';
-  },
+  // Disable validations since we trust proxy and skip authenticated requests
+  validate: { xForwardedForHeader: false, trustProxy: false },
 });
 
 // Global rate limiter
@@ -153,8 +148,8 @@ export const globalRateLimiter = rateLimit({
   },
   standardHeaders: true,
   legacyHeaders: false,
-  // Disable X-Forwarded-For validation since we trust proxy
-  validate: { xForwardedForHeader: false },
+  // Disable validations since we trust proxy
+  validate: { xForwardedForHeader: false, trustProxy: false },
 });
 
 // Combined rate limiter for log endpoints

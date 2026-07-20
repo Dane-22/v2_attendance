@@ -270,7 +270,7 @@ export const createEmployee = async (
       // Safety check: ensure the generated code doesn't exist (in case of gaps)
       let codeExists = true;
       let safetyCounter = 0;
-      while (codeExists && safetyCounter < 100) {
+      while (codeExists && safetyCounter < 1000) {
         const existing = await prisma.employee.findUnique({
           where: { employeeCode }
         });
@@ -281,6 +281,11 @@ export const createEmployee = async (
           employeeCode = `${prefix}${nextNumber.toString().padStart(4, '0')}`;
           safetyCounter++;
         }
+      }
+
+      // If we still couldn't find a unique code, throw an error
+      if (codeExists) {
+        throw new AppError('Unable to generate unique employee code. Please try again or contact support.', 500);
       }
     } else {
       // If code is provided manually, check for uniqueness
