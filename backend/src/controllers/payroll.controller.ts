@@ -1342,175 +1342,215 @@ export const exportPayrollToExcel = async (
       usedSheetNames.add(sheetName);
 
       // Header section with project name and date range
-      worksheet.mergeCells('A1:P1');
+      worksheet.mergeCells('A1:O1');
       const headerCell = worksheet.getCell('A1');
-      headerCell.value = 'JAJR Construction Payroll Export';
-      headerCell.font = { size: 16, bold: true };
-      headerCell.alignment = { horizontal: 'center' };
-      headerCell.fill = {
-        type: 'pattern',
-        pattern: 'solid',
-        fgColor: { argb: 'FF1E3A8A' },
-      };
-
-      // Branch name header
-      worksheet.mergeCells('A2:P2');
-      const branchCell = worksheet.getCell('A2');
-      branchCell.value = `Project/Site: ${branchName}`;
-      branchCell.font = { size: 12, bold: true };
-      branchCell.alignment = { horizontal: 'center' };
-      branchCell.fill = {
-        type: 'pattern',
-        pattern: 'solid',
-        fgColor: { argb: 'FF3B82F6' },
-      };
+      headerCell.value = branchName.toUpperCase();
+      headerCell.font = { size: 14, bold: true, name: 'Aptos Narrow' };
+      headerCell.alignment = { horizontal: 'center', vertical: 'middle' };
 
       // Date range header
-      worksheet.mergeCells('A3:P3');
-      const dateCell = worksheet.getCell('A3');
-      dateCell.value = `Project Range: ${dateRange}`;
-      dateCell.font = { size: 12, bold: true };
-      dateCell.alignment = { horizontal: 'center' };
-      dateCell.fill = {
-        type: 'pattern',
-        pattern: 'solid',
-        fgColor: { argb: 'FF10B981' },
-      };
+      worksheet.mergeCells('A2:O2');
+      const dateCell = worksheet.getCell('A2');
+      dateCell.value = dateRange.toUpperCase();
+      dateCell.font = { size: 11, bold: true, name: 'Aptos Narrow' };
+      dateCell.alignment = { horizontal: 'center', vertical: 'middle' };
 
-      // Column headers
-      const headers = [
-        'Employee Code',
+      // Group header: DEDUCTION (K3:O3)
+      worksheet.mergeCells('K3:O3');
+      const deductionGroupCell = worksheet.getCell('K3');
+      deductionGroupCell.value = 'DEDUCTION';
+      deductionGroupCell.font = { size: 11, bold: true, name: 'Aptos Narrow' };
+      deductionGroupCell.alignment = { horizontal: 'center', vertical: 'middle' };
+
+      // Row 4 & Row 5 Column headers
+      const row4Values = [
+        'EMP-CODE',
         'NAME',
-        'Days Worked',
-        'Daily Rate',
-        'Basic Pay',
-        'OT Hours (Approved)',
-        'OT Amount',
-        'Performance Allowance',
-        'Gross Pay',
-        'SSS',
-        'PHIC',
-        'HDMF',
+        'DAYS WORKED',
+        'HOURS WORKED',
+        'DAILY RATE',
+        'BASIC PAY',
+        'OVERTIME',
+        'OVERTIME',
+        'GROSS PAY',
+        'PERFORMANCE ALLOWANCE',
+        'GROSS ALLOWANCE',
         'CA',
-        'SSS LOAN',
-        'Total Deductions',
-        'Net Pay',
+        'TOTAL',
+        'TAKE HOME PAY',
+        'SIGNATURE',
       ];
 
-      const headerRow = worksheet.addRow(headers);
-      headerRow.font = { bold: true };
-      headerRow.fill = {
-        type: 'pattern',
-        pattern: 'solid',
-        fgColor: { argb: 'FFE5E7EB' },
-      };
+      const row5Values = [
+        'EMP-CODE',
+        'NAME',
+        'DAYS WORKED',
+        'HOURS WORKED',
+        'DAILY RATE',
+        'BASIC PAY',
+        'HRS',
+        'AMT',
+        'GROSS PAY',
+        'PERFORMANCE ALLOWANCE',
+        'GROSS ALLOWANCE',
+        'CA',
+        'TOTAL',
+        'TAKE HOME PAY',
+        'SIGNATURE',
+      ];
 
-      // Add borders to header row
-      headerRow.eachCell((cell: any) => {
-        cell.border = {
-          top: { style: 'medium' },
-          left: { style: 'thin' },
-          bottom: { style: 'medium' },
-          right: { style: 'thin' }
-        };
+      const row4 = worksheet.addRow(row4Values);
+      const row5 = worksheet.addRow(row5Values);
+
+      // Perform column header cell merges
+      worksheet.mergeCells('A4:A5');
+      worksheet.mergeCells('B4:B5');
+      worksheet.mergeCells('C4:C5');
+      worksheet.mergeCells('D4:D5');
+      worksheet.mergeCells('E4:E5');
+      worksheet.mergeCells('F4:F5');
+      worksheet.mergeCells('G4:H4'); // OVERTIME header merge
+      worksheet.mergeCells('I4:I5');
+      worksheet.mergeCells('J4:J5');
+      worksheet.mergeCells('K4:K5');
+      worksheet.mergeCells('L4:L5');
+      worksheet.mergeCells('M4:M5');
+      worksheet.mergeCells('N4:N5');
+      worksheet.mergeCells('O4:O5');
+
+      // Style header rows 4 & 5
+      [row4, row5].forEach((row) => {
+        row.font = { bold: true, size: 11, name: 'Aptos Narrow' };
+        row.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
       });
 
-      // Make specific column headers bold (Performance Allowance, Gross Pay, SSS, PHIC, HDMF, CA, SSS LOAN)
-      const boldHeaderColumns = [8, 9, 10, 11, 12, 13, 14]; // 1-indexed column positions
-      boldHeaderColumns.forEach((colIndex) => {
-        const cell = headerRow.getCell(colIndex);
-        cell.font = { bold: true, color: { argb: 'FFFF0000' } };
+      // Highlight specified headers in Red font (PERFORMANCE ALLOWANCE, GROSS ALLOWANCE, CA)
+      const redHeaderCols = [10, 11, 12]; // J, K, L
+      redHeaderCols.forEach((colIdx) => {
+        worksheet.getCell(4, colIdx).font = { bold: true, size: 11, color: { argb: 'FFFF0000' }, name: 'Aptos Narrow' };
+        worksheet.getCell(5, colIdx).font = { bold: true, size: 11, color: { argb: 'FFFF0000' }, name: 'Aptos Narrow' };
       });
 
-      // Add data rows
-      branchData.forEach((data) => {
-        const row = worksheet.addRow([
-          data.employeeCode,
-          data.name,
-          data.daysWorked,
-          data.dailyRate,
-          data.basicPay,
-          data.overtimeHours,
-          data.overtimeAmount,
-          data.performanceAllowance,
-          data.grossPay,
-          data.sssContribution,
-          data.phicContribution,
-          data.hdmfContribution,
-          data.cashAdvance,
-          0, // SSS LOAN - not available in current data structure
-          data.totalDeductions,
-          data.netPay,
-        ]);
-
-        // Add borders to each cell in the row
-        row.eachCell((cell: any, colNumber: number) => {
+      // Add borders to header rows (Rows 3, 4, 5)
+      for (let r = 3; r <= 5; r++) {
+        const row = worksheet.getRow(r);
+        row.eachCell({ includeEmpty: true }, (cell) => {
           cell.border = {
             top: { style: 'thin' },
             left: { style: 'thin' },
             bottom: { style: 'thin' },
-            right: { style: 'thin' }
+            right: { style: 'thin' },
+          };
+        });
+      }
+
+      // Add data rows starting at Row 6
+      branchData.forEach((data, index) => {
+        const rowIdx = 6 + index;
+        const grossAllowance = data.grossPay + data.performanceAllowance;
+        const totalDeductions = data.cashAdvance;
+        const takeHomePay = grossAllowance - totalDeductions;
+
+        const row = worksheet.addRow([
+          data.employeeCode,
+          data.name,
+          data.daysWorked,
+          data.daysWorked * 8,
+          data.dailyRate,
+          { formula: `C${rowIdx}*E${rowIdx}`, result: data.basicPay },
+          data.overtimeHours || null,
+          data.overtimeAmount || null,
+          { formula: `F${rowIdx}+H${rowIdx}`, result: data.grossPay },
+          data.performanceAllowance || null,
+          { formula: `I${rowIdx}+J${rowIdx}`, result: grossAllowance },
+          data.cashAdvance || null,
+          { formula: `L${rowIdx}`, result: totalDeductions },
+          { formula: `K${rowIdx}-M${rowIdx}`, result: takeHomePay },
+          '', // SIGNATURE column
+        ]);
+
+        row.font = { size: 11, name: 'Aptos Narrow' };
+        row.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+          cell.border = {
+            top: { style: 'thin' },
+            left: { style: 'thin' },
+            bottom: { style: 'thin' },
+            right: { style: 'thin' },
+          };
+          // Center align except for NAME column (Col 2)
+          cell.alignment = {
+            horizontal: colNumber === 2 ? 'left' : 'center',
+            vertical: 'middle',
           };
         });
       });
 
-      // Add thick outside borders to the entire data range
-      const dataRange = `A4:P${4 + branchData.length}`;
-      const range = worksheet.getCell(dataRange);
-      
-      // Add thick borders to left and right columns
-      for (let i = 4; i <= 4 + branchData.length; i++) {
-        worksheet.getCell(`A${i}`).border = { ...worksheet.getCell(`A${i}`).border, left: { style: 'thick' } };
-        worksheet.getCell(`P${i}`).border = { ...worksheet.getCell(`P${i}`).border, right: { style: 'thick' } };
-      }
-      
-      // Add thick border to bottom row
-      for (let j = 1; j <= 16; j++) {
-        const colLetter = String.fromCharCode(64 + j);
-        worksheet.getCell(`${colLetter}${4 + branchData.length}`).border = { 
-          ...worksheet.getCell(`${colLetter}${4 + branchData.length}`).border, 
-          bottom: { style: 'thick' } 
+      const lastDataRow = 5 + branchData.length;
+      const totalRowIdx = lastDataRow + 1;
+
+      // Add Summary Total Row at the bottom
+      const totalRow = worksheet.addRow([
+        '',
+        '',
+        { formula: `SUM(C6:C${lastDataRow})` },
+        { formula: `SUM(D6:D${lastDataRow})` },
+        { formula: `SUM(E6:E${lastDataRow})` },
+        { formula: `SUM(F6:F${lastDataRow})` },
+        { formula: `SUM(G6:G${lastDataRow})` },
+        { formula: `SUM(H6:H${lastDataRow})` },
+        { formula: `SUM(I6:I${lastDataRow})` },
+        { formula: `SUM(J6:J${lastDataRow})` },
+        { formula: `SUM(K6:K${lastDataRow})` },
+        { formula: `SUM(L6:L${lastDataRow})` },
+        { formula: `SUM(M6:M${lastDataRow})` },
+        { formula: `SUM(N6:N${lastDataRow})` },
+        '',
+      ]);
+
+      totalRow.font = { bold: true, size: 11, name: 'Aptos Narrow' };
+      totalRow.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+        cell.border = {
+          top: { style: 'thin' },
+          left: { style: 'thin' },
+          bottom: { style: 'medium' },
+          right: { style: 'thin' },
         };
+        cell.alignment = { horizontal: 'center', vertical: 'middle' };
+      });
+
+      // Add thick outer borders to table boundaries
+      for (let r = 4; r <= totalRowIdx; r++) {
+        worksheet.getCell(`A${r}`).border = { ...worksheet.getCell(`A${r}`).border, left: { style: 'medium' } };
+        worksheet.getCell(`O${r}`).border = { ...worksheet.getCell(`O${r}`).border, right: { style: 'medium' } };
       }
 
-      // Set column widths and enable text wrapping
+      // Column widths configuration (15 columns: A to O)
       const columnWidths = [
-        { width: 15, wrap: false },  // Employee Code
-        { width: 35, wrap: true },   // NAME
-        { width: 12, wrap: false },  // Days Worked
-        { width: 15, wrap: false },  // Daily Rate
-        { width: 18, wrap: false },  // Basic Pay
-        { width: 15, wrap: false },  // OT Hours
-        { width: 18, wrap: false },  // OT Amount
-        { width: 20, wrap: false, red: true },  // Performance Allowance
-        { width: 18, wrap: false, red: true },  // Gross Pay
-        { width: 12, wrap: false, red: true },  // SSS
-        { width: 12, wrap: false, red: true },  // PHIC
-        { width: 12, wrap: false, red: true },  // HDMF
-        { width: 12, wrap: false, red: true },  // CA
-        { width: 12, wrap: false, red: true },  // SSS LOAN
-        { width: 18, wrap: false },  // Total Deductions
-        { width: 18, wrap: false },  // Net Pay
+        { width: 14 }, // A: EMP-CODE
+        { width: 28 }, // B: NAME
+        { width: 14 }, // C: DAYS WORKED
+        { width: 15 }, // D: HOURS WORKED
+        { width: 14 }, // E: DAILY RATE
+        { width: 14 }, // F: BASIC PAY
+        { width: 10 }, // G: OVERTIME HRS
+        { width: 14 }, // H: OVERTIME AMT
+        { width: 14 }, // I: GROSS PAY
+        { width: 22 }, // J: PERFORMANCE ALLOWANCE
+        { width: 20 }, // K: GROSS ALLOWANCE
+        { width: 12 }, // L: CA
+        { width: 12 }, // M: TOTAL
+        { width: 18 }, // N: TAKE HOME PAY
+        { width: 20 }, // O: SIGNATURE
       ];
 
       worksheet.columns.forEach((column: any, index: number) => {
         if (columnWidths[index]) {
           column.width = columnWidths[index].width;
-          // Center all content
-          column.alignment = {
-            horizontal: 'center',
-            vertical: 'middle',
-            wrapText: columnWidths[index].wrap
-          };
-          // Apply red font color to specified columns
-          if (columnWidths[index].red) {
-            column.font = { color: { argb: 'FFFF0000' } };
-          }
         }
       });
 
-      // Format currency columns
-      const currencyColumns = [4, 5, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
+      // Format currency columns (#,##0.00)
+      const currencyColumns = [5, 6, 8, 9, 10, 11, 12, 13, 14];
       currencyColumns.forEach((colIndex) => {
         worksheet.getColumn(colIndex).numFmt = '#,##0.00';
       });
