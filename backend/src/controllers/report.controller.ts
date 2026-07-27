@@ -108,9 +108,11 @@ export const getPayrollReport = async (
       where: {
         payroll_week_start: {
           gte: startDate,
-          lte: endDate
-        }
-      }
+        },
+        payroll_week_end: {
+          lte: endDate,
+        },
+      },
     });
 
     // Fetch employees separately for department filtering

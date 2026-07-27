@@ -616,10 +616,11 @@ export const getAllPayroll = async (
     const where: Record<string, unknown> = {};
     if (employeeId) where.employeeId = employeeId;
     if (status && ['draft', 'processed'].includes(status)) where.status = status;
-    if (weekStart || weekEnd) {
-      where.payroll_week_start = {};
-      if (weekStart) (where.payroll_week_start as Record<string, Date>).gte = weekStart;
-      if (weekEnd) (where.payroll_week_start as Record<string, Date>).lte = weekEnd;
+    if (weekStart) {
+      where.payroll_week_start = { gte: weekStart };
+    }
+    if (weekEnd) {
+      where.payroll_week_end = { lte: weekEnd };
     }
     
     // Add branch filtering using branch_code from PayrollRecord
@@ -1241,10 +1242,11 @@ export const exportPayrollToExcel = async (
 
     const where: Record<string, unknown> = {};
     if (status && ['draft', 'processed'].includes(status)) where.status = status;
-    if (weekStart || weekEnd) {
-      where.payroll_week_start = {};
-      if (weekStart) (where.payroll_week_start as Record<string, Date>).gte = weekStart;
-      if (weekEnd) (where.payroll_week_start as Record<string, Date>).lte = weekEnd;
+    if (weekStart) {
+      where.payroll_week_start = { gte: weekStart };
+    }
+    if (weekEnd) {
+      where.payroll_week_end = { lte: weekEnd };
     }
     
     if (branch) {

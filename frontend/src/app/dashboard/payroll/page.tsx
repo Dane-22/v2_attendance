@@ -404,166 +404,164 @@ export default function PayrollPage() {
 
   return (
     <div className="space-y-6">
-      <section className="rounded-3xl bg-gradient-to-r from-slate-950 via-slate-900 to-blue-950 p-6 text-white shadow-xl">
-        <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
-          <div className="max-w-2xl space-y-3">
-            <p className="text-sm uppercase tracking-[0.3em] text-blue-200">Payroll Operations</p>
-            <h1 className="text-3xl font-semibold">Weekly payroll runs with review-first controls.</h1>
-            <p className="text-sm text-slate-300">
+      <section className="rounded-3xl bg-gradient-to-r from-slate-950 via-slate-900 to-blue-950 p-6 text-white shadow-xl space-y-6">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="space-y-2">
+            <p className="text-xs uppercase tracking-[0.3em] font-semibold text-blue-300">Payroll Operations</p>
+            <h1 className="text-2xl lg:text-3xl font-bold tracking-tight text-white">Weekly payroll runs with review-first controls</h1>
+            <p className="text-sm text-slate-300 max-w-2xl">
               Generate weekly payroll for all active employees, inspect flagged drafts, approve overtime separately,
               and lock clean records only when they are ready.
             </p>
           </div>
 
-          <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-            <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
-              <label className="text-sm">
-                <span className="mb-1 block text-slate-300">Search employee</span>
-                <div className="relative">
-                  <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">
-                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                    </svg>
-                  </div>
-                  <input
-                    type="text"
-                    placeholder="Name or code..."
-                    value={searchQuery}
-                    onChange={(event) => {
-                      setPage(1);
-                      setSearchQuery(event.target.value);
-                    }}
-                    className="w-full rounded-xl border border-white/10 bg-slate-950 pl-9 pr-3 py-2 text-white outline-none placeholder:text-slate-400 transition focus:border-blue-400 focus:ring-2 focus:ring-blue-400/20"
-                  />
+          <div className="flex flex-wrap items-center gap-3 shrink-0">
+            <button
+              onClick={() => batchMutation.mutate()}
+              disabled={batchMutation.isPending}
+              className="rounded-xl bg-gradient-to-r from-blue-600 to-blue-500 px-4 py-2.5 text-sm font-semibold text-white shadow-lg transition-all hover:from-blue-500 hover:to-blue-400 hover:shadow-blue-500/25 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {batchMutation.isPending ? (
+                <span className="flex items-center justify-center gap-2">
+                  <svg className="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  Generating...
+                </span>
+              ) : (
+                <span className="flex items-center justify-center gap-2">
+                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                  Generate Payroll
+                </span>
+              )}
+            </button>
+            <button
+              onClick={handleExport}
+              disabled={isExporting}
+              className="rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-500 px-4 py-2.5 text-sm font-semibold text-white shadow-lg transition-all hover:from-emerald-500 hover:to-emerald-400 hover:shadow-emerald-500/25 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {isExporting ? (
+                <span className="flex items-center justify-center gap-2">
+                  <svg className="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  Exporting...
+                </span>
+              ) : (
+                <span className="flex items-center justify-center gap-2">
+                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                  </svg>
+                  Export Excel
+                </span>
+              )}
+            </button>
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-white/10 bg-white/5 p-4 backdrop-blur-sm">
+          <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
+            <label className="text-sm">
+              <span className="mb-1 block font-medium text-slate-300">Search employee</span>
+              <div className="relative">
+                <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">
+                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
                 </div>
-              </label>
-              <label className="text-sm">
-                <span className="mb-1 block text-slate-300">Branch</span>
-                <div className="relative">
-                  <select
-                    value={branchFilter}
-                    onChange={(event) => {
-                      setPage(1);
-                      setBranchFilter(event.target.value);
-                    }}
-                    className="w-full appearance-none rounded-xl border border-white/10 bg-slate-950 px-3 py-2 pr-8 text-white outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-400/20"
-                  >
-                    <option value="all">All branches</option>
-                    {branches.map((branch) => (
-                      <option key={branch.id} value={branch.code}>
-                        {branch.name}
-                      </option>
-                    ))}
-                  </select>
-                  <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2 text-slate-400">
-                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                    </svg>
-                  </div>
-                </div>
-              </label>
-              <label className="text-sm">
-                <span className="mb-1 block text-slate-300">Week start</span>
-                <div className="relative">
-                  <input
-                    type="date"
-                    value={week.weekStart}
-                    onChange={(event) => {
-                      setPage(1);
-                      setWeek((current) => ({ ...current, weekStart: event.target.value }));
-                    }}
-                    className="w-full rounded-xl border border-white/10 bg-slate-950 px-3 py-2 text-white outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-400/20"
-                  />
-                </div>
-              </label>
-              <label className="text-sm">
-                <span className="mb-1 block text-slate-300">Week end</span>
-                <div className="relative">
-                  <input
-                    type="date"
-                    value={week.weekEnd}
-                    onChange={(event) => {
-                      setPage(1);
-                      setWeek((current) => ({ ...current, weekEnd: event.target.value }));
-                    }}
-                    className="w-full rounded-xl border border-white/10 bg-slate-950 px-3 py-2 text-white outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-400/20"
-                  />
-                </div>
-              </label>
-              <label className="text-sm">
-                <span className="mb-1 block text-slate-300">Record state</span>
-                <div className="relative">
-                  <select
-                    value={statusFilter}
-                    onChange={(event) => {
-                      setPage(1);
-                      setStatusFilter(event.target.value as typeof statusFilter);
-                    }}
-                    className="w-full appearance-none rounded-xl border border-white/10 bg-slate-950 px-3 py-2 pr-8 text-white outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-400/20"
-                  >
-                    {statusFilterOptions.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
-                  <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2 text-slate-400">
-                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                    </svg>
-                  </div>
-                </div>
-              </label>
-              <div className="text-sm">
-                <span className="mb-1 block text-slate-300">&nbsp;</span>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => batchMutation.mutate()}
-                    disabled={batchMutation.isPending}
-                    className="flex-1 rounded-2xl bg-gradient-to-r from-blue-500 to-blue-600 px-4 py-2 text-sm font-medium text-white shadow-lg transition-all hover:from-blue-400 hover:to-blue-500 hover:shadow-xl disabled:cursor-not-allowed disabled:opacity-60 disabled:from-slate-500 disabled:to-slate-600"
-                  >
-                    {batchMutation.isPending ? (
-                      <span className="flex items-center justify-center gap-2">
-                        <svg className="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                        </svg>
-                        Generating...
-                      </span>
-                    ) : (
-                      <span className="flex items-center justify-center gap-2">
-                        <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                        </svg>
-                        Generate
-                      </span>
-                    )}
-                  </button>
-                  <button
-                    onClick={handleExport}
-                    disabled={isExporting}
-                    className="flex-1 rounded-2xl bg-gradient-to-r from-emerald-500 to-emerald-600 px-4 py-2 text-sm font-medium text-white shadow-lg transition-all hover:from-emerald-400 hover:to-emerald-500 hover:shadow-xl disabled:cursor-not-allowed disabled:opacity-60 disabled:from-slate-500 disabled:to-slate-600"
-                  >
-                    {isExporting ? (
-                      <span className="flex items-center justify-center gap-2">
-                        <svg className="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                        </svg>
-                        Exporting...
-                      </span>
-                    ) : (
-                      <span className="flex items-center justify-center gap-2">
-                        <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                        </svg>
-                        Export
-                      </span>
-                    )}
-                  </button>
+                <input
+                  type="text"
+                  placeholder="Name or code..."
+                  value={searchQuery}
+                  onChange={(event) => {
+                    setPage(1);
+                    setSearchQuery(event.target.value);
+                  }}
+                  className="w-full rounded-xl border border-white/10 bg-slate-950 pl-9 pr-3 py-2 text-white outline-none placeholder:text-slate-400 transition focus:border-blue-400 focus:ring-2 focus:ring-blue-400/20"
+                />
+              </div>
+            </label>
+            <label className="text-sm">
+              <span className="mb-1 block font-medium text-slate-300">Branch</span>
+              <div className="relative">
+                <select
+                  value={branchFilter}
+                  onChange={(event) => {
+                    setPage(1);
+                    setBranchFilter(event.target.value);
+                  }}
+                  className="w-full appearance-none rounded-xl border border-white/10 bg-slate-950 px-3 py-2 pr-8 text-white outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-400/20"
+                >
+                  <option value="all">All branches</option>
+                  {branches.map((branch) => (
+                    <option key={branch.id} value={branch.code}>
+                      {branch.name}
+                    </option>
+                  ))}
+                </select>
+                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2 text-slate-400">
+                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
                 </div>
               </div>
-            </div>
+            </label>
+            <label className="text-sm">
+              <span className="mb-1 block font-medium text-slate-300">Week start</span>
+              <div className="relative">
+                <input
+                  type="date"
+                  value={week.weekStart}
+                  onChange={(event) => {
+                    setPage(1);
+                    setWeek((current) => ({ ...current, weekStart: event.target.value }));
+                  }}
+                  className="w-full rounded-xl border border-white/10 bg-slate-950 px-3 py-2 text-white outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-400/20"
+                />
+              </div>
+            </label>
+            <label className="text-sm">
+              <span className="mb-1 block font-medium text-slate-300">Week end</span>
+              <div className="relative">
+                <input
+                  type="date"
+                  value={week.weekEnd}
+                  onChange={(event) => {
+                    setPage(1);
+                    setWeek((current) => ({ ...current, weekEnd: event.target.value }));
+                  }}
+                  className="w-full rounded-xl border border-white/10 bg-slate-950 px-3 py-2 text-white outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-400/20"
+                />
+              </div>
+            </label>
+            <label className="text-sm">
+              <span className="mb-1 block font-medium text-slate-300">Record state</span>
+              <div className="relative">
+                <select
+                  value={statusFilter}
+                  onChange={(event) => {
+                    setPage(1);
+                    setStatusFilter(event.target.value as typeof statusFilter);
+                  }}
+                  className="w-full appearance-none rounded-xl border border-white/10 bg-slate-950 px-3 py-2 pr-8 text-white outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-400/20"
+                >
+                  {statusFilterOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2 text-slate-400">
+                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </div>
+              </div>
+            </label>
           </div>
         </div>
       </section>
