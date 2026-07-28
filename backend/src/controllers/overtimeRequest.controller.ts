@@ -28,44 +28,52 @@ export class OvertimeRequestController {
         };
       }
 
-      // Validate employee exists by name
-      const nameParts = data.employeeName.trim().split(/\s+/);
-      const firstName = nameParts[0];
-      const lastName = nameParts.length > 1 ? nameParts[nameParts.length - 1] : '';
+      // Validate employee exists by employeeId or name
+      let employee: any = null;
 
-      console.log('[OvertimeRequest] Looking for employee:', { firstName, lastName, fullName: data.employeeName });
+      if (data.employeeId) {
+        employee = await prisma.employee.findUnique({
+          where: { id: Number(data.employeeId) }
+        });
+      }
 
-      let employee = await prisma.employee.findFirst({
-        where: {
-          firstName: firstName,
-          lastName: lastName
-        }
-      });
+      if (!employee && data.employeeName) {
+        const nameParts = data.employeeName.trim().split(/\s+/);
+        const firstName = nameParts[0];
+        const lastName = nameParts.length > 1 ? nameParts[nameParts.length - 1] : '';
 
-      if (!employee) {
-        console.log('[OvertimeRequest] Employee not found with exact match. Trying first name only...');
-        // Try to find by first name only if last name is empty or not found
+        console.log('[OvertimeRequest] Looking for employee by name:', { firstName, lastName, fullName: data.employeeName });
+
         employee = await prisma.employee.findFirst({
           where: {
-            firstName: firstName
+            firstName: firstName,
+            lastName: lastName
           }
         });
 
         if (!employee) {
-          console.log('[OvertimeRequest] Employee not found with name:', data.employeeName);
-          return {
-            success: false,
-            message: `Employee not found with the provided name: "${data.employeeName}". Please check the exact name (e.g., "John Doe")`
-          };
+          console.log('[OvertimeRequest] Employee not found with exact match. Trying first name only...');
+          employee = await prisma.employee.findFirst({
+            where: {
+              firstName: firstName
+            }
+          });
         }
-
-        console.log('[OvertimeRequest] Found employee by first name only:', employee.firstName, employee.lastName);
-      } else {
-        console.log('[OvertimeRequest] Found employee:', employee.firstName, employee.lastName);
       }
 
-      // Validate attendance record exists on request date
-      // Skip attendance check for admins submitting for themselves (via employeeId)
+      if (!employee) {
+        console.log('[OvertimeRequest] Employee not found:', { employeeId: data.employeeId, employeeName: data.employeeName });
+        return {
+          success: false,
+          message: data.employeeName 
+            ? `Employee not found with the provided name: "${data.employeeName}". Please select an employee from the list.`
+            : 'Employee not found. Please select a valid employee.'
+        };
+      }
+
+      console.log('[OvertimeRequest] Found employee:', employee.id, employee.firstName, employee.lastName);
+
+      // Check attendance status on request date if record exists
       const admin = await prisma.admins.findUnique({
         where: { id: adminId },
         select: { employeeId: true }
@@ -75,24 +83,23 @@ export class OvertimeRequestController {
 
       if (!isSelfRequest) {
         console.log('[OvertimeRequest] Checking attendance for employeeId:', employee.id, 'on date:', data.requestDate);
+        const reqDateObj = new Date(data.requestDate);
+        const startOfDay = new Date(reqDateObj.getFullYear(), reqDateObj.getMonth(), reqDateObj.getDate(), 0, 0, 0);
+        const endOfDay = new Date(reqDateObj.getFullYear(), reqDateObj.getMonth(), reqDateObj.getDate(), 23, 59, 59, 999);
+
         const attendance = await prisma.attendance.findFirst({
           where: {
             employeeId: employee.id,
-            date: new Date(data.requestDate)
+            date: {
+              gte: startOfDay,
+              lte: endOfDay
+            }
           }
         });
 
         console.log('[OvertimeRequest] Attendance record:', attendance);
-        if (!attendance) {
-          console.log('[OvertimeRequest] No attendance record found');
-          return {
-            success: false,
-            message: 'No attendance record found for the requested date'
-          };
-        }
-
-        // If attendance status is absent, reject the overtime request
-        if (attendance.status === attendance_status.absent) {
+        // If attendance status exists and is absent, reject the overtime request
+        if (attendance && attendance.status === attendance_status.absent) {
           console.log('[OvertimeRequest] Attendance status is absent');
           return {
             success: false,
@@ -150,14 +157,11 @@ export class OvertimeRequestController {
         }
       });
 
-      // Create notification for all admins except the requester
+      // Create notification for all admins (including requester for feed visibility)
       const admins = await prisma.admins.findMany({
         where: {
           role: {
             in: ['admin', 'super_admin']
-          },
-          id: {
-            not: adminId
           }
         }
       });

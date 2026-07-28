@@ -157,7 +157,8 @@ export interface OvertimeRequest {
 }
 
 export interface CreateOvertimeRequestInput {
-  employeeName: string;
+  employeeId?: number;
+  employeeName?: string;
   requestDate: string;
   startTime: string;
   endTime: string;

@@ -419,32 +419,30 @@ const getApprovedOvertimeRequests = async (
   weekEnd: Date,
 ) => {
   try {
-    // Use raw SQL query to fetch approved overtime requests
-    const query = `
-      SELECT 
-        id, 
-        requested_hours as requestedHours, 
-        request_date as requestDate, 
-        start_time as startTime, 
-        end_time as endTime, 
-        reason
-      FROM overtime_requests 
-      WHERE employee_id = $1 
-        AND status = 'APPROVED'
-        AND request_date >= $2 
-        AND request_date <= $3
-        AND payroll_record_id IS NULL
-    `;
-    
-    const result = await prisma.$queryRawUnsafe(query, employeeId, weekStart, weekEnd);
-    return result as Array<{
-      id: number;
-      requestedHours: number;
-      requestDate: Date;
-      startTime: string;
-      endTime: string;
-      reason: string;
-    }>;
+    const requests = await prisma.overtimeRequest.findMany({
+      where: {
+        employeeId: employeeId,
+        status: 'APPROVED',
+        requestDate: {
+          gte: weekStart,
+          lte: weekEnd,
+        },
+        payrollRecordId: null,
+      },
+      select: {
+        id: true,
+        requestedHours: true,
+        requestDate: true,
+        startTime: true,
+        endTime: true,
+        reason: true,
+      },
+    });
+
+    return requests.map(r => ({
+      ...r,
+      requestedHours: Number(r.requestedHours)
+    }));
   } catch (error) {
     console.error('Error fetching approved overtime requests:', error);
     return [];
@@ -457,14 +455,20 @@ const markOvertimeRequestsAsApplied = async (
   payrollRecordId: number,
 ) => {
   try {
-    // Use raw SQL query to mark overtime requests as applied
-    const query = `
-      UPDATE overtime_requests 
-      SET payroll_record_id = $1, applied_to_payroll_at = NOW()
-      WHERE id = ANY($2)
-    `;
+    if (!overtimeRequestIds || overtimeRequestIds.length === 0) return;
     
-    await prisma.$queryRawUnsafe(query, payrollRecordId, overtimeRequestIds);
+    await prisma.overtimeRequest.updateMany({
+      where: {
+        id: {
+          in: overtimeRequestIds
+        }
+      },
+      data: {
+        payrollRecordId: payrollRecordId,
+        appliedToPayrollAt: new Date(),
+        status: 'APPLIED_TO_PAYROLL'
+      }
+    });
   } catch (error) {
     console.error('Error marking overtime requests as applied:', error);
   }
