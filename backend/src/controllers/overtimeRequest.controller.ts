@@ -366,7 +366,18 @@ export class OvertimeRequestController {
         data: {
           status: 'APPROVED',
           reviewedByAdminId: adminId,
-          reviewedAt: new Date()
+          reviewedAt: new Date(),
+          reviewNote: data.reviewNote
+        }
+      });
+
+      // Delete old pending notifications for this request
+      await prisma.notifications.deleteMany({
+        where: {
+          link: {
+            contains: `overtimeRequestId=${id}`
+          },
+          title: 'New Overtime Request'
         }
       });
 
@@ -462,6 +473,16 @@ export class OvertimeRequestController {
           reviewedByAdminId: adminId,
           reviewedAt: new Date(),
           reviewNote: data.reviewNote
+        }
+      });
+
+      // Delete old pending notifications for this request
+      await prisma.notifications.deleteMany({
+        where: {
+          link: {
+            contains: `overtimeRequestId=${id}`
+          },
+          title: 'New Overtime Request'
         }
       });
 

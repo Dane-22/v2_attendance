@@ -28,7 +28,18 @@ api.interceptors.request.use((config) => {
 });
 
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    // If the API returns success: false even with a 200 OK status, treat it as an error
+    if (response.data && response.data.success === false) {
+      const error = new Error(response.data.message || 'API request failed');
+      (error as any).response = {
+        data: response.data,
+        status: response.status
+      };
+      return Promise.reject(error);
+    }
+    return response;
+  },
   (error) => {
     if (error.response?.status === 401) {
       localStorage.removeItem('token');

@@ -248,8 +248,8 @@ export default function NotificationsPage() {
   return (
     <div className="space-y-6 max-w-6xl mx-auto">
       {/* Toast Feedback */}
-      {toast && (
-        <div className={`fixed bottom-6 right-6 z-50 flex items-center gap-3 px-5 py-3.5 rounded-xl border shadow-2xl backdrop-blur-md animate-in slide-in-from-bottom-5 duration-300 ${
+      {mounted && toast && createPortal(
+        <div className={`fixed bottom-6 right-6 z-[99999] flex items-center gap-3 px-5 py-3.5 rounded-xl border shadow-2xl backdrop-blur-md animate-in slide-in-from-bottom-5 duration-300 ${
           toast.type === 'success'
             ? 'bg-emerald-950/90 border-emerald-500/40 text-emerald-300'
             : 'bg-rose-950/90 border-rose-500/40 text-rose-300'
@@ -263,7 +263,8 @@ export default function NotificationsPage() {
           <button onClick={() => setToast(null)} className="ml-2 hover:opacity-75">
             <X className="w-4 h-4" />
           </button>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Header */}
@@ -400,7 +401,7 @@ export default function NotificationsPage() {
             {notifications.map((notification: Notification) => {
               const typeInfo = typeConfig[notification.type] || typeConfig.SYSTEM;
               const Icon = iconMap[typeInfo.icon] || Bell;
-              const isOvertimeRequest = notification.type === 'OVERTIME_REQUEST';
+              const isOvertimeRequest = notification.type === 'OVERTIME_REQUEST' && notification.title === 'New Overtime Request';
 
               return (
                 <div
