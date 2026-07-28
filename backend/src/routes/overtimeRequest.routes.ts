@@ -13,6 +13,12 @@ router.post('/', async (req: Request, res: Response) => {
   res.json(result);
 });
 
+// POST /api/overtime-requests/batch - Create batch overtime requests
+router.post('/batch', async (req: Request, res: Response) => {
+  const result = await OvertimeRequestController.createBatchOvertimeRequests(req, req.body);
+  res.json(result);
+});
+
 // GET /api/overtime-requests - List overtime requests with pagination and filters
 router.get('/', async (req: Request, res: Response) => {
   const result = await OvertimeRequestController.getOvertimeRequests(req, req.query);

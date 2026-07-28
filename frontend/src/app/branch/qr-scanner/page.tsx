@@ -7,6 +7,8 @@ import { attendanceApi, branchApi, BranchEmployee } from '@/lib/api';
 import { AxiosError } from 'axios';
 import jsQR from 'jsqr';
 import { useWebSocket } from '@/hooks/useWebSocket';
+import OvertimeRequestModal, { SelectedEmployeeItem } from '@/components/overtime/OvertimeRequestModal';
+import { Clock } from 'lucide-react';
 
 interface User {
   id: number;
@@ -37,6 +39,8 @@ export default function BranchQRScannerPage() {
   const [availableCameras, setAvailableCameras] = useState<MediaDeviceInfo[]>([]);
   const [hasMultipleCameras, setHasMultipleCameras] = useState(false);
   const [cameraSwitchError, setCameraSwitchError] = useState<string | null>(null);
+  const [showOvertimeModal, setShowOvertimeModal] = useState(false);
+  const [scannedOtEmployee, setScannedOtEmployee] = useState<SelectedEmployeeItem | null>(null);
   const { isConnected, joinBranch, emit, on, off } = useWebSocket();
 
   // Play success sound on scan
@@ -225,7 +229,9 @@ export default function BranchQRScannerPage() {
         .then((stream) => {
           if (videoRef.current) {
             videoRef.current.srcObject = stream;
-            videoRef.current.play();
+            videoRef.current.play().catch((err) => {
+              if (err.name !== 'AbortError') console.error('Play error:', err);
+            });
             scanFrame();
           }
         })
@@ -238,7 +244,9 @@ export default function BranchQRScannerPage() {
             .then((stream) => {
               if (videoRef.current) {
                 videoRef.current.srcObject = stream;
-                videoRef.current.play();
+                videoRef.current.play().catch((err) => {
+                  if (err.name !== 'AbortError') console.error('Play fallback error:', err);
+                });
                 scanFrame();
               }
             })
@@ -384,13 +392,26 @@ export default function BranchQRScannerPage() {
 
   // Handle scanned QR code
   const handleScan = (qrData: string) => {
-    if (!cameraError) setScanning(false);
-
     const parsed = parseQRData(qrData);
     if (parsed) {
       setLastEmployeeName(parsed.employeeName || parsed.employeeCode);
       setLastEmployeeCode(parsed.employeeCode);
+
+      if (showOvertimeModal) {
+        setScannedOtEmployee({
+          id: parsed.employeeId || undefined,
+          code: parsed.employeeCode,
+          name: parsed.employeeName || parsed.employeeCode
+        });
+        playSuccessSound();
+        setTimeout(() => {
+          setLastScan(null);
+        }, 1500);
+        return;
+      }
     }
+
+    if (!cameraError) setScanning(false);
     if (!parsed) {
       // Show actual scanned data for debugging
       const preview = qrData.length > 40 ? qrData.substring(0, 40) + '...' : qrData;
@@ -475,7 +496,9 @@ export default function BranchQRScannerPage() {
       
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        videoRef.current.play();
+        videoRef.current.play().catch((err) => {
+          if (err.name !== 'AbortError') console.error('Play switch error:', err);
+        });
         setFacingMode(newMode);
         localStorage.setItem('cameraFacingMode', newMode);
         setScanning(true);
@@ -497,7 +520,9 @@ export default function BranchQRScannerPage() {
         
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
-          videoRef.current.play();
+          videoRef.current.play().catch((err) => {
+            if (err.name !== 'AbortError') console.error('Play revert error:', err);
+          });
           setScanning(true);
         }
       } catch (revertError) {
@@ -608,8 +633,8 @@ export default function BranchQRScannerPage() {
         </div>
       </div>
 
-      {/* Currently Present Button */}
-      <div className="px-4 py-2 bg-gray-900">
+      {/* Currently Present & Overtime Actions */}
+      <div className="px-4 py-2 bg-gray-900 flex items-center justify-between gap-3">
         <button
           onClick={() => setShowPresentList(!showPresentList)}
           className="flex items-center gap-2 text-gray-400 hover:text-white text-sm bg-gray-800 px-3 py-1.5 rounded"
@@ -618,6 +643,17 @@ export default function BranchQRScannerPage() {
           <svg className={`w-4 h-4 transition-transform ${showPresentList ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
           </svg>
+        </button>
+
+        <button
+          onClick={() => {
+            setScannedOtEmployee(null);
+            setShowOvertimeModal(true);
+          }}
+          className="flex items-center gap-2 text-black font-semibold text-sm bg-[#facc15] hover:bg-[#facc15]/90 px-3.5 py-1.5 rounded-xl shadow-lg transition-all"
+        >
+          <Clock className="w-4 h-4" />
+          <span>Request Overtime</span>
         </button>
       </div>
 
@@ -804,6 +840,19 @@ export default function BranchQRScannerPage() {
           </div>
         </div>
       )}
+      {/* Overtime Request Modal */}
+      <OvertimeRequestModal
+        isOpen={showOvertimeModal}
+        onClose={() => {
+          setShowOvertimeModal(false);
+          setScannedOtEmployee(null);
+        }}
+        initialEmployee={scannedOtEmployee}
+        onSuccess={() => {
+          setShowOvertimeModal(false);
+          setScannedOtEmployee(null);
+        }}
+      />
     </div>
   );
 }

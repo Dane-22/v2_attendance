@@ -151,7 +151,13 @@ export default function HybridScannerPage() {
       
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        await videoRef.current.play();
+        try {
+          await videoRef.current.play();
+        } catch (playErr: any) {
+          if (playErr?.name !== 'AbortError') {
+            throw playErr;
+          }
+        }
         setScanning(true);
         setCameraError(false);
         scanFrame();

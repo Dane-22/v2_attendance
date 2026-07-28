@@ -94,7 +94,13 @@ function FaceCaptureContent() {
 
         if (!mounted || !videoRef.current) return;
         videoRef.current.srcObject = stream;
-        await videoRef.current.play();
+        try {
+          await videoRef.current.play();
+        } catch (playErr: any) {
+          if (playErr?.name !== 'AbortError') {
+            throw playErr;
+          }
+        }
         setCameraReady(true);
         setStatus('ready');
         setMessage('Position one face inside the frame.');

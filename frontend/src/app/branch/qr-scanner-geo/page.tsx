@@ -253,7 +253,9 @@ export default function BranchQRScannerGeoPage() {
         .then((stream) => {
           if (videoRef.current) {
             videoRef.current.srcObject = stream;
-            videoRef.current.play();
+            videoRef.current.play().catch((err) => {
+              if (err.name !== 'AbortError') console.error('Play error:', err);
+            });
             scanFrame();
           }
         })
@@ -266,7 +268,9 @@ export default function BranchQRScannerGeoPage() {
             .then((stream) => {
               if (videoRef.current) {
                 videoRef.current.srcObject = stream;
-                videoRef.current.play();
+                videoRef.current.play().catch((err) => {
+                  if (err.name !== 'AbortError') console.error('Play fallback error:', err);
+                });
                 scanFrame();
               }
             })
@@ -503,7 +507,9 @@ export default function BranchQRScannerGeoPage() {
       
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        videoRef.current.play();
+        videoRef.current.play().catch((err) => {
+          if (err.name !== 'AbortError') console.error('Play switch error:', err);
+        });
         setFacingMode(newMode);
         localStorage.setItem('cameraFacingMode', newMode);
         setScanning(true);
@@ -525,7 +531,9 @@ export default function BranchQRScannerGeoPage() {
         
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
-          videoRef.current.play();
+          videoRef.current.play().catch((err) => {
+            if (err.name !== 'AbortError') console.error('Play revert error:', err);
+          });
           setScanning(true);
         }
       } catch (revertError) {

@@ -37,6 +37,12 @@ export class OvertimeRequestController {
         });
       }
 
+      if (!employee && data.employeeCode) {
+        employee = await prisma.employee.findUnique({
+          where: { employeeCode: data.employeeCode }
+        });
+      }
+
       if (!employee && data.employeeName) {
         const nameParts = data.employeeName.trim().split(/\s+/);
         const firstName = nameParts[0];
@@ -537,6 +543,103 @@ export class OvertimeRequestController {
       return {
         success: false,
         message: 'Failed to reject overtime request'
+      };
+    }
+  }
+
+  // Batch Create Overtime Requests for multiple employees
+  static async createBatchOvertimeRequests(
+    req: AuthenticatedRequest,
+    data: any
+  ): Promise<ApiResponse> {
+    console.log('[OvertimeRequest] Batch create request received:', data);
+    try {
+      const adminId = req.admin?.id;
+      if (!adminId) {
+        return {
+          success: false,
+          message: 'Admin authentication required'
+        };
+      }
+
+      const employeeIds: number[] = Array.isArray(data.employeeIds) ? data.employeeIds.map(Number) : [];
+      const employeeCodes: string[] = Array.isArray(data.employeeCodes) ? data.employeeCodes : [];
+      
+      let targetEmployees: any[] = [];
+      if (employeeIds.length > 0) {
+        targetEmployees = await prisma.employee.findMany({
+          where: { id: { in: employeeIds } }
+        });
+      } else if (employeeCodes.length > 0) {
+        targetEmployees = await prisma.employee.findMany({
+          where: { employeeCode: { in: employeeCodes } }
+        });
+      }
+
+      if (targetEmployees.length === 0) {
+        return {
+          success: false,
+          message: 'No valid employees selected for overtime request'
+        };
+      }
+
+      let requestedHours = data.requestedHours;
+      if (!requestedHours || Number(requestedHours) <= 0) {
+        const startMins = this.timeToMinutes(data.startTime || '17:00');
+        const endMins = this.timeToMinutes(data.endTime || '19:00');
+        requestedHours = Math.max(0.5, (endMins - startMins) / 60);
+      }
+
+      const reqDateObj = new Date(data.requestDate);
+
+      const createdRequests = await prisma.$transaction(
+        targetEmployees.map((emp) =>
+          prisma.overtimeRequest.create({
+            data: {
+              employeeId: emp.id,
+              requestedByAdminId: adminId,
+              requestDate: reqDateObj,
+              startTime: data.startTime || '17:00',
+              endTime: data.endTime || '19:00',
+              requestedHours: Number(requestedHours),
+              reason: data.reason || 'Branch Overtime Request',
+              status: 'PENDING'
+            }
+          })
+        )
+      );
+
+      // Create admin notification
+      await prisma.notifications.create({
+        data: {
+          recipient_type: 'admin',
+          recipient_id: adminId,
+          type: 'OVERTIME_REQUEST',
+          title: 'Batch Overtime Request Submitted',
+          message: `Submitted batch overtime request for ${createdRequests.length} employee(s) on ${reqDateObj.toDateString()}`,
+          link: `/dashboard/overtime-approval`
+        }
+      });
+
+      // Emit WebSocket event if available
+      if (global.io) {
+        emitNotificationUpdate(global.io, {
+          recipientType: 'admin',
+          recipientId: adminId,
+          action: 'create'
+        });
+      }
+
+      return {
+        success: true,
+        message: `Successfully submitted overtime request for ${createdRequests.length} employee(s)`,
+        data: createdRequests
+      };
+    } catch (error: any) {
+      console.error('Error creating batch overtime requests:', error);
+      return {
+        success: false,
+        message: error?.message || 'Failed to submit batch overtime request'
       };
     }
   }

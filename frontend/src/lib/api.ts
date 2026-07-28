@@ -715,7 +715,19 @@ export interface OvertimeRequest {
 
 export interface CreateOvertimeRequestInput {
   employeeId?: number;
+  employeeCode?: string;
   employeeName?: string;
+  requestDate: string;
+  startTime: string;
+  endTime: string;
+  requestedHours?: number;
+  reason: string;
+}
+
+export interface CreateBatchOvertimeInput {
+  employeeIds?: number[];
+  employeeCodes?: string[];
+  employeeNames?: string[];
   requestDate: string;
   startTime: string;
   endTime: string;
@@ -740,6 +752,8 @@ export interface OvertimeRequestFilter {
 export const overtimeRequestApi = {
   create: (data: CreateOvertimeRequestInput) =>
     api.post<ApiResponse<OvertimeRequest>>('/overtime-requests', data),
+  createBatch: (data: CreateBatchOvertimeInput) =>
+    api.post<ApiResponse<OvertimeRequest[]>>('/overtime-requests/batch', data),
   getAll: (params?: OvertimeRequestFilter) =>
     api.get<ApiResponse<OvertimeRequest[]>>('/overtime-requests', { params }),
   getById: (id: number) =>
@@ -749,5 +763,7 @@ export const overtimeRequestApi = {
   reject: (id: number, data: ReviewOvertimeRequestInput) =>
     api.patch<ApiResponse<OvertimeRequest>>(`/overtime-requests/${id}/reject`, data),
 };
+
+export const overtimeApi = overtimeRequestApi;
 
 export default api;

@@ -37,8 +37,8 @@ export default function SubmitRequestPage() {
     employeeId: undefined,
     employeeName: '',
     requestDate: new Date().toISOString().split('T')[0],
-    startTime: '17:00',
-    endTime: '19:00',
+    startTime: '16:00',
+    endTime: '18:00',
     requestedHours: 2,
     reason: ''
   });

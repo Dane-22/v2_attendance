@@ -47,7 +47,9 @@ export default function QRScannerPage() {
         .then((stream) => {
           if (videoRef.current) {
             videoRef.current.srcObject = stream;
-            videoRef.current.play();
+            videoRef.current.play().catch((err) => {
+              if (err.name !== 'AbortError') console.error('Play error:', err);
+            });
             scanFrame();
           }
         })
