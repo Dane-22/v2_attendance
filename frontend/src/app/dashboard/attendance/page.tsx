@@ -202,7 +202,22 @@ export default function AttendancePage() {
   const { data: todayAttendanceData } = useQuery({
     queryKey: ['today-attendance-all'],
     queryFn: async () => {
-      const response = await attendanceApi.getAll({ startDate: new Date().toISOString().split('T')[0], endDate: new Date().toISOString().split('T')[0], limit: 1000 });
+      // Get today's date range in Philippines timezone (Asia/Manila)
+      const today = new Date();
+      const philippinesDate = new Date(today.toLocaleString('en-US', { timeZone: 'Asia/Manila' }));
+      
+      // Philippines day starts at 16:00 UTC previous day and ends at 16:00 UTC current day
+      const startOfDay = new Date(philippinesDate);
+      startOfDay.setHours(0, 0, 0, 0);
+      const endOfDay = new Date(philippinesDate);
+      endOfDay.setHours(23, 59, 59, 999);
+      
+      // Convert to ISO strings for API
+      const startDate = startOfDay.toISOString().split('T')[0];
+      const endDate = endOfDay.toISOString().split('T')[0];
+      
+      console.log('Fetching attendance for date range (Philippines timezone):', startDate, 'to', endDate);
+      const response = await attendanceApi.getAll({ startDate, endDate, limit: 1000 });
       console.log('Today attendance:', response.data.data);
       return response.data.data || [];
     },
@@ -218,9 +233,12 @@ export default function AttendancePage() {
       console.log('Clock-in success response:', data);
       // Clear search and force immediate refetch to update UI
       setSearchQuery('');
-      // Refetch queries immediately to get fresh data
-      await queryClient.refetchQueries({ queryKey: ['branch-employees', selectedBranch], exact: true });
-      await queryClient.refetchQueries({ queryKey: ['today-attendance-all'], exact: true });
+      // Invalidate and refetch queries immediately to get fresh data
+      await queryClient.invalidateQueries({ queryKey: ['branch-employees', selectedBranch] });
+      await queryClient.invalidateQueries({ queryKey: ['today-attendance-all'] });
+      // Force refetch after invalidation
+      await queryClient.refetchQueries({ queryKey: ['branch-employees', selectedBranch] });
+      await queryClient.refetchQueries({ queryKey: ['today-attendance-all'] });
     },
     onError: (error: AxiosError<{ message?: string; error?: string }>) => {
       console.error('Clock-in error:', error);
@@ -247,9 +265,12 @@ export default function AttendancePage() {
       alert(`Employee transferred from ${fromBranch} to ${toBranch}`);
       // Clear search and force immediate refetch to update UI
       setSearchQuery('');
-      // Refetch queries immediately to get fresh data
-      await queryClient.refetchQueries({ queryKey: ['branch-employees', selectedBranch], exact: true });
-      await queryClient.refetchQueries({ queryKey: ['today-attendance-all'], exact: true });
+      // Invalidate and refetch queries immediately to get fresh data
+      await queryClient.invalidateQueries({ queryKey: ['branch-employees', selectedBranch] });
+      await queryClient.invalidateQueries({ queryKey: ['today-attendance-all'] });
+      // Force refetch after invalidation
+      await queryClient.refetchQueries({ queryKey: ['branch-employees', selectedBranch] });
+      await queryClient.refetchQueries({ queryKey: ['today-attendance-all'] });
       // Close modal
       setIsAutoTransferModalOpen(false);
       setSelectedEmployeeForAutoTransfer(null);
@@ -269,9 +290,12 @@ export default function AttendancePage() {
     onSuccess: async () => {
       // Clear search and force immediate refetch to update UI
       setSearchQuery('');
-      // Refetch queries immediately to get fresh data
-      await queryClient.refetchQueries({ queryKey: ['branch-employees', selectedBranch], exact: true });
-      await queryClient.refetchQueries({ queryKey: ['today-attendance-all'], exact: true });
+      // Invalidate and refetch queries immediately to get fresh data
+      await queryClient.invalidateQueries({ queryKey: ['branch-employees', selectedBranch] });
+      await queryClient.invalidateQueries({ queryKey: ['today-attendance-all'] });
+      // Force refetch after invalidation
+      await queryClient.refetchQueries({ queryKey: ['branch-employees', selectedBranch] });
+      await queryClient.refetchQueries({ queryKey: ['today-attendance-all'] });
     },
     onError: (error: AxiosError<{ message?: string }>) => {
       console.error('Clock-out error:', error);
@@ -283,8 +307,12 @@ export default function AttendancePage() {
   const markIndividualAbsentMutation = useMutation({
     mutationFn: (employeeId: number) => attendanceApi.markIndividualAbsent(employeeId),
     onSuccess: async () => {
-      await queryClient.refetchQueries({ queryKey: ['branch-employees', selectedBranch], exact: true });
-      await queryClient.refetchQueries({ queryKey: ['today-attendance-all'], exact: true });
+      // Invalidate and refetch queries immediately to get fresh data
+      await queryClient.invalidateQueries({ queryKey: ['branch-employees', selectedBranch] });
+      await queryClient.invalidateQueries({ queryKey: ['today-attendance-all'] });
+      // Force refetch after invalidation
+      await queryClient.refetchQueries({ queryKey: ['branch-employees', selectedBranch] });
+      await queryClient.refetchQueries({ queryKey: ['today-attendance-all'] });
     },
     onError: (error: AxiosError<{ message?: string }>) => {
       console.error('Mark absent error:', error);
@@ -756,7 +784,7 @@ export default function AttendancePage() {
 
       {/* Employee Table */}
       <div className={`rounded-xl border ${classes.border} ${classes.bgCard} overflow-hidden`}>
-        <div className="overflow-x-auto overflow-y-auto max-h-[calc(100dvh-320px)]">
+        <div className="overflow-x-auto overflow-y-auto max-h-[calc(100dvh-320px)] relative">
           <div className="sm:hidden w-full overflow-hidden">
               {filteredEmployees.length === 0 ? (
                 <div className={`p-8 text-center ${classes.text}`}>
@@ -826,7 +854,10 @@ export default function AttendancePage() {
                         </div>
                         <div className="flex flex-col gap-2 flex-shrink-0">
                           <button
-                            onClick={() => {
+                            type="button"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
                               // Check if employee's branch differs from selected branch
                               if (employee.branchCode && employee.branchCode !== selectedBranch) {
                                 // Show auto-transfer confirmation modal
@@ -848,7 +879,10 @@ export default function AttendancePage() {
                             Time In
                           </button>
                           <button
-                            onClick={() => {
+                            type="button"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
                               if (window.confirm(`Mark ${employee.name} as absent for today?`)) {
                                 markIndividualAbsentMutation.mutate(employee.id);
                               }
@@ -955,7 +989,12 @@ export default function AttendancePage() {
                             <span className={`text-xs ${classes.textMuted}`}>No actions</span>
                           ) : employee.timeIn !== null && employee.timeOut === null ? (
                             <button
-                              onClick={() => clockOutMutation.mutate(employee.id)}
+                              type="button"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                clockOutMutation.mutate(employee.id);
+                              }}
                               disabled={clockOutMutation.isPending}
                               className="inline-flex items-center gap-1 px-3 py-1.5 bg-red-100 text-red-700 text-xs font-medium rounded-full hover:bg-red-200 transition-colors disabled:opacity-50"
                             >
@@ -968,7 +1007,10 @@ export default function AttendancePage() {
                             </button>
                           ) : (
                             <button
-                              onClick={() => {
+                              type="button"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
                                 if (employee.branchCode && employee.branchCode !== selectedBranch) {
                                   setSelectedEmployeeForAutoTransfer(employee);
                                   setIsAutoTransferModalOpen(true);
@@ -1052,7 +1094,12 @@ export default function AttendancePage() {
                         </div>
                         <div className="flex-shrink-0">
                           <button
-                            onClick={() => clockOutMutation.mutate(employee.id)}
+                            type="button"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              clockOutMutation.mutate(employee.id);
+                            }}
                             disabled={clockOutMutation.isPending}
                             className="inline-flex items-center gap-1 px-3 py-1.5 bg-red-100 text-red-700 text-xs font-medium rounded-full hover:bg-red-200 transition-colors disabled:opacity-50"
                           >
@@ -1270,7 +1317,10 @@ export default function AttendancePage() {
                               <div className="flex items-center gap-2">
                                 {employee.timeIn !== null && employee.timeOut === null ? (
                                   <button
-                                    onClick={() => {
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      e.stopPropagation();
                                       console.log('Clocking out employee:', employee.id);
                                       clockOutMutation.mutate(employee.id);
                                     }}
@@ -1287,7 +1337,10 @@ export default function AttendancePage() {
                                 ) : employee.timeIn !== null && employee.timeOut !== null ? (
                                   // Employee completed shift - allow re-clock in for different branch/task
                                   <button
-                                    onClick={() => {
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      e.stopPropagation();
                                       console.log('Re-clocking in employee:', employee.id);
                                       // Check if employee's branch differs from selected branch
                                       if (employee.branchCode && employee.branchCode !== selectedBranch) {
@@ -1312,7 +1365,10 @@ export default function AttendancePage() {
                                 ) : (
                                   <>
                                     <button
-                                      onClick={() => {
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
                                         console.log('Clocking in employee:', employee.id);
                                         // Check if employee's branch differs from selected branch
                                         if (employee.branchCode && employee.branchCode !== selectedBranch) {

@@ -279,9 +279,11 @@ export default function SubmitRequestPage() {
     setSubmitError(null);
     
     if (!validateForm()) {
+      console.log('VALIDATION FAILED', { formData, errors });
       return;
     }
 
+    console.log('VALIDATION PASSED', { formData });
     setIsSubmitting(true);
     try {
       await overtimeRequestMutation.mutateAsync(formData);

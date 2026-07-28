@@ -1,0 +1,22 @@
+{
+  "cookies": [],
+  "origins": [
+    {
+      "origin": "http://localhost:3000",
+      "localStorage": [
+        {
+          "name": "token",
+          "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhZG1pbklkIjoxNywidXNlcm5hbWUiOiJhZG1pbiIsInJvbGUiOiJzdXBlcl9hZG1pbiIsImlhdCI6MTc4NTIyMjUxMywiZXhwIjoxNzg1MzA4OTEzfQ.1xpo_so9I4zDVIfH1qd0GRxccRFzmsqJEcTnMcIab20"
+        },
+        {
+          "name": "user",
+          "value": "{\"id\":17,\"username\":\"admin\",\"name\":\"System Administrator\",\"email\":\"admin@jajr.com\",\"role\":\"super_admin\",\"created_at\":\"2026-04-24T03:37:05.000Z\",\"updated_at\":\"2026-05-12T16:35:10.000Z\",\"branch_code\":null,\"permissions\":[],\"permissions_enabled\":false,\"profileImage\":null,\"employeeId\":null,\"branch_name\":null}"
+        },
+        {
+          "name": "jajr-app-storage",
+          "value": "{\"state\":{\"theme\":\"dark\",\"user\":{\"id\":17,\"username\":\"admin\",\"name\":\"System Administrator\",\"email\":\"admin@jajr.com\",\"role\":\"super_admin\",\"created_at\":\"2026-04-24T03:37:05.000Z\",\"updated_at\":\"2026-05-12T16:35:10.000Z\",\"branch_code\":null,\"permissions\":[],\"permissions_enabled\":false,\"profileImage\":null,\"employeeId\":null,\"branch_name\":null},\"branchId\":null,\"sidebarOpen\":true},\"version\":0}"
+        }
+      ]
+    }
+  ]
+}

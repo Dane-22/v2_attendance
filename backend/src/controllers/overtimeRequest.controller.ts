@@ -423,7 +423,8 @@ export class OvertimeRequestController {
         message: 'Overtime request approved successfully',
         data: updatedRequest
       };
-    } catch (error) {
+    } catch (error: any) {
+      require('fs').writeFileSync('backend-error.txt', String(error) + '\n' + error.stack);
       console.error('Error approving overtime request:', error);
       return {
         success: false,
