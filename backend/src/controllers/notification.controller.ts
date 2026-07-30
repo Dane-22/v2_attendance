@@ -49,55 +49,7 @@ export const getNotifications = async (
       recipientConditions.push({ recipient_type: 'role_branch' });
     }
 
-    // Auto-sync any PENDING overtime requests from overtime_requests table to notifications table if missing
-    try {
-      const pendingOTs = await prisma.overtimeRequest.findMany({
-        where: { status: 'PENDING' }
-      });
 
-      if (pendingOTs.length > 0) {
-        const admins = await prisma.admins.findMany({
-          where: { role: { in: ['admin', 'super_admin'] } }
-        });
-
-        for (const ot of pendingOTs) {
-          const linkStr = `/dashboard/notifications?overtimeRequestId=${ot.id}`;
-          const dateStr = ot.requestDate ? new Date(ot.requestDate).toISOString().split('T')[0] : '';
-          
-          let empName = `Employee #${ot.employeeId}`;
-          const emp = await prisma.employee.findUnique({ where: { id: ot.employeeId } });
-          if (emp) {
-            empName = `${emp.firstName} ${emp.lastName}`.trim();
-          }
-
-          for (const admin of admins) {
-            const existingNotif = await prisma.notifications.findFirst({
-              where: {
-                recipient_type: 'admin',
-                recipient_id: admin.id,
-                type: 'OVERTIME_REQUEST',
-                link: linkStr
-              }
-            });
-
-            if (!existingNotif) {
-              await prisma.notifications.create({
-                data: {
-                  recipient_type: 'admin',
-                  recipient_id: admin.id,
-                  type: 'OVERTIME_REQUEST',
-                  title: 'New Overtime Request',
-                  message: `Overtime request submitted for ${empName} on ${dateStr}`,
-                  link: linkStr
-                }
-              });
-            }
-          }
-        }
-      }
-    } catch (syncErr) {
-      console.error('[Notifications] Auto-sync overtime requests error:', syncErr);
-    }
 
     // Build where clause based on filter
     let whereClause: any = {

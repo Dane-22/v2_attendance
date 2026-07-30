@@ -592,6 +592,28 @@ export class OvertimeRequestController {
 
       const reqDateObj = new Date(data.requestDate);
 
+      const existingRequests = await prisma.overtimeRequest.findMany({
+        where: {
+          employeeId: { in: targetEmployees.map(e => e.id) },
+          requestDate: reqDateObj,
+          status: {
+            in: ['PENDING', 'APPROVED', 'APPLIED_TO_PAYROLL']
+          }
+        }
+      });
+
+      if (existingRequests.length > 0) {
+        const existingEmpIds = existingRequests.map(r => r.employeeId);
+        targetEmployees = targetEmployees.filter(e => !existingEmpIds.includes(e.id));
+        
+        if (targetEmployees.length === 0) {
+          return {
+            success: false,
+            message: 'Overtime requests already exist for all selected employees on this date'
+          };
+        }
+      }
+
       const createdRequests = await prisma.$transaction(
         targetEmployees.map((emp) =>
           prisma.overtimeRequest.create({
@@ -610,23 +632,32 @@ export class OvertimeRequestController {
       );
 
       // Create admin notification
-      await prisma.notifications.create({
-        data: {
-          recipient_type: 'admin',
-          recipient_id: adminId,
-          type: 'OVERTIME_REQUEST',
-          title: 'Batch Overtime Request Submitted',
-          message: `Submitted batch overtime request for ${createdRequests.length} employee(s) on ${reqDateObj.toDateString()}`,
-          link: `/dashboard/overtime-approval`
-        }
+      const admins = await prisma.admins.findMany({
+        where: { role: { in: ['admin', 'super_admin'] } }
       });
+
+      const notificationPromises = admins.map(admin =>
+        prisma.notifications.create({
+          data: {
+            recipient_type: 'admin',
+            recipient_id: admin.id,
+            type: 'OVERTIME_REQUEST',
+            title: 'Batch Overtime Request Submitted',
+            message: `Submitted batch overtime request for ${createdRequests.length} employee(s) on ${reqDateObj.toDateString()}`,
+            link: `/dashboard/overtime-approval`
+          }
+        })
+      );
+      await Promise.all(notificationPromises);
 
       // Emit WebSocket event if available
       if (global.io) {
-        emitNotificationUpdate(global.io, {
-          recipientType: 'admin',
-          recipientId: adminId,
-          action: 'create'
+        admins.forEach(admin => {
+          emitNotificationUpdate(global.io, {
+            recipientType: 'admin',
+            recipientId: admin.id,
+            action: 'create'
+          });
         });
       }
 

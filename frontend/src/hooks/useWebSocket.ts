@@ -28,10 +28,13 @@ export const useWebSocket = (): WebSocketHookReturn => {
     if (apiUrl) {
       // Remove '/api' suffix if present to get base URL
       wsUrl = apiUrl.replace(/\/api\/?$/, '');
-    } else if (typeof window !== 'undefined' && window.location.hostname !== 'localhost') {
+    } else if (process.env.NODE_ENV === 'production' && typeof window !== 'undefined' && window.location.hostname !== 'localhost') {
       // Auto-detect from current domain in production
       const protocol = window.location.protocol === 'https:' ? 'https:' : 'http:';
       wsUrl = `${protocol}//${window.location.host}`;
+    } else if (typeof window !== 'undefined') {
+      // In development, point to the backend port on the same host
+      wsUrl = `http://${window.location.hostname}:5000`;
     } else {
       wsUrl = 'http://localhost:5000';
     }
@@ -43,7 +46,6 @@ export const useWebSocket = (): WebSocketHookReturn => {
     // Create Socket.IO client
     const socket = io(wsUrl, {
       auth: { token },
-      transports: ['websocket', 'polling'],
       reconnection: true,
       reconnectionDelay: 1000,
       reconnectionAttempts: 5,
