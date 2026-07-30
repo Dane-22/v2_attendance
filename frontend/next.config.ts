@@ -2,6 +2,7 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   distDir: '.next',
+  outputFileTracingRoot: process.cwd(),
   images: {
     unoptimized: true,
   },
@@ -15,7 +16,7 @@ const nextConfig: NextConfig = {
       return [
         {
           source: '/api/:path*',
-          destination: `${apiHost}/api/:path*`,
+          destination: `${apiHost}/api/:path*`, 
         },
       ];
     }

@@ -12,5 +12,6 @@ router.get('/:id', auth_middleware_1.authenticate, payroll_controller_1.getPayro
 router.post('/:id/approve-overtime', auth_middleware_1.authenticate, payroll_controller_1.approvePayrollOvertime);
 router.post('/:id/process', auth_middleware_1.authenticate, payroll_controller_1.processPayroll);
 router.patch('/:id/status', auth_middleware_1.authenticate, payroll_controller_1.updatePayrollStatus);
+router.get('/export/excel', auth_middleware_1.authenticate, payroll_controller_1.exportPayrollToExcel);
 exports.default = router;
 //# sourceMappingURL=payroll.routes.js.map

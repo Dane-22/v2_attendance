@@ -368,8 +368,10 @@ exports.clock = clock;
 const getPhilippinesDateRange = () => {
     const todayStr = getPhilippinesDateString();
     const [year, month, day] = todayStr.split('-').map(Number);
-    const start = new Date(year, month - 1, day);
-    const end = new Date(year, month - 1, day + 1);
+    // Philippines timezone is UTC+8, so the day starts at 16:00 UTC previous day
+    // and ends at 16:00 UTC current day
+    const start = new Date(Date.UTC(year, month - 1, day - 1, 16, 0, 0));
+    const end = new Date(Date.UTC(year, month - 1, day, 16, 0, 0));
     return { start, end };
 };
 const determineStatus = (checkInTime) => {
@@ -384,7 +386,9 @@ const determineStatus = (checkInTime) => {
 };
 const performClockIn = async (employee, notes, isManual, branchCode) => {
     const { start: todayStart, end: todayEnd } = getPhilippinesDateRange();
+    const todayStr = getPhilippinesDateString(); // Get YYYY-MM-DD format for DATE field
     console.log('[CLOCK-IN DEBUG] Philippines date range:', todayStart.toISOString(), 'to', todayEnd.toISOString());
+    console.log('[CLOCK-IN DEBUG] Philippines date string:', todayStr);
     console.log('[CLOCK-IN DEBUG] Server time:', new Date().toISOString());
     // Check if employee has an active (incomplete) shift at a different branch
     const activeShift = await prisma.attendance.findFirst({
@@ -438,7 +442,7 @@ const performClockIn = async (employee, notes, isManual, branchCode) => {
     const attendance = await prisma.attendance.create({
         data: {
             employeeId: employee.id,
-            date: todayStart,
+            date: new Date(todayStr), // Use just the date part (YYYY-MM-DD) for DATE field
             check_in: checkInTime,
             status,
             branch_code: branchCode || employee.branchCode || undefined,

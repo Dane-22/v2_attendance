@@ -1,6 +1,6 @@
 # Server Administrator's Deployment Manual
 
-Use this procedure to update **attendacev2.xandree.com** whenever new features or fixes are pushed to the repository.
+Use this procedure to update **attendacev2.xandree.com** whenever new features or FIXes are pushed to the repository.
 
 ---
 
@@ -18,11 +18,11 @@ git reset --hard origin/main
 
 # 3. Install any new dependencies
 npm install
-cd /var/www/version2_attendance/backend && npm install
-cd /var/www/version2_attendance/frontend && npm install
+cd backend && npm install
+cd frontend && npm install
 
 # 4. Update Prisma Client (if schema changed)
-cd /var/www/version2_attendance/backend
+cd backend
 npx prisma generate
 
 # 5. Build the backend
@@ -135,7 +135,7 @@ pm2 status
 ## 6. Troubleshooting Common Issues
 
 ### Issue: "Port already in use" (EADDRINUSE)
-**Fix:**
+**FIX:**
 ```bash
 # Find and kill process using the port
 sudo lsof -i :5002
@@ -144,7 +144,7 @@ pm2 restart v2_attendance-api
 ```
 
 ### Issue: "Cannot find module" errors
-**Fix:**
+**FIX:**
 ```bash
 cd /var/www/version2_attendance/backend && npm install
 cd /var/www/version2_attendance/frontend && npm install
@@ -152,21 +152,21 @@ pm2 restart all
 ```
 
 ### Issue: Frontend shows "Route not found"
-**Fix:** Check that the frontend was built with the correct API URL:
+**FIX:** Check that the frontend was built with the correct API URL:
 ```bash
 cat /var/www/version2_attendance/frontend/.env.local
 # Should show: NEXT_PUBLIC_API_URL=https://attendacev2.xandree.com/api
 ```
 
 ### Issue: 502 Bad Gateway
-**Fix:** Check if backend is running:
+**FIX:** Check if backend is running:
 ```bash
 pm2 status
 pm2 logs v2_attendance-api --lines 20
 ```
 
 ### Issue: "Authentication failed against database" (Prisma P1000)
-**Fix:** Update the database password in backend .env:
+**FIX:** Update the database password in backend .env:
 ```bash
 nano /var/www/version2_attendance/backend/.env
 # Update: DATABASE_URL="mysql://root:YOUR_PASSWORD@localhost:3306/attendance-system"
@@ -174,7 +174,7 @@ pm2 restart v2_attendance-api --update-env
 ```
 
 ### Issue: SSL Certificate Expired
-**Fix:** Renew certificate:
+**FIX:** Renew certificate:
 ```bash
 sudo certbot renew
 sudo systemctl reload nginx

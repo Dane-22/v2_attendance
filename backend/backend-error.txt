@@ -1,0 +1,35 @@
+PrismaClientValidationError: 
+Invalid `prisma.overtimeRequest.findUnique()` invocation in
+C:\wamp64\www\v2-attendance\backend\src\controllers\overtimeRequest.controller.ts:345:52
+
+  342   };
+  343 }
+  344 
+→ 345 const request = await prisma.overtimeRequest.findUnique({
+        where: {
+      +   id: Int
+        }
+      })
+
+Argument `id` is missing.
+PrismaClientValidationError: 
+Invalid `prisma.overtimeRequest.findUnique()` invocation in
+C:\wamp64\www\v2-attendance\backend\src\controllers\overtimeRequest.controller.ts:345:52
+
+  342   };
+  343 }
+  344 
+→ 345 const request = await prisma.overtimeRequest.findUnique({
+        where: {
+      +   id: Int
+        }
+      })
+
+Argument `id` is missing.
+    at wn (C:\wamp64\www\v2-attendance\backend\node_modules\@prisma\client\runtime\library.js:29:1363)
+    at $n.handleRequestError (C:\wamp64\www\v2-attendance\backend\node_modules\@prisma\client\runtime\library.js:121:6958)
+    at $n.handleAndLogRequestError (C:\wamp64\www\v2-attendance\backend\node_modules\@prisma\client\runtime\library.js:121:6623)
+    at $n.request (C:\wamp64\www\v2-attendance\backend\node_modules\@prisma\client\runtime\library.js:121:6307)
+    at l (C:\wamp64\www\v2-attendance\backend\node_modules\@prisma\client\runtime\library.js:130:9633)
+    at OvertimeRequestController.approveOvertimeRequest (C:\wamp64\www\v2-attendance\backend\src\controllers\overtimeRequest.controller.ts:345:23)
+    at C:\wamp64\www\v2-attendance\backend\src\routes\overtimeRequest.routes.ts:30:18

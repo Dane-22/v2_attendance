@@ -71,10 +71,28 @@ const getBranchEmployees = async (req, res, next) => {
         const { branchCode } = req.params;
         console.log('=== GET BRANCH EMPLOYEES ===');
         console.log('Branch code:', branchCode);
-        // Get current date in local timezone and convert to UTC midnight for comparison
-        const now = new Date();
-        const today = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
-        console.log('Today date:', today);
+        // Get Philippines date range for attendance query
+        const getPhilippinesDateString = () => {
+            const now = new Date();
+            const formatter = new Intl.DateTimeFormat('en-US', {
+                timeZone: 'Asia/Manila',
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit',
+                hour12: false
+            });
+            const parts = formatter.formatToParts(now);
+            const year = parts.find(p => p.type === 'year')?.value;
+            const month = parts.find(p => p.type === 'month')?.value;
+            const day = parts.find(p => p.type === 'day')?.value;
+            return `${year}-${month}-${day}`;
+        };
+        const todayStr = getPhilippinesDateString();
+        const [year, month, day] = todayStr.split('-').map(Number);
+        // Philippines timezone is UTC+8, so the day starts at 16:00 UTC previous day
+        const todayStart = new Date(Date.UTC(year, month - 1, day - 1, 16, 0, 0));
+        const todayEnd = new Date(Date.UTC(year, month - 1, day, 16, 0, 0));
+        console.log('Today date range (Philippines timezone):', todayStart.toISOString(), 'to', todayEnd.toISOString());
         // Get employees for this branch using exact branch_code match
         const employees = await prisma.employee.findMany({
             where: {
@@ -97,10 +115,14 @@ const getBranchEmployees = async (req, res, next) => {
         console.log('Employee IDs:', employees.map(e => e.id));
         // Get today's attendance for these employees
         const employeeIds = employees.map(e => e.id);
+        // The date field is a DATE type in MySQL, so we need to compare it as a date string
+        const todayDateStr = todayStr; // Already in YYYY-MM-DD format
         const todayAttendance = await prisma.attendance.findMany({
             where: {
                 employeeId: { in: employeeIds },
-                date: today
+                date: {
+                    equals: new Date(todayDateStr)
+                }
             },
             orderBy: { check_in: 'desc' }
         });

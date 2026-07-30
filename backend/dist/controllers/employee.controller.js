@@ -240,7 +240,7 @@ const createEmployee = async (req, res, next) => {
             // Safety check: ensure the generated code doesn't exist (in case of gaps)
             let codeExists = true;
             let safetyCounter = 0;
-            while (codeExists && safetyCounter < 100) {
+            while (codeExists && safetyCounter < 1000) {
                 const existing = await prisma.employee.findUnique({
                     where: { employeeCode }
                 });
@@ -252,6 +252,10 @@ const createEmployee = async (req, res, next) => {
                     employeeCode = `${prefix}${nextNumber.toString().padStart(4, '0')}`;
                     safetyCounter++;
                 }
+            }
+            // If we still couldn't find a unique code, throw an error
+            if (codeExists) {
+                throw new error_middleware_1.AppError('Unable to generate unique employee code. Please try again or contact support.', 500);
             }
         }
         else {
@@ -271,43 +275,59 @@ const createEmployee = async (req, res, next) => {
                 throw new error_middleware_1.AppError('Email already exists', 409);
             }
         }
-        const employee = await prisma.employee.create({
-            data: {
-                employeeCode: employeeCode,
-                firstName: data.firstName,
-                lastName: data.lastName,
-                middleName: data.middleName,
-                email: data.email,
-                department: data.department,
-                position: data.position,
-                branchName: data.branchName,
-                branchCode: data.branchCode,
-                dailyRate: data.dailyRate,
-                performanceAllowance: data.performanceAllowance,
-                hasDeductions: data.hasDeductions,
-                status: 'Active'
-            },
-            select: {
-                id: true,
-                employeeCode: true,
-                firstName: true,
-                middleName: true,
-                lastName: true,
-                email: true,
-                department: true,
-                position: true,
-                branchName: true,
-                branchCode: true,
-                status: true,
-                dailyRate: true,
-                hasDeductions: true,
-                performanceAllowance: true,
-                branchId: true,
-                profileImage: true,
-                createdAt: true,
-                updatedAt: true
+        let employee;
+        try {
+            employee = await prisma.employee.create({
+                data: {
+                    employeeCode: employeeCode,
+                    firstName: data.firstName,
+                    lastName: data.lastName,
+                    middleName: data.middleName,
+                    email: data.email,
+                    department: data.department,
+                    position: data.position,
+                    branchName: data.branchName,
+                    branchCode: data.branchCode,
+                    dailyRate: data.dailyRate,
+                    performanceAllowance: data.performanceAllowance,
+                    hasDeductions: data.hasDeductions,
+                    status: 'Active'
+                },
+                select: {
+                    id: true,
+                    employeeCode: true,
+                    firstName: true,
+                    middleName: true,
+                    lastName: true,
+                    email: true,
+                    department: true,
+                    position: true,
+                    branchName: true,
+                    branchCode: true,
+                    status: true,
+                    dailyRate: true,
+                    hasDeductions: true,
+                    performanceAllowance: true,
+                    branchId: true,
+                    profileImage: true,
+                    createdAt: true,
+                    updatedAt: true
+                }
+            });
+        }
+        catch (prismaError) {
+            if (prismaError.code === 'P2002') {
+                const target = prismaError.meta?.target;
+                if (target === 'employee_code') {
+                    throw new error_middleware_1.AppError('Employee code already exists. Please use a different code.', 409);
+                }
+                else if (target === 'email') {
+                    throw new error_middleware_1.AppError('Email already exists. Please use a different email.', 409);
+                }
+                throw new error_middleware_1.AppError('A duplicate field was detected. Please check your input.', 409);
             }
-        });
+            throw prismaError;
+        }
         // Log employee creation
         await (0, activityLogger_service_1.logCreate)({
             userId: req.admin?.id || 0,

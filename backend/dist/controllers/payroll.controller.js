@@ -1,10 +1,44 @@
 "use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.syncPayrollDeductions = exports.updatePayrollStatus = exports.processPayroll = exports.approvePayrollOvertime = exports.calculateWeeklyPayrollBatch = exports.calculatePayroll = exports.getPayrollById = exports.getMyPayroll = exports.getAllPayroll = void 0;
+exports.exportPayrollToExcel = exports.syncPayrollDeductions = exports.updatePayrollStatus = exports.processPayroll = exports.approvePayrollOvertime = exports.calculateWeeklyPayrollBatch = exports.calculatePayroll = exports.getPayrollById = exports.getMyPayroll = exports.getAllPayroll = void 0;
 const client_1 = require("@prisma/client");
 const error_middleware_1 = require("../middleware/error.middleware");
 const activityLogger_service_1 = require("../services/activityLogger.service");
 const changeDetector_1 = require("../utils/changeDetector");
+const ExcelJS = __importStar(require("exceljs"));
 const prisma = new client_1.PrismaClient();
 const SCHEDULE_CONFIGS = {
     // Engineers and Workers: 7:00 AM - 4:00 PM (8 hours)
@@ -93,9 +127,12 @@ const minutesToDayFraction = (minutes, schedule) => {
     if (minutes <= 0)
         return 0;
     const paidDayMinutes = schedule.paidDayMinutes || 480; // Default to 8 hours if not specified
+    const minimumThreshold = 30; // Minimum 30 minutes required to count any day fraction
     const quarterDay = paidDayMinutes / 4;
     const halfDay = paidDayMinutes / 2;
     const threeQuarterDay = (paidDayMinutes * 3) / 4;
+    if (minutes < minimumThreshold)
+        return 0; // Below minimum threshold, no day credit
     if (minutes <= quarterDay)
         return 0.25;
     if (minutes <= halfDay)
@@ -177,24 +214,36 @@ const buildPayrollSummary = (employee, attendanceRecords) => {
         }
         let dayPayableMinutes = 0;
         let dayOvertimeMinutesCandidate = 0;
-        if (checkInMinutes == null || checkOutMinutes == null) {
+        let effectiveCheckOutMinutes = checkOutMinutes;
+        // Handle missing check-out time by assuming standard end-of-day time
+        if (checkInMinutes != null && checkOutMinutes == null) {
+            effectiveCheckOutMinutes = schedule.end;
+            dayIssues.push({
+                code: 'INCOMPLETE_ATTENDANCE',
+                severity: 'warning',
+                message: 'Check-out time missing. Assuming standard end-of-day time for payroll calculation.',
+            });
+        }
+        else if (checkInMinutes == null) {
             dayIssues.push({
                 code: 'INCOMPLETE_ATTENDANCE',
                 severity: 'error',
-                message: 'Attendance is missing a check-in or check-out time.',
+                message: 'Attendance is missing a check-in time.',
             });
         }
-        else if (checkOutMinutes <= checkInMinutes) {
-            dayIssues.push({
-                code: 'ZERO_PAYABLE_TIME',
-                severity: 'error',
-                message: 'Attendance time range is invalid for payroll computation.',
-            });
-        }
-        else {
-            dayPayableMinutes =
-                overlapMinutes(checkInMinutes, checkOutMinutes, schedule.morningStart, schedule.lunchStart) +
-                    overlapMinutes(checkInMinutes, checkOutMinutes, schedule.lunchEnd, schedule.end);
+        if (checkInMinutes != null && effectiveCheckOutMinutes != null) {
+            if (effectiveCheckOutMinutes <= checkInMinutes) {
+                dayIssues.push({
+                    code: 'ZERO_PAYABLE_TIME',
+                    severity: 'error',
+                    message: 'Attendance time range is invalid for payroll computation.',
+                });
+            }
+            else {
+                dayPayableMinutes =
+                    overlapMinutes(checkInMinutes, effectiveCheckOutMinutes, schedule.morningStart, schedule.lunchStart) +
+                        overlapMinutes(checkInMinutes, effectiveCheckOutMinutes, schedule.lunchEnd, schedule.end);
+            }
         }
         const dayFraction = minutesToDayFraction(dayPayableMinutes, schedule);
         if (dayPayableMinutes > 0) {
@@ -440,26 +489,39 @@ const getAllPayroll = async (req, res, next) => {
             where.employeeId = employeeId;
         if (status && ['draft', 'processed'].includes(status))
             where.status = status;
-        if (weekStart || weekEnd) {
-            where.payroll_week_start = {};
-            if (weekStart)
-                where.payroll_week_start.gte = weekStart;
-            if (weekEnd)
-                where.payroll_week_start.lte = weekEnd;
+        if (weekStart) {
+            where.payroll_week_start = { gte: weekStart };
         }
-        // Add search filtering (requires employee relation)
-        if (search) {
-            where.employee = {
-                OR: [
-                    { firstName: { contains: search, mode: 'insensitive' } },
-                    { lastName: { contains: search, mode: 'insensitive' } },
-                    { employeeCode: { contains: search, mode: 'insensitive' } },
-                ]
-            };
+        if (weekEnd) {
+            where.payroll_week_end = { lte: weekEnd };
         }
         // Add branch filtering using branch_code from PayrollRecord
         if (branch) {
             where.branch_code = branch;
+        }
+        // Add search filtering by employee name or employee code
+        // Only apply search if employeeId is not already specified (to avoid conflicts)
+        let employeeIds;
+        if (search && !employeeId) {
+            const matchingEmployees = await prisma.employee.findMany({
+                where: {
+                    OR: [
+                        { firstName: { contains: search } },
+                        { middleName: { contains: search } },
+                        { lastName: { contains: search } },
+                        { employeeCode: { contains: search } },
+                    ],
+                },
+                select: { id: true },
+            });
+            employeeIds = matchingEmployees.map((e) => e.id);
+            if (employeeIds.length > 0) {
+                where.employeeId = { in: employeeIds };
+            }
+            else {
+                // If no employees match, return empty results
+                where.employeeId = -1; // Impossible ID to return no results
+            }
         }
         const [records, total] = await Promise.all([
             prisma.payrollRecord.findMany({
@@ -935,4 +997,285 @@ const syncPayrollDeductions = async (req, res, next) => {
     }
 };
 exports.syncPayrollDeductions = syncPayrollDeductions;
+const exportPayrollToExcel = async (req, res, next) => {
+    try {
+        const weekStart = req.query.weekStart ? new Date(req.query.weekStart) : undefined;
+        const weekEnd = req.query.weekEnd ? new Date(req.query.weekEnd) : undefined;
+        const status = req.query.status;
+        const branch = req.query.branch;
+        const search = req.query.search;
+        const where = {};
+        if (status && ['draft', 'processed'].includes(status))
+            where.status = status;
+        if (weekStart) {
+            where.payroll_week_start = { gte: weekStart };
+        }
+        if (weekEnd) {
+            where.payroll_week_end = { lte: weekEnd };
+        }
+        if (branch) {
+            where.branch_code = branch;
+        }
+        const records = await prisma.payrollRecord.findMany({
+            where,
+            orderBy: [
+                { payroll_week_start: 'desc' },
+                { employeeId: 'asc' },
+            ],
+        });
+        // Fetch employee data separately
+        const employeeIds = [...new Set(records.map(r => r.employeeId))];
+        const employees = await prisma.employee.findMany({
+            where: { id: { in: employeeIds } },
+        });
+        const employeeMap = new Map(employees.map(e => [e.id, e]));
+        const payrollData = records.map((record) => {
+            const employee = employeeMap.get(record.employeeId);
+            const fullName = [employee?.firstName, employee?.middleName, employee?.lastName]
+                .filter(Boolean)
+                .join(' ');
+            return {
+                employeeCode: employee?.employeeCode || '',
+                name: fullName,
+                branchName: employee?.branchName || '',
+                branchCode: employee?.branchCode || '',
+                daysWorked: record.days_worked || 0,
+                dailyRate: toNumber(record.daily_rate),
+                basicPay: toNumber(record.basic_pay),
+                overtimeHours: toNumber(record.overtimeHours),
+                overtimeAmount: toNumber(record.overtime_amount),
+                performanceAllowance: toNumber(record.performance_allowance),
+                grossPay: toNumber(record.grossPay),
+                sssContribution: toNumber(record.sss_contribution),
+                phicContribution: toNumber(record.phic_contribution),
+                hdmfContribution: toNumber(record.hdmf_contribution),
+                cashAdvance: toNumber(record.cash_advance),
+                totalDeductions: toNumber(record.total_deductions),
+                netPay: toNumber(record.netPay),
+            };
+        });
+        // Group data by branch
+        const groupedByBranch = payrollData.reduce((acc, record) => {
+            const branchKey = record.branchName || 'Unknown Branch';
+            if (!acc[branchKey]) {
+                acc[branchKey] = [];
+            }
+            acc[branchKey].push(record);
+            return acc;
+        }, {});
+        // Calculate date range for filename and headers
+        const dateRange = weekStart && weekEnd
+            ? `${weekStart.toLocaleDateString()} - ${weekEnd.toLocaleDateString()}`
+            : 'All Dates';
+        const workbook = new ExcelJS.Workbook();
+        // Create a separate sheet for each branch with unique names
+        const usedSheetNames = new Set();
+        for (const [branchName, branchData] of Object.entries(groupedByBranch)) {
+            let sheetName = branchName.substring(0, 31); // Excel sheet name max 31 chars
+            let counter = 1;
+            let worksheet;
+            // Ensure unique sheet name by adding suffix if duplicate
+            // Use try-catch to handle ExcelJS duplicate name error
+            while (true) {
+                try {
+                    worksheet = workbook.addWorksheet(sheetName);
+                    break; // Success, exit the loop
+                }
+                catch (error) {
+                    if (error.message && error.message.includes('Worksheet name already exists')) {
+                        const suffix = ` (${counter})`;
+                        // Truncate base name to accommodate suffix, ensuring total length <= 31
+                        const maxBaseLength = 31 - suffix.length;
+                        const baseName = branchName.substring(0, Math.max(0, maxBaseLength));
+                        sheetName = `${baseName}${suffix}`;
+                        counter++;
+                    }
+                    else {
+                        throw error; // Re-throw if it's a different error
+                    }
+                }
+            }
+            usedSheetNames.add(sheetName);
+            // Header section with project name and date range
+            worksheet.mergeCells('A1:P1');
+            const headerCell = worksheet.getCell('A1');
+            headerCell.value = 'JAJR Construction Payroll Export';
+            headerCell.font = { size: 16, bold: true };
+            headerCell.alignment = { horizontal: 'center' };
+            headerCell.fill = {
+                type: 'pattern',
+                pattern: 'solid',
+                fgColor: { argb: 'FF1E3A8A' },
+            };
+            // Branch name header
+            worksheet.mergeCells('A2:P2');
+            const branchCell = worksheet.getCell('A2');
+            branchCell.value = `Project/Site: ${branchName}`;
+            branchCell.font = { size: 12, bold: true };
+            branchCell.alignment = { horizontal: 'center' };
+            branchCell.fill = {
+                type: 'pattern',
+                pattern: 'solid',
+                fgColor: { argb: 'FF3B82F6' },
+            };
+            // Date range header
+            worksheet.mergeCells('A3:P3');
+            const dateCell = worksheet.getCell('A3');
+            dateCell.value = `Project Range: ${dateRange}`;
+            dateCell.font = { size: 12, bold: true };
+            dateCell.alignment = { horizontal: 'center' };
+            dateCell.fill = {
+                type: 'pattern',
+                pattern: 'solid',
+                fgColor: { argb: 'FF10B981' },
+            };
+            // Column headers
+            const headers = [
+                'Employee Code',
+                'NAME',
+                'Days Worked',
+                'Daily Rate',
+                'Basic Pay',
+                'OT Hours (Approved)',
+                'OT Amount',
+                'Performance Allowance',
+                'Gross Pay',
+                'SSS',
+                'PHIC',
+                'HDMF',
+                'CA',
+                'SSS LOAN',
+                'Total Deductions',
+                'Net Pay',
+            ];
+            const headerRow = worksheet.addRow(headers);
+            headerRow.font = { bold: true };
+            headerRow.fill = {
+                type: 'pattern',
+                pattern: 'solid',
+                fgColor: { argb: 'FFE5E7EB' },
+            };
+            // Add borders to header row
+            headerRow.eachCell((cell) => {
+                cell.border = {
+                    top: { style: 'medium' },
+                    left: { style: 'thin' },
+                    bottom: { style: 'medium' },
+                    right: { style: 'thin' }
+                };
+            });
+            // Make specific column headers bold (Performance Allowance, Gross Pay, SSS, PHIC, HDMF, CA, SSS LOAN)
+            const boldHeaderColumns = [8, 9, 10, 11, 12, 13, 14]; // 1-indexed column positions
+            boldHeaderColumns.forEach((colIndex) => {
+                const cell = headerRow.getCell(colIndex);
+                cell.font = { bold: true, color: { argb: 'FFFF0000' } };
+            });
+            // Add data rows
+            branchData.forEach((data) => {
+                const row = worksheet.addRow([
+                    data.employeeCode,
+                    data.name,
+                    data.daysWorked,
+                    data.dailyRate,
+                    data.basicPay,
+                    data.overtimeHours,
+                    data.overtimeAmount,
+                    data.performanceAllowance,
+                    data.grossPay,
+                    data.sssContribution,
+                    data.phicContribution,
+                    data.hdmfContribution,
+                    data.cashAdvance,
+                    0, // SSS LOAN - not available in current data structure
+                    data.totalDeductions,
+                    data.netPay,
+                ]);
+                // Add borders to each cell in the row
+                row.eachCell((cell, colNumber) => {
+                    cell.border = {
+                        top: { style: 'thin' },
+                        left: { style: 'thin' },
+                        bottom: { style: 'thin' },
+                        right: { style: 'thin' }
+                    };
+                });
+            });
+            // Add thick outside borders to the entire data range
+            const dataRange = `A4:P${4 + branchData.length}`;
+            const range = worksheet.getCell(dataRange);
+            // Add thick borders to left and right columns
+            for (let i = 4; i <= 4 + branchData.length; i++) {
+                worksheet.getCell(`A${i}`).border = { ...worksheet.getCell(`A${i}`).border, left: { style: 'thick' } };
+                worksheet.getCell(`P${i}`).border = { ...worksheet.getCell(`P${i}`).border, right: { style: 'thick' } };
+            }
+            // Add thick border to bottom row
+            for (let j = 1; j <= 16; j++) {
+                const colLetter = String.fromCharCode(64 + j);
+                worksheet.getCell(`${colLetter}${4 + branchData.length}`).border = {
+                    ...worksheet.getCell(`${colLetter}${4 + branchData.length}`).border,
+                    bottom: { style: 'thick' }
+                };
+            }
+            // Set column widths and enable text wrapping
+            const columnWidths = [
+                { width: 15, wrap: false }, // Employee Code
+                { width: 35, wrap: true }, // NAME
+                { width: 12, wrap: false }, // Days Worked
+                { width: 15, wrap: false }, // Daily Rate
+                { width: 18, wrap: false }, // Basic Pay
+                { width: 15, wrap: false }, // OT Hours
+                { width: 18, wrap: false }, // OT Amount
+                { width: 20, wrap: false, red: true }, // Performance Allowance
+                { width: 18, wrap: false, red: true }, // Gross Pay
+                { width: 12, wrap: false, red: true }, // SSS
+                { width: 12, wrap: false, red: true }, // PHIC
+                { width: 12, wrap: false, red: true }, // HDMF
+                { width: 12, wrap: false, red: true }, // CA
+                { width: 12, wrap: false, red: true }, // SSS LOAN
+                { width: 18, wrap: false }, // Total Deductions
+                { width: 18, wrap: false }, // Net Pay
+            ];
+            worksheet.columns.forEach((column, index) => {
+                if (columnWidths[index]) {
+                    column.width = columnWidths[index].width;
+                    // Center all content
+                    column.alignment = {
+                        horizontal: 'center',
+                        vertical: 'middle',
+                        wrapText: columnWidths[index].wrap
+                    };
+                    // Apply red font color to specified columns
+                    if (columnWidths[index].red) {
+                        column.font = { color: { argb: 'FFFF0000' } };
+                    }
+                }
+            });
+            // Format currency columns
+            const currencyColumns = [4, 5, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
+            currencyColumns.forEach((colIndex) => {
+                worksheet.getColumn(colIndex).numFmt = '#,##0.00';
+            });
+        }
+        // Generate filename
+        const filename = `payroll-export-${dateRange.replace(/\s+/g, '-')}-${new Date().toISOString().split('T')[0]}.xlsx`;
+        await (0, activityLogger_service_1.logView)({
+            userId: req.admin?.id || 0,
+            userName: req.admin?.name || 'unknown',
+            userRole: req.admin?.role || 'admin',
+            entityType: 'PAYROLL',
+            description: `Exported payroll to Excel (${records.length} records)`,
+            ipAddress: req.ip,
+            userAgent: req.headers['user-agent'],
+            metadata: { weekStart, weekEnd, status, branch, search, recordCount: records.length },
+        });
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+        const buffer = await workbook.xlsx.writeBuffer();
+        res.send(buffer);
+    }
+    catch (error) {
+        next(error);
+    }
+};
+exports.exportPayrollToExcel = exportPayrollToExcel;
 //# sourceMappingURL=payroll.controller.js.map

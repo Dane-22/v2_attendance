@@ -15,6 +15,7 @@ const fs_1 = __importDefault(require("fs"));
 const auth_routes_1 = __importDefault(require("./routes/auth.routes"));
 const employee_routes_1 = __importDefault(require("./routes/employee.routes"));
 const attendance_routes_1 = __importDefault(require("./routes/attendance.routes"));
+const attendance_geo_routes_1 = __importDefault(require("./routes/attendance-geo.routes"));
 const payroll_routes_1 = __importDefault(require("./routes/payroll.routes"));
 const qr_routes_1 = __importDefault(require("./routes/qr.routes"));
 const report_routes_1 = __importDefault(require("./routes/report.routes"));
@@ -43,7 +44,7 @@ const io = new socket_io_1.Server(httpServer, {
     cors: {
         origin: process.env.NODE_ENV === 'production'
             ? process.env.FRONTEND_URL || 'https://attendacev2.xandree.com'
-            : ['http://localhost:3000', 'http://localhost:3001'],
+            : ['http://localhost:3000', 'http://localhost:3001', 'http://192.168.0.116:3000', /^https:\/\/.*\.ngrok(-free)?\.app$/],
         credentials: true
     }
 });
@@ -99,10 +100,12 @@ io.on('connection', (socket) => {
         console.log(`WebSocket client disconnected: ${socket.id}`);
     });
 });
+// Trust proxy for nginx reverse proxy
+app.set('trust proxy', true);
 app.use((0, cors_1.default)({
     origin: process.env.NODE_ENV === 'production'
         ? process.env.FRONTEND_URL || 'https://attendacev2.xandree.com'
-        : ['http://localhost:3000', 'http://localhost:3001'],
+        : ['http://localhost:3000', 'http://localhost:3001', 'http://192.168.0.116:3000', /^https:\/\/.*\.ngrok(-free)?\.app$/],
     credentials: true
 }));
 app.use(express_1.default.json({ limit: '10mb' }));
@@ -129,6 +132,7 @@ app.get('/health', (req, res) => {
 app.use('/api/auth', auth_routes_1.default);
 app.use('/api/employees', employee_routes_1.default);
 app.use('/api/attendance', attendance_routes_1.default);
+app.use('/api/attendance', attendance_geo_routes_1.default);
 app.use('/api/payroll', payroll_routes_1.default);
 app.use('/api/qr', qr_routes_1.default);
 app.use('/api/reports', report_routes_1.default);

@@ -82,14 +82,26 @@ const getLogs = async (req, res, next) => {
         // Search query filter
         if (searchQuery) {
             const query = searchQuery.toLowerCase();
-            where.OR = [
-                { userName: { contains: query, mode: 'insensitive' } },
-                { actionType: { contains: query, mode: 'insensitive' } },
-                { entityType: { contains: query, mode: 'insensitive' } },
-                { entityName: { contains: query, mode: 'insensitive' } },
-                { description: { contains: query, mode: 'insensitive' } },
-                { status: { contains: query, mode: 'insensitive' } }
+            const queryUpper = searchQuery.toUpperCase();
+            // Build OR conditions for searchable text fields
+            const orConditions = [
+                { userName: { contains: query } },
+                { entityName: { contains: query } },
+                { description: { contains: query } }
             ];
+            // Add enum field searches with exact matching (MySQL doesn't support contains on enums)
+            if (VALID_ACTION_TYPES.includes(queryUpper)) {
+                orConditions.push({ actionType: queryUpper });
+            }
+            if (VALID_ENTITY_TYPES.includes(queryUpper)) {
+                orConditions.push({ entityType: queryUpper });
+            }
+            if (VALID_STATUSES.includes(queryUpper)) {
+                orConditions.push({ status: queryUpper });
+            }
+            if (orConditions.length > 0) {
+                where.OR = orConditions;
+            }
         }
         // Get total count
         const total = await prisma.activityLog.count({ where });

@@ -85,9 +85,11 @@ const getPayrollReport = async (req, res, next) => {
             where: {
                 payroll_week_start: {
                     gte: startDate,
-                    lte: endDate
-                }
-            }
+                },
+                payroll_week_end: {
+                    lte: endDate,
+                },
+            },
         });
         // Fetch employees separately for department filtering
         const employeeIds = [...new Set(payrollRecords.map(p => p.employeeId))];

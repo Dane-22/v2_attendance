@@ -11,7 +11,7 @@ The supplier accreditation feature adds a verification layer to the procurement 
 ```
 - id: UUID
 - name: String
-- contact: String
+- conta ct: String
 - email: String
 - phone: String
 - address: String

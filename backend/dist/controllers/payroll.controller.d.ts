@@ -9,4 +9,5 @@ export declare const approvePayrollOvertime: (req: AuthenticatedRequest, res: Re
 export declare const processPayroll: (req: AuthenticatedRequest, res: Response, next: NextFunction) => Promise<void>;
 export declare const updatePayrollStatus: (req: AuthenticatedRequest, res: Response, next: NextFunction) => Promise<void>;
 export declare const syncPayrollDeductions: (req: AuthenticatedRequest, res: Response, next: NextFunction) => Promise<void>;
+export declare const exportPayrollToExcel: (req: AuthenticatedRequest, res: Response, next: NextFunction) => Promise<void>;
 //# sourceMappingURL=payroll.controller.d.ts.map
