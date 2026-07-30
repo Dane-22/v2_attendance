@@ -49,7 +49,7 @@ export const getNotifications = async (
       recipientConditions.push({ recipient_type: 'role_branch' });
     }
 
-
+    // Auto-sync block removed to prevent duplicate notifications and performance issues
 
     // Build where clause based on filter
     let whereClause: any = {

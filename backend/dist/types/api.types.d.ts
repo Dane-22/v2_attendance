@@ -137,7 +137,19 @@ export interface OvertimeRequest {
     updatedAt: Date;
 }
 export interface CreateOvertimeRequestInput {
-    employeeName: string;
+    employeeId?: number;
+    employeeCode?: string;
+    employeeName?: string;
+    requestDate: string;
+    startTime: string;
+    endTime: string;
+    requestedHours?: number;
+    reason: string;
+}
+export interface CreateBatchOvertimeInput {
+    employeeIds?: number[];
+    employeeCodes?: string[];
+    employeeNames?: string[];
     requestDate: string;
     startTime: string;
     endTime: string;

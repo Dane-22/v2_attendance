@@ -340,6 +340,13 @@ export class OvertimeRequestController {
     data: ReviewOvertimeRequestInput
   ): Promise<ApiResponse> {
     try {
+      if (!id || isNaN(id)) {
+        return {
+          success: false,
+          message: 'Invalid overtime request ID provided'
+        };
+      }
+
       const adminId = req.admin?.id;
       if (!adminId) {
         return {
@@ -446,6 +453,13 @@ export class OvertimeRequestController {
     data: ReviewOvertimeRequestInput
   ): Promise<ApiResponse> {
     try {
+      if (!id || isNaN(id)) {
+        return {
+          success: false,
+          message: 'Invalid overtime request ID provided'
+        };
+      }
+
       const adminId = req.admin?.id;
       if (!adminId) {
         return {
