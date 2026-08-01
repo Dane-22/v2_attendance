@@ -6,6 +6,7 @@ import { ApiResponse, PaginatedResponse, AttendanceResponse } from '../types/api
 import { decodeQRCodeData, extractEmployeeCode } from '../services/qr.service';
 import { logScan, logCreate, logUpdate, logError } from '../services/activityLogger.service';
 import { emitAttendanceUpdate, emitStatsUpdate } from '../routes/websocket.routes';
+import { SiteAllocationService } from '../services/siteAllocation.service';
 
 const prisma = new PrismaClient();
 const RECENT_SCAN_WINDOW_MS = 3000;
@@ -223,6 +224,18 @@ export const clock = async (
       const checkInTime = new Date();
       const status = determineStatus(checkInTime);
       const resolvedBranchCode = await resolveAttendanceBranchCode(employee, adminBranchCode);
+
+      // --- SITE ALLOCATION INTEGRATION ---
+      const isAllocated = await SiteAllocationService.verifyWorkerAllocation(
+        employee.id, 
+        resolvedBranchCode, 
+        getPhilippinesDateString()
+      );
+
+      if (!isAllocated) {
+        throw new AppError('Employee is not allocated to this site for today.', 403);
+      }
+      // -----------------------------------
 
       const nowMs = Date.now();
       const lastScanMs = recentScansByEmployee.get(employee.id);
