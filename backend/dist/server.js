@@ -146,6 +146,8 @@ app.use('/api/tasks', task_routes_1.default);
 app.use('/api/backup', backup_routes_1.default);
 app.use('/api/settings', settings_routes_1.default);
 app.use('/api/overtime-requests', overtimeRequest_routes_1.default);
+const webhook_routes_1 = __importDefault(require("./routes/webhook.routes"));
+app.use('/api/webhooks', webhook_routes_1.default);
 app.use(error_middleware_1.errorHandler);
 app.use((req, res) => {
     res.status(404).json({

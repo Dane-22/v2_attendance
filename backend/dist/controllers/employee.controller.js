@@ -8,6 +8,7 @@ const client_1 = require("@prisma/client");
 const error_middleware_1 = require("../middleware/error.middleware");
 const activityLogger_service_1 = require("../services/activityLogger.service");
 const changeDetector_1 = require("../utils/changeDetector");
+const siteAllocation_service_1 = require("../services/siteAllocation.service");
 const multer_1 = __importDefault(require("multer"));
 const path_1 = __importDefault(require("path"));
 const fs_1 = __importDefault(require("fs"));
@@ -342,6 +343,7 @@ const createEmployee = async (req, res, next) => {
             userAgent: req.headers['user-agent'],
             branchId: employee.branchId || undefined,
         });
+        // Sync to site allocation system is no longer needed; drag&drop reads directly from DB
         const response = {
             success: true,
             message: 'Employee created successfully',
@@ -416,6 +418,7 @@ const updateEmployee = async (req, res, next) => {
             userAgent: req.headers['user-agent'],
             branchId: employee.branchId || undefined,
         });
+        // Sync to site allocation system is no longer needed; drag&drop reads directly from DB
         const response = {
             success: true,
             message: 'Employee updated successfully',
@@ -659,6 +662,11 @@ const transferEmployee = async (req, res, next) => {
             userAgent: req.headers['user-agent'],
             branchId: employee.branchId || undefined,
             metadata: { previousBranch, newBranch: branchCode, reason }
+        });
+        // Sync to Drag & Drop Allocation system
+        const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Manila' }); // YYYY-MM-DD
+        await siteAllocation_service_1.SiteAllocationService.syncWorkerTransfer(id, branchCode, todayStr).catch(err => {
+            console.error(`[Transfer] Failed to sync worker transfer to allocation system:`, err);
         });
         const response = {
             success: true,

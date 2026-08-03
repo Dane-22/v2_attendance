@@ -6,6 +6,7 @@ const error_middleware_1 = require("../middleware/error.middleware");
 const qr_service_1 = require("../services/qr.service");
 const activityLogger_service_1 = require("../services/activityLogger.service");
 const websocket_routes_1 = require("../routes/websocket.routes");
+const siteAllocation_service_1 = require("../services/siteAllocation.service");
 const prisma = new client_1.PrismaClient();
 const RECENT_SCAN_WINDOW_MS = 3000;
 const recentScansByEmployee = new Map();
@@ -41,20 +42,23 @@ const getPhilippinesDateRangeForDate = (dateStr) => {
     };
 };
 const resolveAttendanceBranchCode = async (employee, adminBranchCode) => {
-    if (adminBranchCode)
-        return adminBranchCode;
-    if (employee.branchCode)
-        return employee.branchCode;
-    if (employee.branchId) {
+    let assignedBranchCode = employee.branchCode;
+    if (!assignedBranchCode && employee.branchId) {
         const employeeBranch = await prisma.branches.findUnique({
             where: { id: employee.branchId },
             select: { branch_code: true }
         });
         if (employeeBranch?.branch_code) {
-            return employeeBranch.branch_code;
+            assignedBranchCode = employeeBranch.branch_code;
         }
     }
-    throw new error_middleware_1.AppError('Unable to resolve branch code for attendance record', 422);
+    if (!assignedBranchCode) {
+        throw new error_middleware_1.AppError('You are not assigned to any site. Report it to your engineer.', 403);
+    }
+    if (adminBranchCode && adminBranchCode !== assignedBranchCode) {
+        throw new error_middleware_1.AppError('You are scanning at the wrong site. Report it to your engineer.', 403);
+    }
+    return assignedBranchCode;
 };
 // Unified clock endpoint - uses raw SQL to bypass Prisma @db.Date timezone bugs
 const clock = async (req, res, next) => {
@@ -189,6 +193,18 @@ const clock = async (req, res, next) => {
             const checkInTime = new Date();
             const status = determineStatus(checkInTime);
             const resolvedBranchCode = await resolveAttendanceBranchCode(employee, adminBranchCode);
+            // --- SITE ALLOCATION INTEGRATION ---
+            // If the employee is clocking in at their current branch, verify allocation.
+            // If they are clocking in at a NEW branch (needsTransfer), bypass this check
+            // because we will auto-transfer them and allocate them to the new site.
+            const needsTransfer = employee.branchCode !== resolvedBranchCode;
+            if (!needsTransfer) {
+                const isAllocated = await siteAllocation_service_1.SiteAllocationService.verifyWorkerAllocation(employee.id, resolvedBranchCode, getPhilippinesDateString());
+                if (!isAllocated) {
+                    throw new error_middleware_1.AppError('Employee is not allocated to this site for today.', 403);
+                }
+            }
+            // -----------------------------------
             const nowMs = Date.now();
             const lastScanMs = recentScansByEmployee.get(employee.id);
             if (lastScanMs && nowMs - lastScanMs < RECENT_SCAN_WINDOW_MS) {
@@ -206,7 +222,7 @@ const clock = async (req, res, next) => {
             }
             recentScansByEmployee.set(employee.id, nowMs);
             // Check if employee needs to be transferred (different branch)
-            const needsTransfer = employee.branchCode !== resolvedBranchCode;
+            // needsTransfer already declared above
             let previousBranch = null;
             let transferResult = null;
             if (needsTransfer && adminBranchCode) {
@@ -267,6 +283,16 @@ const clock = async (req, res, next) => {
                     userAgent: req.headers['user-agent'],
                     metadata: { method: 'qr_scan_auto_transfer', employeeId: employee.id, previousBranch, newBranch: adminBranchCode }
                 });
+                const todayStr = getPhilippinesDateString();
+                // Sync transfer with Drag & Drop Site Allocation
+                try {
+                    await siteAllocation_service_1.SiteAllocationService.syncWorkerTransfer(employee.id, adminBranchCode, todayStr);
+                    console.log(`[CLOCK] Successfully synced transfer for employee ${employee.id} to Drag&Drop`);
+                }
+                catch (error) {
+                    console.error(`[CLOCK] Failed to sync transfer for employee ${employee.id}:`, error);
+                    // Non-blocking error, we still proceed with the local transfer
+                }
                 console.log('[CLOCK] Clock IN with TRANSFER successful for employee:', employee.id, 'transferred from', previousBranch, 'to', adminBranchCode);
             }
             else {
@@ -384,7 +410,7 @@ const determineStatus = (checkInTime) => {
     }
     return 'present';
 };
-const performClockIn = async (employee, notes, isManual, branchCode) => {
+const performClockIn = async (employee, notes, isManual, branchCode, skipAllocationCheck = false) => {
     const { start: todayStart, end: todayEnd } = getPhilippinesDateRange();
     const todayStr = getPhilippinesDateString(); // Get YYYY-MM-DD format for DATE field
     console.log('[CLOCK-IN DEBUG] Philippines date range:', todayStart.toISOString(), 'to', todayEnd.toISOString());
@@ -410,6 +436,15 @@ const performClockIn = async (employee, notes, isManual, branchCode) => {
     }
     const checkInTime = new Date();
     const status = determineStatus(checkInTime);
+    const resolvedBranchCode = branchCode || employee.branchCode || employee.branchName || '';
+    // --- SITE ALLOCATION INTEGRATION ---
+    if (!skipAllocationCheck) {
+        const isAllocated = await siteAllocation_service_1.SiteAllocationService.verifyWorkerAllocation(employee.id, resolvedBranchCode, todayStr);
+        if (!isAllocated) {
+            throw new error_middleware_1.AppError(`Employee is not allocated to this site (${resolvedBranchCode}) for today.`, 403);
+        }
+    }
+    // -----------------------------------
     // Check if employee has an existing absent row for today (auto-marked absent)
     const absentRecord = await prisma.attendance.findFirst({
         where: {
@@ -713,7 +748,7 @@ const manualClockInWithTransfer = async (req, res, next) => {
         const previousBranchName = employee.branchName;
         const result = await prisma.$transaction(async (tx) => {
             // Create attendance record
-            const { attendance } = await performClockIn(employee, notes, true, branch_code);
+            const { attendance } = await performClockIn(employee, notes, true, branch_code, true);
             // Update employee branch
             const updatedEmployee = await tx.employee.update({
                 where: { id: employeeId },
@@ -800,6 +835,9 @@ const manualClockInWithTransfer = async (req, res, next) => {
                 });
             }
         }
+        // Synchronize transfer to drag & drop allocation system
+        const todayStr = new Date().toISOString().split('T')[0];
+        await siteAllocation_service_1.SiteAllocationService.syncWorkerTransfer(employee.id, branch_code, todayStr);
         const response = {
             success: true,
             message: 'Clock-in and transfer successful',

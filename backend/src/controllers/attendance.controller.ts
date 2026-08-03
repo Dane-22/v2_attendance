@@ -232,14 +232,21 @@ export const clock = async (
       const resolvedBranchCode = await resolveAttendanceBranchCode(employee, adminBranchCode);
 
       // --- SITE ALLOCATION INTEGRATION ---
-      const isAllocated = await SiteAllocationService.verifyWorkerAllocation(
-        employee.id, 
-        resolvedBranchCode, 
-        getPhilippinesDateString()
-      );
+      // If the employee is clocking in at their current branch, verify allocation.
+      // If they are clocking in at a NEW branch (needsTransfer), bypass this check
+      // because we will auto-transfer them and allocate them to the new site.
+      const needsTransfer = employee.branchCode !== resolvedBranchCode;
+      
+      if (!needsTransfer) {
+        const isAllocated = await SiteAllocationService.verifyWorkerAllocation(
+          employee.id, 
+          resolvedBranchCode, 
+          getPhilippinesDateString()
+        );
 
-      if (!isAllocated) {
-        throw new AppError('Employee is not allocated to this site for today.', 403);
+        if (!isAllocated) {
+          throw new AppError('Employee is not allocated to this site for today.', 403);
+        }
       }
       // -----------------------------------
 
@@ -261,7 +268,7 @@ export const clock = async (
       recentScansByEmployee.set(employee.id, nowMs);
 
       // Check if employee needs to be transferred (different branch)
-      const needsTransfer = employee.branchCode !== resolvedBranchCode;
+      // needsTransfer already declared above
       let previousBranch: string | null = null;
       let transferResult: { attendance: any; updatedEmployee: any } | null = null;
 
@@ -330,6 +337,21 @@ export const clock = async (
           userAgent: req.headers['user-agent'],
           metadata: { method: 'qr_scan_auto_transfer', employeeId: employee.id, previousBranch, newBranch: adminBranchCode }
         });
+
+        const todayStr = getPhilippinesDateString();
+        
+        // Sync transfer with Drag & Drop Site Allocation
+        try {
+          await SiteAllocationService.syncWorkerTransfer(
+            employee.id,
+            adminBranchCode,
+            todayStr
+          );
+          console.log(`[CLOCK] Successfully synced transfer for employee ${employee.id} to Drag&Drop`);
+        } catch (error) {
+          console.error(`[CLOCK] Failed to sync transfer for employee ${employee.id}:`, error);
+          // Non-blocking error, we still proceed with the local transfer
+        }
 
         console.log('[CLOCK] Clock IN with TRANSFER successful for employee:', employee.id, 'transferred from', previousBranch, 'to', adminBranchCode);
       } else {
