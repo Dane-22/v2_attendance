@@ -61,6 +61,7 @@ export default function OvertimeRequestModal({
   const [requestedHours, setRequestedHours] = useState<number>(2);
   const [reason, setReason] = useState<string>('');
   const [isCustomHoursOverride, setIsCustomHoursOverride] = useState(false);
+  const isSubmittingRef = useRef(false);
 
   // Status & Error state
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -267,11 +268,13 @@ export default function OvertimeRequestModal({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmittingRef.current) return;
     setSubmitSuccess(null);
     setSubmitError(null);
 
     if (!validateForm()) return;
 
+    isSubmittingRef.current = true;
     setIsSubmitting(true);
     try {
       const employeeIds = selectedEmployees.map((e) => e.id).filter(Boolean) as number[];
@@ -320,6 +323,7 @@ export default function OvertimeRequestModal({
       console.error('Submit overtime error:', err);
       setSubmitError(err.response?.data?.message || 'Failed to submit overtime request. Please try again.');
     } finally {
+      isSubmittingRef.current = false;
       setIsSubmitting(false);
     }
   };

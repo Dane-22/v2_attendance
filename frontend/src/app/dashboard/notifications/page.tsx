@@ -102,7 +102,7 @@ export default function NotificationsPage() {
   const pagination = notificationsData?.data?.data?.pagination;
 
   // Filter notifications by local search query
-  const notifications = rawNotifications.filter((n: Notification) => {
+  let notifications = rawNotifications.filter((n: Notification) => {
     if (!searchQuery.trim()) return true;
     const q = searchQuery.toLowerCase();
     return (
@@ -110,6 +110,15 @@ export default function NotificationsPage() {
       (n.message && n.message.toLowerCase().includes(q)) ||
       (n.type && n.type.toLowerCase().includes(q))
     );
+  });
+
+  // Deduplicate notifications based on title and message to fix UI duplication
+  const seenNotifs = new Set();
+  notifications = notifications.filter((n: Notification) => {
+    const key = `${n.title}-${n.message}`;
+    if (seenNotifs.has(key)) return false;
+    seenNotifs.add(key);
+    return true;
   });
 
   // Toast auto-clear timer
