@@ -167,6 +167,9 @@ app.use('/api/backup', backupRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/overtime-requests', overtimeRequestRoutes);
 
+import webhookRoutes from './routes/webhook.routes';
+app.use('/api/webhooks', webhookRoutes);
+
 app.use(errorHandler);
 
 app.use((req, res) => {

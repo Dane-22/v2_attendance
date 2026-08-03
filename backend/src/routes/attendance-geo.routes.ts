@@ -4,6 +4,7 @@ import { PrismaClient } from '@prisma/client';
 import { decodeQRCodeData, extractEmployeeCode } from '../services/qr.service';
 import { AppError } from '../middleware/error.middleware';
 import { AuthenticatedRequest } from '../middleware/auth.middleware';
+import { SiteAllocationService } from '../services/siteAllocation.service';
 
 const prisma = new PrismaClient();
 const router = Router();
@@ -48,21 +49,27 @@ const determineStatus = (checkInTime: Date): AttendanceStatus => {
 };
 
 const resolveAttendanceBranchCode = async (employee: { branchCode: string | null; branchId: number | null }, adminBranchCode?: string | null): Promise<string> => {
-  if (adminBranchCode) return adminBranchCode;
-  if (employee.branchCode) return employee.branchCode;
+  let assignedBranchCode = employee.branchCode;
 
-  if (employee.branchId) {
+  if (!assignedBranchCode && employee.branchId) {
     const employeeBranch = await prisma.branches.findUnique({
       where: { id: employee.branchId },
       select: { branch_code: true }
     });
-
     if (employeeBranch?.branch_code) {
-      return employeeBranch.branch_code;
+      assignedBranchCode = employeeBranch.branch_code;
     }
   }
 
-  throw new AppError('Unable to resolve branch code for attendance record', 422);
+  if (!assignedBranchCode) {
+    throw new AppError('You are not assigned to any site. Report it to your engineer.', 403);
+  }
+
+  if (adminBranchCode && adminBranchCode !== assignedBranchCode) {
+    throw new AppError('You are scanning at the wrong site. Report it to your engineer.', 403);
+  }
+
+  return assignedBranchCode;
 };
 
 // Test clock endpoint without geolocation validation
@@ -168,8 +175,19 @@ export const clockGeo = async (
       // No active clock-in → CLOCK IN
       const checkInTime = new Date();
       const status = determineStatus(checkInTime);
-
       const todayStr = getPhilippinesDateString();
+
+      // --- SITE ALLOCATION INTEGRATION ---
+      const isAllocated = await SiteAllocationService.verifyWorkerAllocation(
+        employee.id, 
+        resolvedBranchCode, 
+        todayStr
+      );
+
+      if (!isAllocated) {
+        throw new AppError('Employee is not allocated to this site for today.', 403);
+      }
+      // -----------------------------------
 
       // Insert attendance record
       const newRecord = await prisma.attendance.create({

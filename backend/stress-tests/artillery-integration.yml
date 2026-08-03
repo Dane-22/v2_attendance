@@ -1,0 +1,21 @@
+config:
+  target: "http://localhost:5000"
+  phases:
+    - duration: 10
+      arrivalRate: 5
+      name: "Warm up phase"
+    - duration: 20
+      arrivalRate: 20
+      name: "Sustained load"
+scenarios:
+  - name: "Clock In (Geo) - Trigger Integration"
+    flow:
+      - post:
+          url: "/api/attendance/clock"
+          json:
+            qrCodeData: "W0001"
+          capture:
+            - json: "$.success"
+              as: "success"
+          expect:
+            - statusCode: [200, 201, 403, 409]

@@ -327,19 +327,9 @@ export default function AttendancePage() {
     onSuccess: async (data) => {
       // Store previous branch for undo
       setPreviousBranchForUndo(data.data?.data?.previousBranch || null);
-      // Log transfer action
-      try {
-        await logsApi.create({
-          actionType: 'UPDATE',
-          entityType: 'EMPLOYEE',
-          entityId: selectedEmployeeForTransfer?.id.toString() || '',
-          entityName: selectedEmployeeForTransfer?.name || '',
-          description: `Transferred employee ${selectedEmployeeForTransfer?.name} from ${data.data?.data?.previousBranch} to ${data.data?.data?.employee.branchCode}`,
-          status: 'SUCCESS'
-        });
-      } catch (logError) {
-        console.error('Failed to log transfer:', logError);
-      }
+      
+      // Backend automatically handles the logging for this transfer
+      
       // Show success notification
       alert(`Employee ${selectedEmployeeForTransfer?.name} transferred successfully`);
       // Refresh employees and attendance data

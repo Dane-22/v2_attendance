@@ -5,6 +5,7 @@ import { AuthenticatedRequest } from '../middleware/auth.middleware';
 import { ApiResponse, PaginatedResponse, CreateEmployeeRequest, UpdateEmployeeRequest } from '../types/api.types';
 import { logCreate, logUpdate, logDelete, logError } from '../services/activityLogger.service';
 import { detectChanges } from '../utils/changeDetector';
+import { SiteAllocationService } from '../services/siteAllocation.service';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
@@ -375,6 +376,8 @@ export const createEmployee = async (
       branchId: employee.branchId || undefined,
     });
 
+    // Sync to site allocation system is no longer needed; drag&drop reads directly from DB
+
     const response: ApiResponse<typeof employee> = {
       success: true,
       message: 'Employee created successfully',
@@ -461,6 +464,8 @@ export const updateEmployee = async (
       userAgent: req.headers['user-agent'],
       branchId: employee.branchId || undefined,
     });
+
+    // Sync to site allocation system is no longer needed; drag&drop reads directly from DB
 
     const response: ApiResponse<typeof employee> = {
       success: true,
@@ -752,6 +757,12 @@ export const transferEmployee = async (
       userAgent: req.headers['user-agent'],
       branchId: employee.branchId || undefined,
       metadata: { previousBranch, newBranch: branchCode, reason }
+    });
+
+    // Sync to Drag & Drop Allocation system
+    const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Manila' }); // YYYY-MM-DD
+    await SiteAllocationService.syncWorkerTransfer(id, branchCode, todayStr).catch(err => {
+      console.error(`[Transfer] Failed to sync worker transfer to allocation system:`, err);
     });
 
     const response: ApiResponse<{ employee: typeof updatedEmployee; previousBranch: string | null }> = {

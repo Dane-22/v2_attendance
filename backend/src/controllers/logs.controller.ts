@@ -207,9 +207,9 @@ export const createLog = async (
     const log = await prisma.activityLog.create({
       data: {
         id: logId,
-        userId: parseInt(userId),
-        userName: userName || 'unknown',
-        userRole,
+        userId: userId ? parseInt(userId) : (req.admin?.id || null),
+        userName: userName || req.admin?.name || 'unknown',
+        userRole: userRole || req.admin?.role || 'unknown',
         actionType,
         entityType,
         entityId,

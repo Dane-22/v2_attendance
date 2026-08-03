@@ -48,21 +48,27 @@ const getPhilippinesDateRangeForDate = (dateStr: string): { start: Date; end: Da
 };
 
 const resolveAttendanceBranchCode = async (employee: { branchCode: string | null; branchId: number | null }, adminBranchCode?: string | null): Promise<string> => {
-  if (adminBranchCode) return adminBranchCode;
-  if (employee.branchCode) return employee.branchCode;
+  let assignedBranchCode = employee.branchCode;
 
-  if (employee.branchId) {
+  if (!assignedBranchCode && employee.branchId) {
     const employeeBranch = await prisma.branches.findUnique({
       where: { id: employee.branchId },
       select: { branch_code: true }
     });
-
     if (employeeBranch?.branch_code) {
-      return employeeBranch.branch_code;
+      assignedBranchCode = employeeBranch.branch_code;
     }
   }
 
-  throw new AppError('Unable to resolve branch code for attendance record', 422);
+  if (!assignedBranchCode) {
+    throw new AppError('You are not assigned to any site. Report it to your engineer.', 403);
+  }
+
+  if (adminBranchCode && adminBranchCode !== assignedBranchCode) {
+    throw new AppError('You are scanning at the wrong site. Report it to your engineer.', 403);
+  }
+
+  return assignedBranchCode;
 };
 
 // Unified clock endpoint - uses raw SQL to bypass Prisma @db.Date timezone bugs
@@ -456,7 +462,8 @@ const performClockIn = async (
   employee: { id: number; branchName: string | null; branchCode?: string | null; status: string | null },
   notes: string | undefined,
   isManual: boolean,
-  branchCode?: string
+  branchCode?: string,
+  skipAllocationCheck: boolean = false
 ): Promise<{ attendance: Attendance; message: string }> => {
   const { start: todayStart, end: todayEnd } = getPhilippinesDateRange();
   const todayStr = getPhilippinesDateString(); // Get YYYY-MM-DD format for DATE field
@@ -490,6 +497,21 @@ const performClockIn = async (
 
   const checkInTime = new Date();
   const status = determineStatus(checkInTime);
+  const resolvedBranchCode = branchCode || employee.branchCode || employee.branchName || '';
+
+  // --- SITE ALLOCATION INTEGRATION ---
+  if (!skipAllocationCheck) {
+    const isAllocated = await SiteAllocationService.verifyWorkerAllocation(
+      employee.id, 
+      resolvedBranchCode, 
+      todayStr
+    );
+
+    if (!isAllocated) {
+      throw new AppError(`Employee is not allocated to this site (${resolvedBranchCode}) for today.`, 403);
+    }
+  }
+  // -----------------------------------
 
   // Check if employee has an existing absent row for today (auto-marked absent)
   const absentRecord = await prisma.attendance.findFirst({
@@ -860,7 +882,7 @@ export const manualClockInWithTransfer = async (
 
     const result = await prisma.$transaction(async (tx) => {
       // Create attendance record
-      const { attendance } = await performClockIn(employee, notes, true, branch_code);
+      const { attendance } = await performClockIn(employee, notes, true, branch_code, true);
 
       // Update employee branch
       const updatedEmployee = await tx.employee.update({
@@ -953,6 +975,10 @@ export const manualClockInWithTransfer = async (
         });
       }
     }
+
+    // Synchronize transfer to drag & drop allocation system
+    const todayStr = new Date().toISOString().split('T')[0];
+    await SiteAllocationService.syncWorkerTransfer(employee.id, branch_code, todayStr);
 
     const response: ApiResponse<{ attendance: AttendanceResponse; employee: any; previousBranch: string | null }> = {
       success: true,
