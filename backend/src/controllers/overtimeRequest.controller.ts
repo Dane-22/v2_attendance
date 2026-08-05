@@ -179,7 +179,7 @@ export class OvertimeRequestController {
             recipient_id: admin.id,
             type: 'OVERTIME_REQUEST',
             title: 'New Overtime Request',
-            message: `Overtime request submitted for ${employee.firstName} ${employee.lastName} on ${data.requestDate}`,
+            message: `Overtime request submitted for ${employee.firstName} ${employee.lastName} on ${data.requestDate}.\nHours: ${requestedHours}\nReason: ${data.reason}`,
             link: `/dashboard/notifications?overtimeRequestId=${overtimeRequest.id}`
           }
         })
@@ -657,7 +657,7 @@ export class OvertimeRequestController {
             recipient_id: admin.id,
             type: 'OVERTIME_REQUEST',
             title: 'Batch Overtime Request Submitted',
-            message: `Submitted batch overtime request for ${createdRequests.length} employee(s) on ${reqDateObj.toDateString()}`,
+            message: `Submitted batch overtime request for ${createdRequests.length} employee(s) on ${reqDateObj.toDateString()}.\nHours: ${requestedHours}\nReason: ${data.reason || 'Branch Overtime Request'}`,
             link: `/dashboard/overtime-approval`
           }
         })

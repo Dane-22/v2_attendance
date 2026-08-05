@@ -443,7 +443,7 @@ export default function NotificationsPage() {
                           )}
                         </div>
 
-                        <p className="text-sm text-gray-300 leading-relaxed mb-2.5">
+                        <p className="text-sm text-gray-300 leading-relaxed mb-2.5 whitespace-pre-line">
                           {notification.message}
                         </p>
 
